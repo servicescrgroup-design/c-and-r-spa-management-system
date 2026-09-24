@@ -32,7 +32,7 @@ export default async function CheckoutPage({
   }
 
   const supabase = await createServerSupabaseClient();
-  const [{ data: services }, { data: products }] = await Promise.all([
+  const [{ data: services }, { data: products }, { data: packages }, { data: customers }] = await Promise.all([
     supabase
       .from("services")
       .select("id, name, default_price_cents")
@@ -43,6 +43,16 @@ export default async function CheckoutPage({
       .select("id, name, retail_price_cents")
       .eq("is_active", true)
       .order("name"),
+    supabase
+      .from("packages")
+      .select("id, name, price_cents")
+      .eq("is_active", true)
+      .order("name"),
+    supabase
+      .from("customers")
+      .select("id, first_name, last_name, email")
+      .order("created_at", { ascending: false })
+      .limit(50),
   ]);
 
   const branchName = branches.find((b) => b.id === activeBranchId)?.name ?? "";
@@ -54,6 +64,8 @@ export default async function CheckoutPage({
       drawerSessionId={drawer.id}
       services={services ?? []}
       products={products ?? []}
+      packages={packages ?? []}
+      customers={customers ?? []}
     />
   );
 }

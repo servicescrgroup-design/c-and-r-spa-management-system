@@ -2383,6 +2383,16 @@ export type Database = {
           staff_id: string
         }[]
       }
+      issue_gift_card: {
+        Args: {
+          p_amount_cents: number
+          p_branch_id: string
+          p_customer_id: string
+          p_drawer_session_id: string
+          p_payment_method: Database["public"]["Enums"]["pos_payment_method"]
+        }
+        Returns: string
+      }
       post_pos_refund: {
         Args: { p_refund_transaction_id: string }
         Returns: undefined

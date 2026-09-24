@@ -81,7 +81,7 @@ export async function closeDrawer(formData: FormData): Promise<ActionResult> {
 }
 
 export type CartItem = {
-  itemType: "service" | "product";
+  itemType: "service" | "product" | "package";
   referenceId: string;
   description: string;
   staffId: string | null;
@@ -100,6 +100,10 @@ export async function checkoutSale(input: {
   const ctx = await requireStaffContext();
   if (input.items.length === 0) {
     return { ok: false, error: "Add at least one item to the sale." };
+  }
+  const hasPackage = input.items.some((i) => i.itemType === "package");
+  if (hasPackage && !input.customerId) {
+    return { ok: false, error: "A customer is required to sell a package." };
   }
 
   const register = await getOrCreateRegister(input.branchId);
@@ -144,6 +148,14 @@ export async function checkoutSale(input: {
   );
   if (itemsError) return { ok: false, error: itemsError.message };
 
+  for (const item of input.items) {
+    if (item.itemType !== "package") continue;
+    for (let i = 0; i < item.quantity; i++) {
+      const grantError = await grantPackageToCustomer(item.referenceId, input.customerId!, input.branchId, txn.id);
+      if (grantError) return { ok: false, error: grantError };
+    }
+  }
+
   const { error: paymentError } = await supabase.from("pos_payments").insert({
     transaction_id: txn.id,
     method: "cash",
@@ -158,4 +170,74 @@ export async function checkoutSale(input: {
 
   revalidatePath("/pos/checkout");
   return { ok: true, transactionId: txn.id };
+}
+
+/** Creates the customer_packages row and its per-service unit balances from the package definition. */
+async function grantPackageToCustomer(
+  packageId: string,
+  customerId: string,
+  branchId: string,
+  transactionId: string,
+): Promise<string | null> {
+  const supabase = await createServerSupabaseClient();
+
+  const { data: pkg } = await supabase
+    .from("packages")
+    .select("validity_days, package_items(service_id, quantity)")
+    .eq("id", packageId)
+    .single();
+  if (!pkg) return "Package not found.";
+
+  const expiresAt = pkg.validity_days
+    ? new Date(Date.now() + pkg.validity_days * 86_400_000).toISOString()
+    : null;
+
+  const { data: customerPackage, error } = await supabase
+    .from("customer_packages")
+    .insert({
+      customer_id: customerId,
+      package_id: packageId,
+      purchased_branch_id: branchId,
+      expires_at: expiresAt,
+      source_transaction_id: transactionId,
+    })
+    .select("id")
+    .single();
+  if (error || !customerPackage) return error?.message ?? "Could not create package.";
+
+  const { error: unitsError } = await supabase.from("customer_package_units").insert(
+    (pkg.package_items ?? []).map((pi) => ({
+      customer_package_id: customerPackage.id,
+      service_id: pi.service_id,
+      quantity_total: pi.quantity,
+    })),
+  );
+  if (unitsError) return unitsError.message;
+
+  return null;
+}
+
+export async function issueGiftCard(input: {
+  branchId: string;
+  drawerSessionId: string;
+  amountCents: number;
+  customerId: string | null;
+}): Promise<ActionResult & { code?: string }> {
+  await requireStaffContext();
+  if (input.amountCents <= 0) return { ok: false, error: "Amount must be greater than zero." };
+
+  const supabase = await createServerSupabaseClient();
+  const { data: giftCardId, error } = await supabase.rpc("issue_gift_card", {
+    p_branch_id: input.branchId,
+    p_drawer_session_id: input.drawerSessionId,
+    p_amount_cents: input.amountCents,
+    p_customer_id: input.customerId as unknown as string,
+    p_payment_method: "cash",
+  });
+  if (error) return { ok: false, error: error.message };
+
+  const { data: card } = await supabase.from("gift_cards").select("code").eq("id", giftCardId!).single();
+
+  revalidatePath("/pos/checkout");
+  return { ok: true, code: card?.code };
 }
