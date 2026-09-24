@@ -25,6 +25,7 @@ export async function findAvailableSlots(input: {
 export async function submitBooking(input: {
   branchId: string;
   serviceIds: string[];
+  durations: number[];
   startAt: string;
   firstName: string;
   lastName: string;
@@ -45,6 +46,7 @@ export async function submitBooking(input: {
     p_last_name: input.lastName,
     p_email: input.email,
     p_phone: input.phone,
+    p_durations: input.durations,
   });
 
   if (error) return { ok: false, error: error.message };

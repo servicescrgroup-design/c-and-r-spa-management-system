@@ -1532,6 +1532,7 @@ export type Database = {
         Row: {
           appointment_id: string | null
           branch_id: string
+          card_fee_cents: number
           created_at: string
           customer_id: string | null
           discount_cents: number
@@ -1550,6 +1551,7 @@ export type Database = {
         Insert: {
           appointment_id?: string | null
           branch_id: string
+          card_fee_cents?: number
           created_at?: string
           customer_id?: string | null
           discount_cents?: number
@@ -1568,6 +1570,7 @@ export type Database = {
         Update: {
           appointment_id?: string | null
           branch_id?: string
+          card_fee_cents?: number
           created_at?: string
           customer_id?: string | null
           discount_cents?: number
@@ -1754,16 +1757,50 @@ export type Database = {
           },
         ]
       }
+      service_price_options: {
+        Row: {
+          duration_minutes: number
+          id: string
+          price_cents: number
+          service_id: string
+          sort_order: number
+        }
+        Insert: {
+          duration_minutes: number
+          id?: string
+          price_cents: number
+          service_id: string
+          sort_order?: number
+        }
+        Update: {
+          duration_minutes?: number
+          id?: string
+          price_cents?: number
+          service_id?: string
+          sort_order?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "service_price_options_service_id_fkey"
+            columns: ["service_id"]
+            isOneToOne: false
+            referencedRelation: "services"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       services: {
         Row: {
           category_id: string | null
           created_at: string
           default_price_cents: number
           description: string | null
+          description_th: string | null
           duration_minutes: number
           id: string
           is_active: boolean
           name: string
+          name_th: string | null
           org_id: string
         }
         Insert: {
@@ -1771,10 +1808,12 @@ export type Database = {
           created_at?: string
           default_price_cents: number
           description?: string | null
+          description_th?: string | null
           duration_minutes: number
           id?: string
           is_active?: boolean
           name: string
+          name_th?: string | null
           org_id: string
         }
         Update: {
@@ -1782,10 +1821,12 @@ export type Database = {
           created_at?: string
           default_price_cents?: number
           description?: string | null
+          description_th?: string | null
           duration_minutes?: number
           id?: string
           is_active?: boolean
           name?: string
+          name_th?: string | null
           org_id?: string
         }
         Relationships: [
@@ -2361,6 +2402,7 @@ export type Database = {
       create_booking_request: {
         Args: {
           p_branch_id: string
+          p_durations?: number[]
           p_email: string
           p_first_name: string
           p_last_name: string
@@ -2438,6 +2480,8 @@ export type Database = {
         | "gift_card"
         | "store_credit"
         | "package_credit"
+        | "bank_transfer"
+        | "card_manual"
       pos_payment_status: "pending" | "succeeded" | "failed" | "refunded"
       pos_transaction_status:
         | "completed"
@@ -2611,6 +2655,8 @@ export const Constants = {
         "gift_card",
         "store_credit",
         "package_credit",
+        "bank_transfer",
+        "card_manual",
       ],
       pos_payment_status: ["pending", "succeeded", "failed", "refunded"],
       pos_transaction_status: [

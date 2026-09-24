@@ -11,6 +11,7 @@ export function NewServiceForm() {
   const router = useRouter();
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  const [variantCount, setVariantCount] = useState(1);
 
   async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -26,25 +27,42 @@ export function NewServiceForm() {
       return;
     }
     form.reset();
+    setVariantCount(1);
     router.refresh();
   }
 
   return (
     <form onSubmit={handleSubmit} className="space-y-4">
-      <div className="space-y-2">
-        <Label htmlFor="name">Service name</Label>
-        <Input id="name" name="name" required placeholder="e.g. Swedish Massage (60 min)" />
-      </div>
       <div className="grid grid-cols-2 gap-3">
         <div className="space-y-2">
-          <Label htmlFor="durationMinutes">Duration (minutes)</Label>
-          <Input id="durationMinutes" name="durationMinutes" type="number" min="1" required />
+          <Label htmlFor="name">Name (English)</Label>
+          <Input id="name" name="name" required placeholder="e.g. Thai Massage" />
         </div>
         <div className="space-y-2">
-          <Label htmlFor="price">Price ($)</Label>
-          <Input id="price" name="price" type="number" min="0" step="0.01" required />
+          <Label htmlFor="nameTh">Name (Thai)</Label>
+          <Input id="nameTh" name="nameTh" placeholder="e.g. นวดไทย" />
         </div>
       </div>
+
+      <div className="space-y-2">
+        <Label>Durations &amp; prices</Label>
+        {Array.from({ length: variantCount }).map((_, i) => (
+          <div key={i} className="grid grid-cols-2 gap-3">
+            <Input name={`duration${i}`} type="number" min="1" placeholder="Minutes" required />
+            <Input name={`price${i}`} type="number" min="0" step="0.01" placeholder="Price ($)" required />
+          </div>
+        ))}
+        {variantCount < 4 && (
+          <button
+            type="button"
+            onClick={() => setVariantCount((n) => n + 1)}
+            className="text-sm text-primary hover:underline"
+          >
+            + Add another duration option
+          </button>
+        )}
+      </div>
+
       {error && <p className="text-sm text-destructive">{error}</p>}
       <Button type="submit" disabled={loading}>
         {loading ? "Adding..." : "Add service"}

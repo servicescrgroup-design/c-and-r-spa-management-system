@@ -11,7 +11,7 @@ export default async function ServicesPage() {
   const [{ data: services }, { data: packages }] = await Promise.all([
     supabase
       .from("services")
-      .select("id, name, duration_minutes, default_price_cents, is_active")
+      .select("id, name, name_th, duration_minutes, default_price_cents, is_active, service_price_options(duration_minutes, price_cents)")
       .order("created_at"),
     supabase
       .from("packages")
@@ -32,9 +32,16 @@ export default async function ServicesPage() {
         {(services ?? []).map((service) => (
           <Card key={service.id}>
             <CardHeader>
-              <CardTitle>{service.name}</CardTitle>
+              <CardTitle>
+                {service.name}
+                {service.name_th && <span className="ml-2 text-muted-foreground">({service.name_th})</span>}
+              </CardTitle>
               <CardDescription>
-                {service.duration_minutes} min &middot; {formatCents(service.default_price_cents)}
+                {(service.service_price_options ?? []).length > 0
+                  ? (service.service_price_options ?? [])
+                      .map((o) => `${o.duration_minutes} min · ${formatCents(o.price_cents)}`)
+                      .join("  |  ")
+                  : `${service.duration_minutes} min · ${formatCents(service.default_price_cents)}`}
                 {!service.is_active && " (inactive)"}
               </CardDescription>
             </CardHeader>

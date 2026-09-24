@@ -89,12 +89,18 @@ export type CartItem = {
   unitPriceCents: number;
 };
 
+export type PaymentMethod = "cash" | "bank_transfer" | "card_manual";
+
+export type PaymentSplit = { method: PaymentMethod; amountCents: number };
+
 export async function checkoutSale(input: {
   branchId: string;
   drawerSessionId: string;
   items: CartItem[];
   taxCents: number;
   tipCents: number;
+  cardFeeCents: number;
+  payments: PaymentSplit[];
   customerId: string | null;
 }): Promise<ActionResult & { transactionId?: string }> {
   const ctx = await requireStaffContext();
@@ -105,6 +111,9 @@ export async function checkoutSale(input: {
   if (hasPackage && !input.customerId) {
     return { ok: false, error: "A customer is required to sell a package." };
   }
+  if (input.payments.length === 0) {
+    return { ok: false, error: "Add at least one payment." };
+  }
 
   const register = await getOrCreateRegister(input.branchId);
   const supabase = await createServerSupabaseClient();
@@ -113,7 +122,15 @@ export async function checkoutSale(input: {
   if (!org) return { ok: false, error: "No organization found." };
 
   const subtotalCents = input.items.reduce((sum, i) => sum + i.unitPriceCents * i.quantity, 0);
-  const totalCents = subtotalCents + input.taxCents + input.tipCents;
+  const totalCents = subtotalCents + input.taxCents + input.tipCents + input.cardFeeCents;
+  const paidCents = input.payments.reduce((sum, p) => sum + p.amountCents, 0);
+
+  if (paidCents !== totalCents) {
+    return {
+      ok: false,
+      error: `Payments (${paidCents}) don't add up to the total (${totalCents}).`,
+    };
+  }
 
   const { data: txn, error: txnError } = await supabase
     .from("pos_transactions")
@@ -127,6 +144,7 @@ export async function checkoutSale(input: {
       subtotal_cents: subtotalCents,
       tax_cents: input.taxCents,
       tip_cents: input.tipCents,
+      card_fee_cents: input.cardFeeCents,
       total_cents: totalCents,
     })
     .select("id")
@@ -156,11 +174,13 @@ export async function checkoutSale(input: {
     }
   }
 
-  const { error: paymentError } = await supabase.from("pos_payments").insert({
-    transaction_id: txn.id,
-    method: "cash",
-    amount_cents: totalCents,
-  });
+  const { error: paymentError } = await supabase.from("pos_payments").insert(
+    input.payments.map((p) => ({
+      transaction_id: txn.id,
+      method: p.method,
+      amount_cents: p.amountCents,
+    })),
+  );
   if (paymentError) return { ok: false, error: paymentError.message };
 
   const { error: postError } = await supabase.rpc("post_pos_transaction", {
@@ -222,6 +242,7 @@ export async function issueGiftCard(input: {
   drawerSessionId: string;
   amountCents: number;
   customerId: string | null;
+  paymentMethod: PaymentMethod;
 }): Promise<ActionResult & { code?: string }> {
   await requireStaffContext();
   if (input.amountCents <= 0) return { ok: false, error: "Amount must be greater than zero." };
@@ -232,7 +253,7 @@ export async function issueGiftCard(input: {
     p_drawer_session_id: input.drawerSessionId,
     p_amount_cents: input.amountCents,
     p_customer_id: input.customerId as unknown as string,
-    p_payment_method: "cash",
+    p_payment_method: input.paymentMethod,
   });
   if (error) return { ok: false, error: error.message };
 

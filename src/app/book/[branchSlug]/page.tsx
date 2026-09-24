@@ -19,7 +19,7 @@ export default async function BranchBookingPage({
 
   const { data: services } = await supabase
     .from("services")
-    .select("id, name, duration_minutes, default_price_cents")
+    .select("id, name, name_th, duration_minutes, default_price_cents, service_price_options(duration_minutes, price_cents)")
     .eq("is_active", true)
     .order("name");
 
