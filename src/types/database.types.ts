@@ -2358,7 +2358,35 @@ export type Database = {
       }
     }
     Functions: {
-      [_ in never]: never
+      create_booking_request: {
+        Args: {
+          p_branch_id: string
+          p_email: string
+          p_first_name: string
+          p_last_name: string
+          p_phone: string
+          p_service_ids: string[]
+          p_staff_id: string
+          p_start_at: string
+        }
+        Returns: string
+      }
+      get_available_slots: {
+        Args: {
+          p_branch_id: string
+          p_date: string
+          p_duration_minutes: number
+          p_staff_id?: string
+        }
+        Returns: {
+          slot_start: string
+          staff_id: string
+        }[]
+      }
+      post_pos_transaction: {
+        Args: { p_transaction_id: string }
+        Returns: undefined
+      }
     }
     Enums: {
       account_type: "asset" | "liability" | "equity" | "revenue" | "expense"
