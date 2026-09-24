@@ -15,6 +15,90 @@ export type Database = {
   }
   public: {
     Tables: {
+      branch_inventory: {
+        Row: {
+          branch_id: string
+          id: string
+          product_id: string
+          quantity_on_hand: number
+          reorder_quantity: number
+          reorder_threshold: number
+          updated_at: string
+        }
+        Insert: {
+          branch_id: string
+          id?: string
+          product_id: string
+          quantity_on_hand?: number
+          reorder_quantity?: number
+          reorder_threshold?: number
+          updated_at?: string
+        }
+        Update: {
+          branch_id?: string
+          id?: string
+          product_id?: string
+          quantity_on_hand?: number
+          reorder_quantity?: number
+          reorder_threshold?: number
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "branch_inventory_branch_id_fkey"
+            columns: ["branch_id"]
+            isOneToOne: false
+            referencedRelation: "branches"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "branch_inventory_product_id_fkey"
+            columns: ["product_id"]
+            isOneToOne: false
+            referencedRelation: "products"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      branch_service_overrides: {
+        Row: {
+          branch_id: string
+          id: string
+          is_offered: boolean
+          price_cents: number | null
+          service_id: string
+        }
+        Insert: {
+          branch_id: string
+          id?: string
+          is_offered?: boolean
+          price_cents?: number | null
+          service_id: string
+        }
+        Update: {
+          branch_id?: string
+          id?: string
+          is_offered?: boolean
+          price_cents?: number | null
+          service_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "branch_service_overrides_branch_id_fkey"
+            columns: ["branch_id"]
+            isOneToOne: false
+            referencedRelation: "branches"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "branch_service_overrides_service_id_fkey"
+            columns: ["service_id"]
+            isOneToOne: false
+            referencedRelation: "services"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       branches: {
         Row: {
           address: string | null
@@ -127,6 +211,64 @@ export type Database = {
           },
         ]
       }
+      inventory_adjustments: {
+        Row: {
+          branch_id: string
+          created_at: string
+          id: string
+          product_id: string
+          quantity_delta: number
+          reason: Database["public"]["Enums"]["inventory_adjustment_reason"]
+          reference_id: string | null
+          reference_type: string | null
+          staff_id: string | null
+        }
+        Insert: {
+          branch_id: string
+          created_at?: string
+          id?: string
+          product_id: string
+          quantity_delta: number
+          reason: Database["public"]["Enums"]["inventory_adjustment_reason"]
+          reference_id?: string | null
+          reference_type?: string | null
+          staff_id?: string | null
+        }
+        Update: {
+          branch_id?: string
+          created_at?: string
+          id?: string
+          product_id?: string
+          quantity_delta?: number
+          reason?: Database["public"]["Enums"]["inventory_adjustment_reason"]
+          reference_id?: string | null
+          reference_type?: string | null
+          staff_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "inventory_adjustments_branch_id_fkey"
+            columns: ["branch_id"]
+            isOneToOne: false
+            referencedRelation: "branches"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "inventory_adjustments_product_id_fkey"
+            columns: ["product_id"]
+            isOneToOne: false
+            referencedRelation: "products"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "inventory_adjustments_staff_id_fkey"
+            columns: ["staff_id"]
+            isOneToOne: false
+            referencedRelation: "staff"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       organizations: {
         Row: {
           created_at: string
@@ -153,6 +295,169 @@ export type Database = {
           timezone?: string
         }
         Relationships: []
+      }
+      product_categories: {
+        Row: {
+          id: string
+          name: string
+          org_id: string
+        }
+        Insert: {
+          id?: string
+          name: string
+          org_id: string
+        }
+        Update: {
+          id?: string
+          name?: string
+          org_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "product_categories_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      products: {
+        Row: {
+          category_id: string | null
+          cost_cents: number
+          created_at: string
+          description: string | null
+          id: string
+          is_active: boolean
+          name: string
+          org_id: string
+          retail_price_cents: number
+          sku: string
+          track_inventory: boolean
+        }
+        Insert: {
+          category_id?: string | null
+          cost_cents?: number
+          created_at?: string
+          description?: string | null
+          id?: string
+          is_active?: boolean
+          name: string
+          org_id: string
+          retail_price_cents: number
+          sku: string
+          track_inventory?: boolean
+        }
+        Update: {
+          category_id?: string | null
+          cost_cents?: number
+          created_at?: string
+          description?: string | null
+          id?: string
+          is_active?: boolean
+          name?: string
+          org_id?: string
+          retail_price_cents?: number
+          sku?: string
+          track_inventory?: boolean
+        }
+        Relationships: [
+          {
+            foreignKeyName: "products_category_id_fkey"
+            columns: ["category_id"]
+            isOneToOne: false
+            referencedRelation: "product_categories"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "products_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      service_categories: {
+        Row: {
+          id: string
+          name: string
+          org_id: string
+          sort_order: number
+        }
+        Insert: {
+          id?: string
+          name: string
+          org_id: string
+          sort_order?: number
+        }
+        Update: {
+          id?: string
+          name?: string
+          org_id?: string
+          sort_order?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "service_categories_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      services: {
+        Row: {
+          category_id: string | null
+          created_at: string
+          default_price_cents: number
+          description: string | null
+          duration_minutes: number
+          id: string
+          is_active: boolean
+          name: string
+          org_id: string
+        }
+        Insert: {
+          category_id?: string | null
+          created_at?: string
+          default_price_cents: number
+          description?: string | null
+          duration_minutes: number
+          id?: string
+          is_active?: boolean
+          name: string
+          org_id: string
+        }
+        Update: {
+          category_id?: string | null
+          created_at?: string
+          default_price_cents?: number
+          description?: string | null
+          duration_minutes?: number
+          id?: string
+          is_active?: boolean
+          name?: string
+          org_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "services_category_id_fkey"
+            columns: ["category_id"]
+            isOneToOne: false
+            referencedRelation: "service_categories"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "services_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       staff: {
         Row: {
@@ -310,6 +615,36 @@ export type Database = {
           },
         ]
       }
+      staff_services: {
+        Row: {
+          service_id: string
+          staff_id: string
+        }
+        Insert: {
+          service_id: string
+          staff_id: string
+        }
+        Update: {
+          service_id?: string
+          staff_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "staff_services_service_id_fkey"
+            columns: ["service_id"]
+            isOneToOne: false
+            referencedRelation: "services"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "staff_services_staff_id_fkey"
+            columns: ["staff_id"]
+            isOneToOne: false
+            referencedRelation: "staff"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
     }
     Views: {
       [_ in never]: never
@@ -318,6 +653,13 @@ export type Database = {
       [_ in never]: never
     }
     Enums: {
+      inventory_adjustment_reason:
+        | "receiving"
+        | "sale"
+        | "refund"
+        | "damage"
+        | "count_correction"
+        | "transfer"
       role_type: "owner" | "manager" | "front_desk" | "therapist"
     }
     CompositeTypes: {
@@ -446,6 +788,14 @@ export type CompositeTypes<
 export const Constants = {
   public: {
     Enums: {
+      inventory_adjustment_reason: [
+        "receiving",
+        "sale",
+        "refund",
+        "damage",
+        "count_correction",
+        "transfer",
+      ],
       role_type: ["owner", "manager", "front_desk", "therapist"],
     },
   },
