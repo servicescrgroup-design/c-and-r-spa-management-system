@@ -16,6 +16,7 @@ export function CustomerSignupForm() {
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  const [awaitingConfirmation, setAwaitingConfirmation] = useState(false);
 
   async function handleSubmit(event: React.FormEvent) {
     event.preventDefault();
@@ -23,7 +24,7 @@ export function CustomerSignupForm() {
     setError(null);
 
     const supabase = createClient();
-    const { error: signUpError } = await supabase.auth.signUp({
+    const { data, error: signUpError } = await supabase.auth.signUp({
       email,
       password,
       options: {
@@ -36,8 +37,21 @@ export function CustomerSignupForm() {
       setError(signUpError.message);
       return;
     }
+    if (!data.session) {
+      // Email confirmation is required before a session is issued.
+      setAwaitingConfirmation(true);
+      return;
+    }
     router.push("/account");
     router.refresh();
+  }
+
+  if (awaitingConfirmation) {
+    return (
+      <p className="text-sm text-muted-foreground">
+        Check {email} for a confirmation link, then sign in.
+      </p>
+    );
   }
 
   return (

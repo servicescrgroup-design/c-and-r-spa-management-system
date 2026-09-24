@@ -1,6 +1,8 @@
 import Link from "next/link";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { CustomerSignupForm } from "@/components/auth/customer-signup-form";
+import { PhoneAuthForm } from "@/components/auth/phone-auth-form";
+import { AuthMethodTabs } from "@/components/auth/auth-method-tabs";
 
 export default function CustomerSignupPage() {
   return (
@@ -13,7 +15,10 @@ export default function CustomerSignupPage() {
           </CardDescription>
         </CardHeader>
         <CardContent>
-          <CustomerSignupForm />
+          <AuthMethodTabs
+            emailForm={<CustomerSignupForm />}
+            phoneForm={<PhoneAuthForm />}
+          />
         </CardContent>
       </Card>
       <p className="mt-6 text-center text-sm text-muted-foreground">

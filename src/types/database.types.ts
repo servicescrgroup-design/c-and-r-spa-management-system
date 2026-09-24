@@ -2383,6 +2383,10 @@ export type Database = {
           staff_id: string
         }[]
       }
+      post_pos_refund: {
+        Args: { p_refund_transaction_id: string }
+        Returns: undefined
+      }
       post_pos_transaction: {
         Args: { p_transaction_id: string }
         Returns: undefined
