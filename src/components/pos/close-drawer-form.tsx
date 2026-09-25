@@ -24,7 +24,7 @@ export function CloseDrawerForm({ drawerSessionId }: { drawerSessionId: string }
   return (
     <form onSubmit={handleSubmit} className="space-y-4">
       <div className="space-y-2">
-        <Label htmlFor="countedAmount">Counted cash ($)</Label>
+        <Label htmlFor="countedAmount">Counted cash (฿)</Label>
         <Input id="countedAmount" name="countedAmount" type="number" min="0" step="0.01" required />
       </div>
       {error && <p className="text-sm text-destructive">{error}</p>}

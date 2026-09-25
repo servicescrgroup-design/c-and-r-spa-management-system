@@ -5,9 +5,10 @@ export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
 }
 
-export function formatCents(cents: number, currency = "USD") {
+export function formatCents(cents: number, currency = "THB") {
   return new Intl.NumberFormat("en-US", {
     style: "currency",
     currency,
+    currencyDisplay: currency === "THB" ? "symbol" : undefined,
   }).format(cents / 100);
 }

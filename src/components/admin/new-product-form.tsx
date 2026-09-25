@@ -41,11 +41,11 @@ export function NewProductForm() {
       </div>
       <div className="grid grid-cols-2 gap-3">
         <div className="space-y-2">
-          <Label htmlFor="cost">Cost ($)</Label>
+          <Label htmlFor="cost">Cost (฿)</Label>
           <Input id="cost" name="cost" type="number" min="0" step="0.01" />
         </div>
         <div className="space-y-2">
-          <Label htmlFor="price">Retail price ($)</Label>
+          <Label htmlFor="price">Retail price (฿)</Label>
           <Input id="price" name="price" type="number" min="0" step="0.01" required />
         </div>
       </div>

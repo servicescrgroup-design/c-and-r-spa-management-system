@@ -25,7 +25,7 @@ export function OpenDrawerForm({ branchId }: { branchId: string }) {
   return (
     <form onSubmit={handleSubmit} className="space-y-4">
       <div className="space-y-2">
-        <Label htmlFor="openingAmount">Opening cash ($)</Label>
+        <Label htmlFor="openingAmount">Opening cash (฿)</Label>
         <Input id="openingAmount" name="openingAmount" type="number" min="0" step="0.01" defaultValue="0" required />
       </div>
       {error && <p className="text-sm text-destructive">{error}</p>}

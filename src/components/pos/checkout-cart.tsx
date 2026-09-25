@@ -353,7 +353,7 @@ export function CheckoutCart({
               />
             </div>
             <div className="space-y-1">
-              <Label htmlFor="tip" className="text-xs">Tip ($)</Label>
+              <Label htmlFor="tip" className="text-xs">Tip (฿)</Label>
               <Input id="tip" type="number" min="0" step="0.01" value={tip} onChange={(e) => setTip(e.target.value)} />
             </div>
           </div>
@@ -380,7 +380,7 @@ export function CheckoutCart({
                 value={cardFeeDollars}
                 onChange={(e) => setCardFeeDollars(e.target.value)}
                 className="flex-1"
-                placeholder="Fee $"
+                placeholder="Fee ฿"
               />
             </div>
           </div>
@@ -490,7 +490,7 @@ function GiftCardIssuePanel({
         <CardContent>
           <form onSubmit={handleSubmit} className="space-y-4">
             <div className="space-y-2">
-              <Label htmlFor="amount">Amount ($)</Label>
+              <Label htmlFor="amount">Amount (฿)</Label>
               <Input
                 id="amount"
                 type="number"

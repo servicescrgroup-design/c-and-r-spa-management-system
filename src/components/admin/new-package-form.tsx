@@ -54,7 +54,7 @@ export function NewPackageForm({ services }: { services: { id: string; name: str
           <Input id="quantity" name="quantity" type="number" min="1" required />
         </div>
         <div className="space-y-2">
-          <Label htmlFor="price">Price ($)</Label>
+          <Label htmlFor="price">Price (฿)</Label>
           <Input id="price" name="price" type="number" min="0.01" step="0.01" required />
         </div>
         <div className="space-y-2">

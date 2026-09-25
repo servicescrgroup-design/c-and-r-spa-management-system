@@ -49,7 +49,7 @@ export function NewServiceForm() {
         {Array.from({ length: variantCount }).map((_, i) => (
           <div key={i} className="grid grid-cols-2 gap-3">
             <Input name={`duration${i}`} type="number" min="1" placeholder="Minutes" required />
-            <Input name={`price${i}`} type="number" min="0" step="0.01" placeholder="Price ($)" required />
+            <Input name={`price${i}`} type="number" min="0" step="0.01" placeholder="Price (฿)" required />
           </div>
         ))}
         {variantCount < 4 && (

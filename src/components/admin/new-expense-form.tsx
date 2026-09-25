@@ -86,7 +86,7 @@ export function NewExpenseForm({
       </div>
       <div className="grid grid-cols-2 gap-3">
         <div className="space-y-2">
-          <Label htmlFor="amount">Amount ($)</Label>
+          <Label htmlFor="amount">Amount (฿)</Label>
           <Input id="amount" name="amount" type="number" min="0.01" step="0.01" required />
         </div>
         <div className="space-y-2">
