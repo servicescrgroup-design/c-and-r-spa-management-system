@@ -1,6 +1,4 @@
-// Auto-generated from Supabase — regenerate with
-// mcp__Supabase__generate_typescript_types after each migration. Do not
-// hand-edit; add hand-written helpers in domain.ts instead.
+// Auto-generated Supabase types. Regenerate after schema changes.
 export type Json =
   | string
   | number
@@ -162,6 +160,9 @@ export type Database = {
           created_at: string
           created_by_staff_id: string | null
           customer_id: string
+          deposit_amount_cents: number | null
+          deposit_payment_ref: string | null
+          deposit_status: Database["public"]["Enums"]["deposit_status"]
           end_at: string
           id: string
           notes: string | null
@@ -175,6 +176,9 @@ export type Database = {
           created_at?: string
           created_by_staff_id?: string | null
           customer_id: string
+          deposit_amount_cents?: number | null
+          deposit_payment_ref?: string | null
+          deposit_status?: Database["public"]["Enums"]["deposit_status"]
           end_at: string
           id?: string
           notes?: string | null
@@ -188,6 +192,9 @@ export type Database = {
           created_at?: string
           created_by_staff_id?: string | null
           customer_id?: string
+          deposit_amount_cents?: number | null
+          deposit_payment_ref?: string | null
+          deposit_status?: Database["public"]["Enums"]["deposit_status"]
           end_at?: string
           id?: string
           notes?: string | null
@@ -2443,6 +2450,14 @@ export type Database = {
         Args: { p_transaction_id: string }
         Returns: undefined
       }
+      record_deposit_intent: {
+        Args: {
+          p_amount_cents: number
+          p_appointment_id: string
+          p_provider_ref: string
+        }
+        Returns: undefined
+      }
     }
     Enums: {
       account_type: "asset" | "liability" | "equity" | "revenue" | "expense"
@@ -2456,6 +2471,12 @@ export type Database = {
         | "no_show"
       billing_interval: "one_time" | "monthly" | "annual"
       customer_package_status: "active" | "expired" | "cancelled"
+      deposit_status:
+        | "not_required"
+        | "pending"
+        | "paid"
+        | "failed"
+        | "refunded"
       drawer_session_status: "open" | "closed"
       gift_card_txn_type: "issue" | "redeem" | "reload" | "adjust"
       inventory_adjustment_reason:
@@ -2629,6 +2650,7 @@ export const Constants = {
       ],
       billing_interval: ["one_time", "monthly", "annual"],
       customer_package_status: ["active", "expired", "cancelled"],
+      deposit_status: ["not_required", "pending", "paid", "failed", "refunded"],
       drawer_session_status: ["open", "closed"],
       gift_card_txn_type: ["issue", "redeem", "reload", "adjust"],
       inventory_adjustment_reason: [

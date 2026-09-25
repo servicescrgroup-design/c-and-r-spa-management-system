@@ -1,7 +1,8 @@
 "use client";
 
 import { useState } from "react";
-import { findAvailableSlots, submitBooking } from "@/lib/booking/actions";
+import { findAvailableSlots, submitBooking, createDepositPaymentIntent } from "@/lib/booking/actions";
+import { DepositCheckout } from "@/components/booking/deposit-checkout";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -48,6 +49,8 @@ export function BookingFlow({
   const [error, setError] = useState<string | null>(null);
   const [confirmed, setConfirmed] = useState(false);
   const [submitting, setSubmitting] = useState(false);
+  const [depositSecret, setDepositSecret] = useState<string | null>(null);
+  const [depositAmountCents, setDepositAmountCents] = useState<number | null>(null);
 
   const [firstName, setFirstName] = useState("");
   const [lastName, setLastName] = useState("");
@@ -64,6 +67,8 @@ export function BookingFlow({
     booked: lang === "en" ? "You're booked!" : "จองสำเร็จแล้ว!",
     total: lang === "en" ? "Total" : "ยอดรวม",
     noOpenings: lang === "en" ? "No openings that day — try another date." : "ไม่มีคิวว่างในวันนี้ ลองเลือกวันอื่น",
+    payDeposit: lang === "en" ? "Pay deposit" : "ชำระเงินมัดจำ",
+    depositTitle: lang === "en" ? "Secure your booking with a deposit" : "ชำระมัดจำเพื่อยืนยันการจอง",
   };
 
   function serviceName(s: Service) {
@@ -131,11 +136,30 @@ export function BookingFlow({
       email,
       phone,
     });
-    setSubmitting(false);
+
     if (!result.ok) {
+      setSubmitting(false);
       setError(result.error);
       return;
     }
+
+    if (depositRequired && result.appointmentId) {
+      const deposit = await createDepositPaymentIntent({
+        appointmentId: result.appointmentId,
+        branchId,
+        totalPriceCents: totalPrice,
+      });
+      setSubmitting(false);
+      if (!deposit.ok) {
+        setError(deposit.error);
+        return;
+      }
+      setDepositSecret(deposit.clientSecret);
+      setDepositAmountCents(deposit.amountCents);
+      return;
+    }
+
+    setSubmitting(false);
     setConfirmed(true);
   }
 
@@ -157,6 +181,29 @@ export function BookingFlow({
       </button>
     </div>
   );
+
+  if (depositSecret && !confirmed) {
+    return (
+      <div className="space-y-4">
+        {langToggle}
+        <Card>
+          <CardHeader>
+            <CardTitle>{t.depositTitle}</CardTitle>
+            <CardDescription>
+              {t.total}: {depositAmountCents !== null ? formatCents(depositAmountCents) : ""}
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <DepositCheckout
+              clientSecret={depositSecret}
+              onSuccess={() => setConfirmed(true)}
+              payLabel={t.payDeposit}
+            />
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
 
   if (confirmed) {
     return (
@@ -246,9 +293,7 @@ export function BookingFlow({
             <CardDescription>
               {t.total}: {totalDuration} min &middot; {formatCents(totalPrice)}
               {depositRequired &&
-                (lang === "en"
-                  ? " (deposit required — collected at the front desk for now)"
-                  : " (ต้องมัดจำ — ชำระที่หน้าร้าน)")}
+                (lang === "en" ? " (a deposit is required to confirm)" : " (ต้องชำระมัดจำเพื่อยืนยัน)")}
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
