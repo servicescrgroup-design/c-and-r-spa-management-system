@@ -63,3 +63,39 @@ export async function inviteStaff(formData: FormData): Promise<ActionResult> {
   revalidatePath("/admin/staff");
   return { ok: true };
 }
+
+/**
+ * Changes a staff member's administrative role (owner/manager/front_desk).
+ * Deliberately leaves any 'therapist' rows alone — those are multi-branch
+ * assignments managed on the staff HR page, not a single "primary role".
+ */
+export async function updateStaffRole(
+  staffId: string,
+  role: "owner" | "manager" | "front_desk" | "",
+  branchId: string | null,
+): Promise<ActionResult> {
+  const ctx = await requireStaffContext();
+  if (!ctx.roles.some((r) => r.role === "owner")) {
+    return { ok: false, error: "Only an owner can change staff roles." };
+  }
+
+  const supabase = await createServerSupabaseClient();
+  const { error: deleteError } = await supabase
+    .from("staff_branch_roles")
+    .delete()
+    .eq("staff_id", staffId)
+    .neq("role", "therapist");
+  if (deleteError) return { ok: false, error: deleteError.message };
+
+  if (role) {
+    const { error } = await supabase.from("staff_branch_roles").insert({
+      staff_id: staffId,
+      branch_id: role === "owner" ? null : branchId,
+      role,
+    });
+    if (error) return { ok: false, error: error.message };
+  }
+
+  revalidatePath("/admin/staff");
+  return { ok: true };
+}

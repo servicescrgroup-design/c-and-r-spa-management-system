@@ -3,6 +3,76 @@ import { requireStaffContext } from "@/lib/auth/session";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { InviteStaffForm } from "@/components/admin/invite-staff-form";
+import { StaffRoleEditor } from "@/components/admin/staff-role-editor";
+import { RoleCapabilitiesCard } from "@/components/admin/role-capabilities-card";
+
+type RoleRow = { role: "owner" | "manager" | "front_desk" | "therapist"; branch_id: string | null };
+type StaffRow = {
+  id: string;
+  first_name: string;
+  last_name: string;
+  email: string;
+  employment_status: string;
+  staff_branch_roles: RoleRow[];
+};
+
+const ADMIN_PRIORITY: RoleRow["role"][] = ["owner", "manager", "front_desk"];
+
+function primaryAdminRole(roles: RoleRow[]): RoleRow | null {
+  for (const role of ADMIN_PRIORITY) {
+    const found = roles.find((r) => r.role === role);
+    if (found) return found;
+  }
+  return null;
+}
+
+function StaffCard({
+  staff,
+  branches,
+  branchName,
+}: {
+  staff: StaffRow;
+  branches: { id: string; name: string }[];
+  branchName: (id: string | null) => string;
+}) {
+  const admin = primaryAdminRole(staff.staff_branch_roles);
+  const isTherapist = staff.staff_branch_roles.some((r) => r.role === "therapist");
+  const therapistBranches = staff.staff_branch_roles.filter((r) => r.role === "therapist").map((r) => branchName(r.branch_id));
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle>
+          {isTherapist ? (
+            <Link href={`/admin/staff/${staff.id}`} className="hover:underline">
+              {staff.first_name} {staff.last_name}
+            </Link>
+          ) : (
+            `${staff.first_name} ${staff.last_name}`
+          )}
+        </CardTitle>
+        <CardDescription>{staff.email}</CardDescription>
+      </CardHeader>
+      <CardContent className="space-y-2 text-sm text-muted-foreground">
+        {admin && (
+          <p>
+            {admin.role.replace("_", " ")}
+            {admin.branch_id && ` · ${branchName(admin.branch_id)}`}
+            {!admin.branch_id && admin.role !== "owner" && " · all branches"}
+          </p>
+        )}
+        {isTherapist && <p>Therapist · {therapistBranches.join(", ") || "no branch"}</p>}
+        {!admin && !isTherapist && <p>No role assigned</p>}
+        <StaffRoleEditor
+          staffId={staff.id}
+          currentRole={(admin?.role as "owner" | "manager" | "front_desk") ?? ""}
+          currentBranchId={admin?.branch_id ?? null}
+          branches={branches}
+        />
+      </CardContent>
+    </Card>
+  );
+}
 
 export default async function StaffPage() {
   await requireStaffContext();
@@ -21,35 +91,65 @@ export default async function StaffPage() {
       .order("created_at", { ascending: false }),
   ]);
 
+  const branchById = new Map((branches ?? []).map((b) => [b.id, b.name]));
+  const branchName = (id: string | null) => (id ? branchById.get(id) ?? "Unknown branch" : "");
+
+  const allStaff = (staff ?? []) as StaffRow[];
+  const admins = allStaff.filter((s) => primaryAdminRole(s.staff_branch_roles)?.role === "owner" || primaryAdminRole(s.staff_branch_roles)?.role === "manager");
+  const frontDesk = allStaff.filter((s) => primaryAdminRole(s.staff_branch_roles)?.role === "front_desk");
+  const therapists = allStaff.filter((s) => !primaryAdminRole(s.staff_branch_roles) && s.staff_branch_roles.some((r) => r.role === "therapist"));
+  const unassigned = allStaff.filter((s) => !primaryAdminRole(s.staff_branch_roles) && !s.staff_branch_roles.some((r) => r.role === "therapist"));
+
   const siteUrl = process.env.NEXT_PUBLIC_SITE_URL ?? "";
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-8">
       <div>
-        <h1 className="text-2xl font-semibold">Staff</h1>
-        <p className="text-muted-foreground">Team members and their roles.</p>
+        <h1 className="font-display text-3xl font-medium tracking-tight">Staff</h1>
+        <p className="text-muted-foreground">Team members, grouped by what they do.</p>
       </div>
 
-      <div className="grid gap-3 sm:grid-cols-2">
-        {(staff ?? []).map((s) => (
-          <Link key={s.id} href={`/admin/staff/${s.id}`}>
-            <Card className="transition-colors hover:bg-muted/60">
-              <CardHeader>
-                <CardTitle>
-                  {s.first_name} {s.last_name}
-                </CardTitle>
-                <CardDescription>{s.email}</CardDescription>
-              </CardHeader>
-              <CardContent className="text-sm text-muted-foreground">
-                {(s.staff_branch_roles ?? []).map((r) => r.role).join(", ") || "No role assigned"}
-              </CardContent>
-            </Card>
-          </Link>
-        ))}
-        {(staff ?? []).length === 0 && (
-          <p className="text-sm text-muted-foreground">No staff yet.</p>
-        )}
-      </div>
+      <section className="space-y-3">
+        <h2 className="font-display text-xl font-medium tracking-tight">Admin &amp; management</h2>
+        <div className="grid gap-3 sm:grid-cols-2">
+          {admins.map((s) => (
+            <StaffCard key={s.id} staff={s} branches={branches ?? []} branchName={branchName} />
+          ))}
+          {admins.length === 0 && <p className="text-sm text-muted-foreground">No owners or managers yet.</p>}
+        </div>
+      </section>
+
+      <section className="space-y-3">
+        <h2 className="font-display text-xl font-medium tracking-tight">Front desk (receptionists)</h2>
+        <div className="grid gap-3 sm:grid-cols-2">
+          {frontDesk.map((s) => (
+            <StaffCard key={s.id} staff={s} branches={branches ?? []} branchName={branchName} />
+          ))}
+          {frontDesk.length === 0 && <p className="text-sm text-muted-foreground">No receptionists yet.</p>}
+        </div>
+      </section>
+
+      <section className="space-y-3">
+        <h2 className="font-display text-xl font-medium tracking-tight">Therapists</h2>
+        <p className="text-sm text-muted-foreground">Click a therapist to manage their HR profile and documents.</p>
+        <div className="grid gap-3 sm:grid-cols-2">
+          {therapists.map((s) => (
+            <StaffCard key={s.id} staff={s} branches={branches ?? []} branchName={branchName} />
+          ))}
+          {therapists.length === 0 && <p className="text-sm text-muted-foreground">No therapists yet.</p>}
+        </div>
+      </section>
+
+      {unassigned.length > 0 && (
+        <section className="space-y-3">
+          <h2 className="font-display text-xl font-medium tracking-tight">Unassigned</h2>
+          <div className="grid gap-3 sm:grid-cols-2">
+            {unassigned.map((s) => (
+              <StaffCard key={s.id} staff={s} branches={branches ?? []} branchName={branchName} />
+            ))}
+          </div>
+        </section>
+      )}
 
       {(invites ?? []).length > 0 && (
         <Card>
@@ -72,14 +172,17 @@ export default async function StaffPage() {
         </Card>
       )}
 
-      <Card className="max-w-md">
-        <CardHeader>
-          <CardTitle>Invite staff</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <InviteStaffForm branches={branches ?? []} />
-        </CardContent>
-      </Card>
+      <div className="grid gap-4 lg:grid-cols-2">
+        <Card>
+          <CardHeader>
+            <CardTitle>Invite staff</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <InviteStaffForm branches={branches ?? []} />
+          </CardContent>
+        </Card>
+        <RoleCapabilitiesCard />
+      </div>
     </div>
   );
 }
