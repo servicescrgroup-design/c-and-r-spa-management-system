@@ -369,6 +369,39 @@ export type Database = {
           },
         ]
       }
+      branch_product_overrides: {
+        Row: {
+          branch_id: string
+          is_carried: boolean
+          product_id: string
+        }
+        Insert: {
+          branch_id: string
+          is_carried?: boolean
+          product_id: string
+        }
+        Update: {
+          branch_id?: string
+          is_carried?: boolean
+          product_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "branch_product_overrides_branch_id_fkey"
+            columns: ["branch_id"]
+            isOneToOne: false
+            referencedRelation: "branches"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "branch_product_overrides_product_id_fkey"
+            columns: ["product_id"]
+            isOneToOne: false
+            referencedRelation: "products"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       branch_rooms: {
         Row: {
           branch_id: string
@@ -2047,11 +2080,13 @@ export type Database = {
           created_at: string
           description: string | null
           id: string
+          image_url: string | null
           is_active: boolean
           name: string
           org_id: string
           retail_price_cents: number
           sku: string
+          sort_order: number
           track_inventory: boolean
           unit_amount: number | null
           unit_label: string
@@ -2062,11 +2097,13 @@ export type Database = {
           created_at?: string
           description?: string | null
           id?: string
+          image_url?: string | null
           is_active?: boolean
           name: string
           org_id: string
           retail_price_cents: number
           sku: string
+          sort_order?: number
           track_inventory?: boolean
           unit_amount?: number | null
           unit_label?: string
@@ -2077,11 +2114,13 @@ export type Database = {
           created_at?: string
           description?: string | null
           id?: string
+          image_url?: string | null
           is_active?: boolean
           name?: string
           org_id?: string
           retail_price_cents?: number
           sku?: string
+          sort_order?: number
           track_inventory?: boolean
           unit_amount?: number | null
           unit_label?: string

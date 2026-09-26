@@ -51,7 +51,7 @@ export function NewProductForm() {
       </div>
       <div className="grid grid-cols-2 gap-3">
         <div className="space-y-2">
-          <Label htmlFor="unitAmount">Amount</Label>
+          <Label htmlFor="unitAmount">Package size (optional)</Label>
           <Input id="unitAmount" name="unitAmount" type="number" min="0" step="0.01" placeholder="e.g. 500" />
         </div>
         <div className="space-y-2">
@@ -67,6 +67,14 @@ export function NewProductForm() {
             <option value="pair">pair</option>
           </select>
         </div>
+      </div>
+      <p className="-mt-2 text-xs text-muted-foreground">
+        This describes the container (e.g. a 500ml bottle) — it doesn&apos;t set stock. Use &quot;Receive
+        stock&quot; below to add how many you have at each branch.
+      </p>
+      <div className="space-y-2">
+        <Label htmlFor="image">Photo (optional)</Label>
+        <input id="image" name="image" type="file" accept="image/*" className="text-sm" />
       </div>
       {error && <p className="text-sm text-destructive">{error}</p>}
       <Button type="submit" disabled={loading}>
