@@ -10,6 +10,7 @@ import {
   setBranchServiceOffered,
   createRegister,
   deleteRegister,
+  renameRegister,
   type WeekHours,
 } from "@/lib/admin/branch-actions";
 import { Button } from "@/components/ui/button";
@@ -326,6 +327,18 @@ function RegistersSection({ branchId, registers }: { branchId: string; registers
   const [name, setName] = useState("");
   const [loading, setLoading] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editName, setEditName] = useState("");
+
+  async function saveRename(id: string) {
+    setLoading(id);
+    setError(null);
+    const result = await renameRegister(id, editName);
+    setLoading(null);
+    if (!result.ok) return setError(result.error);
+    setEditingId(null);
+    router.refresh();
+  }
 
   async function add() {
     if (!name.trim()) return;
@@ -355,19 +368,58 @@ function RegistersSection({ branchId, registers }: { branchId: string; registers
       </p>
       {registers.length > 0 ? (
         <ul className="space-y-1.5">
-          {registers.map((r) => (
-            <li key={r.id} className="flex items-center justify-between gap-2 rounded-lg border border-border px-3 py-1.5 text-sm">
-              {r.name}
-              <button
-                type="button"
-                disabled={loading === r.id}
-                onClick={() => remove(r.id)}
-                className="text-xs text-muted-foreground hover:text-destructive"
-              >
-                {loading === r.id ? "Removing..." : "Remove"}
-              </button>
-            </li>
-          ))}
+          {registers.map((r) =>
+            editingId === r.id ? (
+              <li key={r.id} className="flex items-center gap-2 rounded-lg border border-ring px-2 py-1.5 text-sm">
+                <Input
+                  autoFocus
+                  aria-label="Register name"
+                  value={editName}
+                  onChange={(e) => setEditName(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") saveRename(r.id);
+                    if (e.key === "Escape") setEditingId(null);
+                  }}
+                  className="h-8"
+                />
+                <Button type="button" size="sm" disabled={loading === r.id} onClick={() => saveRename(r.id)}>
+                  {loading === r.id ? "Saving..." : "Save"}
+                </Button>
+                <button
+                  type="button"
+                  onClick={() => setEditingId(null)}
+                  className="text-xs text-muted-foreground hover:text-foreground"
+                >
+                  Cancel
+                </button>
+              </li>
+            ) : (
+              <li key={r.id} className="flex items-center justify-between gap-2 rounded-lg border border-border px-3 py-1.5 text-sm">
+                {r.name}
+                <div className="flex items-center gap-3">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setEditingId(r.id);
+                      setEditName(r.name);
+                      setError(null);
+                    }}
+                    className="text-xs text-accent hover:underline"
+                  >
+                    Rename
+                  </button>
+                  <button
+                    type="button"
+                    disabled={loading === r.id}
+                    onClick={() => remove(r.id)}
+                    className="text-xs text-muted-foreground hover:text-destructive"
+                  >
+                    {loading === r.id ? "Removing..." : "Remove"}
+                  </button>
+                </div>
+              </li>
+            ),
+          )}
         </ul>
       ) : (
         <p className="text-sm text-muted-foreground">No registers yet.</p>

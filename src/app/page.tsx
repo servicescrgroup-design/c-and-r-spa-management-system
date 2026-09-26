@@ -69,11 +69,11 @@ export default async function HomePage() {
               <p className="text-xs font-medium text-[#a1a1a6]">Chiang Mai</p>
               <p className="font-display mt-1 text-2xl">{branch.name}</p>
               {branch.address && <p className="mt-2 text-sm text-[#a1a1a6]">{branch.address}</p>}
-              <p className="mt-6 text-[15px] text-[#2997ff] group-hover:underline">Book here &rsaquo;</p>
+              <p className="mt-6 text-[15px] text-[#30d158] group-hover:underline">Book here &rsaquo;</p>
             </Link>
           ))}
           {(branches ?? []).length === 0 && (
-            <Link href="/book" className="text-[17px] text-[#2997ff] hover:underline sm:col-span-2">
+            <Link href="/book" className="text-[17px] text-[#30d158] hover:underline sm:col-span-2">
               Choose a location &rsaquo;
             </Link>
           )}

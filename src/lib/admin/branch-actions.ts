@@ -241,7 +241,7 @@ export async function deleteRegister(registerId: string): Promise<ActionResult> 
     .select("id", { count: "exact", head: true })
     .eq("register_id", registerId);
   if (count && count > 0) {
-    return { ok: false, error: "This register has drawer history and can't be removed." };
+    return { ok: false, error: "This register has cash drawer history, so it can't be removed. Use Rename to change its name instead." };
   }
 
   const { error } = await supabase.from("pos_registers").delete().eq("id", registerId);
