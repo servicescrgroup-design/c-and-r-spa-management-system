@@ -2,12 +2,15 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { requireStaffContext } from "@/lib/auth/session";
 import { signOutStaff } from "@/lib/auth/actions";
+import { ViewSwitcher } from "@/components/view-switcher";
 
 export default async function PosLayout({ children }: LayoutProps<"/pos">) {
   const ctx = await requireStaffContext();
   if (!ctx.roles.some((r) => r.role === "owner" || r.role === "manager" || r.role === "front_desk")) {
     redirect("/therapist");
   }
+
+  const canAccessAdmin = ctx.roles.some((r) => r.role === "owner" || r.role === "manager");
 
   return (
     <div className="flex min-h-svh flex-1 flex-col">
@@ -29,11 +32,14 @@ export default async function PosLayout({ children }: LayoutProps<"/pos">) {
             </Link>
           </nav>
         </div>
-        <form action={signOutStaff} className="flex items-center">
-          <button type="submit" className="text-sm text-muted-foreground hover:text-foreground">
-            <span className="hidden sm:inline">{ctx.firstName || ctx.email} &middot; </span>Sign out
-          </button>
-        </form>
+        <div className="flex items-center gap-3">
+          <form action={signOutStaff} className="flex items-center">
+            <button type="submit" className="text-sm text-muted-foreground hover:text-foreground">
+              <span className="hidden sm:inline">{ctx.firstName || ctx.email} &middot; </span>Sign out
+            </button>
+          </form>
+          <ViewSwitcher canAccessAdmin={canAccessAdmin} canAccessPos />
+        </div>
       </header>
       <main className="flex-1 p-6">{children}</main>
     </div>
