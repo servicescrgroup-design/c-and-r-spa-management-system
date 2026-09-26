@@ -6,6 +6,8 @@ import { updateService } from "@/lib/admin/service-actions";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { ColorPicker } from "@/components/admin/color-picker";
+import { contrastTextColor } from "@/lib/color";
 
 type Category = { id: string; name: string };
 type Variant = { durationMinutes: number; priceDollars: number; payoutDollars: number };
@@ -24,6 +26,8 @@ export function ServiceEditForm({
     descriptionTh: string;
     categoryId: string;
     isActive: boolean;
+    imageUrl: string | null;
+    backgroundColor: string | null;
     variants: Variant[];
   };
 }) {
@@ -31,6 +35,7 @@ export function ServiceEditForm({
   const [error, setError] = useState<string | null>(null);
   const [saved, setSaved] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [color, setColor] = useState<string | null>(initial.backgroundColor);
   const [variants, setVariants] = useState<Variant[]>(
     initial.variants.length > 0
       ? initial.variants
@@ -79,6 +84,30 @@ export function ServiceEditForm({
           <Label htmlFor="nameTh">Name (Thai)</Label>
           <Input id="nameTh" name="nameTh" defaultValue={initial.nameTh} />
         </div>
+      </div>
+
+      <div className="space-y-2">
+        <Label>Image or color</Label>
+        <div className="flex items-center gap-4">
+          {initial.imageUrl ? (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img src={initial.imageUrl} alt="" className="h-16 w-16 rounded-lg object-cover" />
+          ) : color ? (
+            <div
+              className="flex h-16 w-16 items-center justify-center rounded-lg text-xs font-medium"
+              style={{ backgroundColor: color, color: contrastTextColor(color) }}
+            >
+              Preview
+            </div>
+          ) : (
+            <div className="h-16 w-16 rounded-lg bg-gradient-to-br from-primary/20 to-primary/5" />
+          )}
+          <div className="flex-1 space-y-2">
+            <Input id="image" name="image" type="file" accept="image/*" />
+            <p className="text-xs text-muted-foreground">Upload a photo, or pick a color below if you don&apos;t have one.</p>
+          </div>
+        </div>
+        {!initial.imageUrl && <ColorPicker name="backgroundColor" value={color} onChange={setColor} />}
       </div>
 
       <div className="space-y-2">

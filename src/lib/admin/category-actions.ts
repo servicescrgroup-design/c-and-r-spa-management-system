@@ -4,6 +4,9 @@ import { revalidatePath } from "next/cache";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { requireStaffContext } from "@/lib/auth/session";
 import { isOwner } from "@/lib/auth/roles";
+import type { Database } from "@/types/database.types";
+
+type ServiceCategoryUpdate = Database["public"]["Tables"]["service_categories"]["Update"];
 
 type ActionResult = { ok: true } | { ok: false; error: string };
 
@@ -29,13 +32,22 @@ export async function createCategory(formData: FormData): Promise<ActionResult> 
   return { ok: true };
 }
 
+const TRANSLATION_COLUMNS = {
+  th: "name_th",
+  zh: "name_zh",
+  ko: "name_ko",
+  ja: "name_ja",
+} as const;
+
 export async function updateCategory(categoryId: string, formData: FormData): Promise<ActionResult> {
   const ctx = await requireStaffContext();
   if (!canManageCatalog(ctx)) return { ok: false, error: "Only an owner or manager can edit categories." };
 
   const name = String(formData.get("name") ?? "").trim();
-  const nameTh = String(formData.get("nameTh") ?? "").trim() || null;
   const description = String(formData.get("description") ?? "").trim() || null;
+  const backgroundColor = String(formData.get("backgroundColor") ?? "").trim() || null;
+  const translationLang = String(formData.get("translationLang") ?? "") as keyof typeof TRANSLATION_COLUMNS | "";
+  const translationName = String(formData.get("translationName") ?? "").trim() || null;
   if (!name) return { ok: false, error: "Category name is required." };
 
   const supabase = await createServerSupabaseClient();
@@ -50,15 +62,13 @@ export async function updateCategory(categoryId: string, formData: FormData): Pr
     imageUrl = publicUrl.publicUrl;
   }
 
-  const { error } = await supabase
-    .from("service_categories")
-    .update({
-      name,
-      name_th: nameTh,
-      description,
-      ...(imageUrl ? { image_url: imageUrl } : {}),
-    })
-    .eq("id", categoryId);
+  const update: ServiceCategoryUpdate = { name, description, background_color: backgroundColor };
+  if (translationLang && TRANSLATION_COLUMNS[translationLang]) {
+    update[TRANSLATION_COLUMNS[translationLang]] = translationName;
+  }
+  if (imageUrl) update.image_url = imageUrl;
+
+  const { error } = await supabase.from("service_categories").update(update).eq("id", categoryId);
   if (error) return { ok: false, error: error.message };
 
   revalidatePath("/admin/services");

@@ -2,7 +2,9 @@
 
 import { revalidatePath } from "next/cache";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
+import { createAdminSupabaseClient } from "@/lib/supabase/admin";
 import { requireStaffContext } from "@/lib/auth/session";
+import { isOwner } from "@/lib/auth/roles";
 
 type ActionResult = { ok: true } | { ok: false; error: string };
 
@@ -97,5 +99,33 @@ export async function updateStaffRole(
   }
 
   revalidatePath("/admin/staff");
+  return { ok: true };
+}
+
+/** Removes a staff member entirely: the staff row (cascading to their HR
+ * profile, documents, skills, branch roles, schedules, and deposit ledger)
+ * and their login (auth.users), so the account can't sign in anymore. Owner
+ * only, since this is irreversible. */
+export async function deleteStaffMember(staffId: string): Promise<ActionResult> {
+  const ctx = await requireStaffContext();
+  if (!isOwner(ctx)) return { ok: false, error: "Only an owner can delete staff." };
+  if (staffId === ctx.staffId) return { ok: false, error: "You can't delete your own account." };
+
+  const admin = createAdminSupabaseClient();
+  const { error } = await admin.from("staff").delete().eq("id", staffId);
+  if (error) return { ok: false, error: error.message };
+
+  const { error: authError } = await admin.auth.admin.deleteUser(staffId);
+  if (authError) return { ok: false, error: `Staff record removed, but login could not be deleted: ${authError.message}` };
+
+  revalidatePath("/admin/staff");
+  return { ok: true };
+}
+
+export async function deleteStaffMembers(staffIds: string[]): Promise<ActionResult> {
+  for (const staffId of staffIds) {
+    const result = await deleteStaffMember(staffId);
+    if (!result.ok) return result;
+  }
   return { ok: true };
 }

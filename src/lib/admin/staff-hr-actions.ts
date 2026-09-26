@@ -332,3 +332,64 @@ export async function addDepositEntry(input: {
   revalidatePath(`/admin/staff/${input.staffId}`);
   return { ok: true };
 }
+
+export type TherapistJob = {
+  id: string;
+  description: string;
+  durationMinutes: number | null;
+  payoutCents: number;
+  completedAt: string;
+  branchName: string;
+  paid: boolean;
+};
+
+function bangkokDate(date: Date): string {
+  return new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Bangkok" }).format(date);
+}
+
+/** This week's (last 7 days) completed jobs for a therapist, with the branch
+ * name and whether that day's payroll has been locked (i.e. paid out) —
+ * the same signal payroll-lock already uses, so "paid" here means the same
+ * thing it means on the payroll screen. */
+export async function getTherapistJobHistory(staffId: string): Promise<{ jobs: TherapistJob[]; weekTotalCents: number; weekCount: number }> {
+  await requireStaffContext();
+  const supabase = await createServerSupabaseClient();
+
+  const weekAgo = new Date(Date.now() - 7 * 86_400_000).toISOString();
+
+  const { data: items } = await supabase
+    .from("pos_transaction_items")
+    .select("id, description, duration_minutes, payout_cents, completed_at, pos_transactions!inner(branch_id, branches:branch_id(name))")
+    .eq("staff_id", staffId)
+    .not("completed_at", "is", null)
+    .gte("completed_at", weekAgo)
+    .order("completed_at", { ascending: false });
+
+  const branchIds = Array.from(new Set((items ?? []).map((i) => i.pos_transactions.branch_id)));
+  const workDates = Array.from(new Set((items ?? []).map((i) => bangkokDate(new Date(i.completed_at!)))));
+
+  const { data: locks } = branchIds.length
+    ? await supabase
+        .from("payroll_day_locks")
+        .select("branch_id, work_date")
+        .in("branch_id", branchIds)
+        .in("work_date", workDates)
+    : { data: [] as { branch_id: string; work_date: string }[] };
+  const lockedSet = new Set((locks ?? []).map((l) => `${l.branch_id}:${l.work_date}`));
+
+  const jobs: TherapistJob[] = (items ?? []).map((i) => ({
+    id: i.id,
+    description: i.description,
+    durationMinutes: i.duration_minutes,
+    payoutCents: i.payout_cents,
+    completedAt: i.completed_at!,
+    branchName: i.pos_transactions.branches?.name ?? "Unknown branch",
+    paid: lockedSet.has(`${i.pos_transactions.branch_id}:${bangkokDate(new Date(i.completed_at!))}`),
+  }));
+
+  return {
+    jobs,
+    weekTotalCents: jobs.reduce((sum, j) => sum + j.payoutCents, 0),
+    weekCount: jobs.length,
+  };
+}

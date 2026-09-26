@@ -8,6 +8,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { formatCents, cn } from "@/lib/utils";
+import { contrastTextColor } from "@/lib/color";
 
 type PriceOption = { duration_minutes: number; price_cents: number };
 type Service = {
@@ -15,11 +16,23 @@ type Service = {
   name: string;
   name_th: string | null;
   category_id: string | null;
+  image_url: string | null;
+  background_color: string | null;
   duration_minutes: number;
   default_price_cents: number;
   service_price_options: PriceOption[];
 };
-type Category = { id: string; name: string; name_th: string | null; description: string | null; image_url: string | null };
+type Category = {
+  id: string;
+  name: string;
+  name_th: string | null;
+  name_zh: string | null;
+  name_ko: string | null;
+  name_ja: string | null;
+  description: string | null;
+  image_url: string | null;
+  background_color: string | null;
+};
 
 type Selection = { serviceId: string; duration: number; priceCents: number };
 
@@ -192,7 +205,11 @@ export function BookingFlow({
   const t = DICT[lang];
 
   function categoryName(c: Category) {
-    return lang === "th" && c.name_th ? c.name_th : c.name;
+    if (lang === "th" && c.name_th) return c.name_th;
+    if (lang === "zh" && c.name_zh) return c.name_zh;
+    if (lang === "ko" && c.name_ko) return c.name_ko;
+    if (lang === "ja" && c.name_ja) return c.name_ja;
+    return c.name;
   }
 
   function serviceName(s: Service) {
@@ -371,27 +388,42 @@ export function BookingFlow({
           </CardHeader>
           <CardContent>
             <div className="grid grid-cols-2 gap-4 sm:grid-cols-3">
-              {categories.map((c) => (
-                <button
-                  key={c.id}
-                  type="button"
-                  onClick={() => setCategoryId(c.id)}
-                  className="group flex aspect-square flex-col overflow-hidden rounded-2xl border border-border shadow-sm transition-transform hover:-translate-y-0.5 hover:shadow-md"
-                >
-                  <div
-                    className="relative flex-[3] bg-cover bg-center"
-                    style={{
-                      backgroundImage: c.image_url
-                        ? `linear-gradient(180deg, rgba(47,74,63,0.15), rgba(30,50,42,0.55)), url(${c.image_url})`
-                        : "linear-gradient(160deg, #7fa085 0%, #4c6b52 55%, #2f4a3f 100%)",
-                    }}
-                  />
-                  <div className="flex flex-1 flex-col items-start justify-center gap-0.5 bg-gradient-to-b from-[#3c5a48] to-[#25382d] px-3 py-2 text-left text-primary-foreground">
-                    <span className="font-display text-sm font-medium leading-tight">{categoryName(c)}</span>
-                    {c.description && <span className="line-clamp-2 text-[11px] opacity-80">{c.description}</span>}
-                  </div>
-                </button>
-              ))}
+              {categories.map((c) => {
+                const textColor = c.background_color ? contrastTextColor(c.background_color) : "#fff";
+                return (
+                  <button
+                    key={c.id}
+                    type="button"
+                    onClick={() => setCategoryId(c.id)}
+                    className="group flex aspect-square flex-col overflow-hidden rounded-2xl border border-border shadow-sm transition-transform hover:-translate-y-0.5 hover:shadow-md"
+                  >
+                    <div
+                      className="relative flex-[3] bg-cover bg-center"
+                      style={
+                        c.image_url
+                          ? { backgroundImage: `linear-gradient(180deg, rgba(47,74,63,0.15), rgba(30,50,42,0.55)), url(${c.image_url})` }
+                          : c.background_color
+                            ? { backgroundColor: c.background_color }
+                            : { backgroundImage: "linear-gradient(160deg, #7fa085 0%, #4c6b52 55%, #2f4a3f 100%)" }
+                      }
+                    />
+                    <div
+                      className="flex flex-1 flex-col items-start justify-center gap-0.5 px-3 py-2 text-left"
+                      style={{
+                        backgroundColor: c.background_color ?? "#25382d",
+                        color: textColor,
+                      }}
+                    >
+                      <span className="font-display text-sm font-medium leading-tight">{categoryName(c)}</span>
+                      {c.description && (
+                        <span className="line-clamp-2 text-[11px]" style={{ opacity: 0.8 }}>
+                          {c.description}
+                        </span>
+                      )}
+                    </div>
+                  </button>
+                );
+              })}
               <button
                 type="button"
                 onClick={() => setCategoryId("all")}
@@ -456,6 +488,16 @@ export function BookingFlow({
                           onChange={() => toggleService(service)}
                           className="sr-only"
                         />
+                        {service.image_url ? (
+                          // eslint-disable-next-line @next/next/no-img-element
+                          <img src={service.image_url} alt="" className="h-8 w-8 shrink-0 rounded-lg object-cover" />
+                        ) : service.background_color ? (
+                          <span
+                            className="h-8 w-8 shrink-0 rounded-lg"
+                            style={{ backgroundColor: service.background_color }}
+                            aria-hidden
+                          />
+                        ) : null}
                         <span className="font-medium">{serviceName(service)}</span>
                       </span>
                       {selection && (

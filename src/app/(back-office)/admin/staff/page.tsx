@@ -6,6 +6,7 @@ import { InviteStaffForm } from "@/components/admin/invite-staff-form";
 import { StaffRoleEditor } from "@/components/admin/staff-role-editor";
 import { StaffAccountEditor } from "@/components/admin/staff-account-editor";
 import { RoleCapabilitiesCard } from "@/components/admin/role-capabilities-card";
+import { TherapistList } from "@/components/admin/therapist-list";
 import { roleLabel } from "@/lib/role-labels";
 
 type RoleRow = { role: "owner" | "manager" | "front_desk" | "therapist"; branch_id: string | null };
@@ -141,13 +142,18 @@ export default async function StaffPage() {
 
       <section className="space-y-3">
         <h2 className="font-display text-xl font-medium tracking-tight">Therapists</h2>
-        <p className="text-sm text-muted-foreground">Click a therapist to manage their HR profile and documents.</p>
-        <div className="grid gap-3 sm:grid-cols-2">
-          {therapists.map((s) => (
-            <StaffCard key={s.id} staff={s} branches={branches ?? []} branchName={branchName} />
-          ))}
-          {therapists.length === 0 && <p className="text-sm text-muted-foreground">No therapists yet.</p>}
-        </div>
+        <p className="text-sm text-muted-foreground">
+          Click a name to manage their HR profile and documents. Select multiple to delete at once.
+        </p>
+        <TherapistList
+          therapists={therapists.map((s) => ({
+            id: s.id,
+            first_name: s.first_name,
+            last_name: s.last_name,
+            email: s.email,
+            branchNames: s.staff_branch_roles.filter((r) => r.role === "therapist").map((r) => branchName(r.branch_id)),
+          }))}
+        />
       </section>
 
       {unassigned.length > 0 && (

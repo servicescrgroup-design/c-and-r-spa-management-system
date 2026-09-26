@@ -19,7 +19,10 @@ export default async function ServicesPage() {
           "id, name, name_th, is_active, category_id, duration_minutes, default_price_cents, service_price_options(duration_minutes, price_cents)",
         )
         .order("name"),
-      supabase.from("service_categories").select("id, name, name_th, description, image_url").order("sort_order"),
+      supabase
+        .from("service_categories")
+        .select("id, name, name_th, name_zh, name_ko, name_ja, description, image_url, background_color")
+        .order("sort_order"),
       supabase
         .from("packages")
         .select("id, name, price_cents, validity_days, package_items(quantity, service:service_id(name))")

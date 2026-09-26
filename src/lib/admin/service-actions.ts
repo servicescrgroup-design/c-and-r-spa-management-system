@@ -93,6 +93,7 @@ export async function updateService(serviceId: string, formData: FormData): Prom
   const descriptionTh = String(formData.get("descriptionTh") ?? "").trim() || null;
   const categoryId = String(formData.get("categoryId") ?? "").trim() || null;
   const isActive = formData.get("isActive") === "on";
+  const backgroundColor = String(formData.get("backgroundColor") ?? "").trim() || null;
   const variants = parseVariants(formData, 8);
 
   if (!name) return { ok: false, error: "Service name is required." };
@@ -100,6 +101,16 @@ export async function updateService(serviceId: string, formData: FormData): Prom
 
   const supabase = await createServerSupabaseClient();
   const first = variants[0];
+
+  let imageUrl: string | undefined;
+  const imageFile = formData.get("image");
+  if (imageFile instanceof File && imageFile.size > 0) {
+    const path = `${serviceId}/${Date.now()}.${imageFile.name.split(".").pop() ?? "jpg"}`;
+    const { error: uploadError } = await supabase.storage.from("service-images").upload(path, imageFile, { upsert: true });
+    if (uploadError) return { ok: false, error: uploadError.message };
+    const { data: publicUrl } = supabase.storage.from("service-images").getPublicUrl(path);
+    imageUrl = publicUrl.publicUrl;
+  }
 
   const { error: updateError } = await supabase
     .from("services")
@@ -110,6 +121,8 @@ export async function updateService(serviceId: string, formData: FormData): Prom
       description_th: descriptionTh,
       category_id: categoryId,
       is_active: isActive,
+      background_color: backgroundColor,
+      ...(imageUrl ? { image_url: imageUrl } : {}),
       duration_minutes: Math.round(first.durationMinutes),
       default_price_cents: Math.round(first.priceDollars * 100),
     })

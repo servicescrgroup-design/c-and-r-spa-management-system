@@ -5,8 +5,9 @@ import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { StaffHRDetail } from "@/components/admin/staff-hr-detail";
 import { DepositLedgerCard } from "@/components/admin/deposit-ledger-card";
 import { StaffAccountEditor } from "@/components/admin/staff-account-editor";
-import { getDepositLedger } from "@/lib/admin/staff-hr-actions";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { getDepositLedger, getTherapistJobHistory } from "@/lib/admin/staff-hr-actions";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { formatCents } from "@/lib/utils";
 
 export default async function StaffDetailPage({ params }: PageProps<"/admin/staff/[staffId]">) {
   await requireStaffContext();
@@ -23,6 +24,7 @@ export default async function StaffDetailPage({ params }: PageProps<"/admin/staf
     { data: branches },
     { data: complete },
     depositLedger,
+    jobHistory,
   ] = await Promise.all([
     supabase.from("staff").select("id, first_name, last_name, email, phone, employment_status").eq("id", staffId).maybeSingle(),
     supabase.from("therapist_profiles").select("*").eq("staff_id", staffId).maybeSingle(),
@@ -33,6 +35,7 @@ export default async function StaffDetailPage({ params }: PageProps<"/admin/staf
     supabase.from("branches").select("id, name").order("name"),
     supabase.rpc("therapist_documents_complete", { p_staff_id: staffId }),
     getDepositLedger(staffId),
+    getTherapistJobHistory(staffId),
   ]);
 
   if (!staff) notFound();
@@ -63,6 +66,65 @@ export default async function StaffDetailPage({ params }: PageProps<"/admin/staf
             balanceCents={depositLedger.balanceCents}
             branches={branches ?? []}
           />
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>This week&apos;s massages</CardTitle>
+          <CardDescription>
+            {jobHistory.weekCount} job{jobHistory.weekCount === 1 ? "" : "s"} &middot; {formatCents(jobHistory.weekTotalCents)} earned
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          {jobHistory.jobs.length === 0 ? (
+            <p className="text-sm text-muted-foreground">No completed massages in the last 7 days.</p>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full min-w-[560px] text-sm">
+                <thead>
+                  <tr className="border-b border-border text-left text-xs uppercase tracking-wide text-muted-foreground">
+                    <th className="py-2 pr-3">When</th>
+                    <th className="px-3 py-2">Branch</th>
+                    <th className="px-3 py-2">Massage</th>
+                    <th className="px-3 py-2">Payout</th>
+                    <th className="px-3 py-2 text-right">Payment</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {jobHistory.jobs.map((j) => (
+                    <tr key={j.id} className="border-b border-border last:border-0">
+                      <td className="py-2 pr-3">
+                        {new Date(j.completedAt).toLocaleString(undefined, {
+                          month: "short",
+                          day: "numeric",
+                          hour: "numeric",
+                          minute: "2-digit",
+                        })}
+                      </td>
+                      <td className="px-3 py-2">{j.branchName}</td>
+                      <td className="px-3 py-2">
+                        {j.description}
+                        {j.durationMinutes ? ` · ${j.durationMinutes} min` : ""}
+                      </td>
+                      <td className="px-3 py-2">{formatCents(j.payoutCents)}</td>
+                      <td className="px-3 py-2 text-right">
+                        <span
+                          className={
+                            j.paid
+                              ? "rounded-full bg-primary/10 px-2.5 py-1 text-xs font-medium text-primary"
+                              : "rounded-full bg-muted px-2.5 py-1 text-xs font-medium text-muted-foreground"
+                          }
+                        >
+                          {j.paid ? "Paid" : "Pending payroll"}
+                        </span>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
         </CardContent>
       </Card>
 

@@ -128,3 +128,47 @@ export async function setBranchTherapists(branchId: string, staffIds: string[]):
   revalidatePath("/admin/staff");
   return { ok: true };
 }
+
+/** A service is available at a branch unless explicitly turned off — no row in
+ * branch_service_overrides means "available everywhere", which is how a service
+ * unique to one store (e.g. bamboo massage) works: create it once, then turn it
+ * off everywhere except the branch that actually offers it. */
+export async function getBranchServiceOverrides(branchId: string): Promise<Record<string, boolean>> {
+  await requireStaffContext();
+  const supabase = await createServerSupabaseClient();
+  const { data } = await supabase
+    .from("branch_service_overrides")
+    .select("service_id, is_offered")
+    .eq("branch_id", branchId);
+
+  const map: Record<string, boolean> = {};
+  for (const row of data ?? []) map[row.service_id] = row.is_offered;
+  return map;
+}
+
+export async function setBranchServiceOffered(branchId: string, serviceId: string, isOffered: boolean): Promise<ActionResult> {
+  const ctx = await requireStaffContext();
+  if (!isOwner(ctx) && !ctx.roles.some((r) => r.role === "manager")) {
+    return { ok: false, error: "Only an owner or manager can change which services a branch offers." };
+  }
+
+  const supabase = await createServerSupabaseClient();
+
+  if (isOffered) {
+    // Available is the default — drop the override rather than storing a redundant row.
+    const { error } = await supabase
+      .from("branch_service_overrides")
+      .delete()
+      .eq("branch_id", branchId)
+      .eq("service_id", serviceId);
+    if (error) return { ok: false, error: error.message };
+  } else {
+    const { error } = await supabase
+      .from("branch_service_overrides")
+      .upsert({ branch_id: branchId, service_id: serviceId, is_offered: false }, { onConflict: "branch_id,service_id" });
+    if (error) return { ok: false, error: error.message };
+  }
+
+  revalidatePath("/admin/branches");
+  return { ok: true };
+}

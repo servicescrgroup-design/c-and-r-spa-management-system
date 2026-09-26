@@ -18,7 +18,7 @@ export default async function ServiceDetailPage({
     supabase
       .from("services")
       .select(
-        "id, name, name_th, description, description_th, category_id, is_active, duration_minutes, default_price_cents, service_price_options(duration_minutes, price_cents, payout_cents)",
+        "id, name, name_th, description, description_th, category_id, is_active, image_url, background_color, duration_minutes, default_price_cents, service_price_options(duration_minutes, price_cents, payout_cents)",
       )
       .eq("id", serviceId)
       .maybeSingle(),
@@ -70,6 +70,8 @@ export default async function ServiceDetailPage({
               descriptionTh: service.description_th ?? "",
               categoryId: service.category_id ?? "",
               isActive: service.is_active,
+              imageUrl: service.image_url,
+              backgroundColor: service.background_color,
               variants,
             }}
           />

@@ -9,20 +9,22 @@ import type { WeekHours } from "@/lib/admin/branch-actions";
 export default async function BranchesPage() {
   await requireStaffContext();
   const supabase = await createServerSupabaseClient();
-  const [{ data: branches }, { data: therapistStaff }, { data: therapistRoles }, { data: profiles }] = await Promise.all([
-    supabase
-      .from("branches")
-      .select(
-        "id, name, slug, is_active, booking_enabled, deposit_required, payroll_min_hours, payroll_guarantee_cents, transportation_fee_cents, queue_send_to_back, require_documents_for_clockin, hours",
-      )
-      .order("created_at"),
-    supabase
-      .from("staff_branch_roles")
-      .select("staff_id, staff:staff_id(id, first_name, last_name)")
-      .eq("role", "therapist"),
-    supabase.from("staff_branch_roles").select("staff_id, branch_id").eq("role", "therapist"),
-    supabase.from("therapist_profiles").select("staff_id, nickname"),
-  ]);
+  const [{ data: branches }, { data: therapistStaff }, { data: therapistRoles }, { data: profiles }, { data: services }] =
+    await Promise.all([
+      supabase
+        .from("branches")
+        .select(
+          "id, name, slug, is_active, booking_enabled, deposit_required, payroll_min_hours, payroll_guarantee_cents, transportation_fee_cents, queue_send_to_back, require_documents_for_clockin, hours",
+        )
+        .order("created_at"),
+      supabase
+        .from("staff_branch_roles")
+        .select("staff_id, staff:staff_id(id, first_name, last_name)")
+        .eq("role", "therapist"),
+      supabase.from("staff_branch_roles").select("staff_id, branch_id").eq("role", "therapist"),
+      supabase.from("therapist_profiles").select("staff_id, nickname"),
+      supabase.from("services").select("id, name").eq("is_active", true).order("name"),
+    ]);
 
   const nicknameByStaff = new Map((profiles ?? []).map((p) => [p.staff_id, p.nickname]));
   const therapistById = new Map<string, { id: string; name: string; nickname: string | null }>();
@@ -78,6 +80,7 @@ export default async function BranchesPage() {
                 branch={{ ...branch, hours: branch.hours as Partial<WeekHours> | null }}
                 therapists={therapists}
                 assignedTherapistIds={assignedByBranch.get(branch.id) ?? []}
+                services={services ?? []}
               />
             </CardContent>
           </Card>

@@ -1,8 +1,15 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { updateBranchSettings, updateBranchHours, setBranchTherapists, type WeekHours } from "@/lib/admin/branch-actions";
+import {
+  updateBranchSettings,
+  updateBranchHours,
+  setBranchTherapists,
+  getBranchServiceOverrides,
+  setBranchServiceOffered,
+  type WeekHours,
+} from "@/lib/admin/branch-actions";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -204,17 +211,67 @@ function TherapistsSection({
   );
 }
 
+function ServicesSection({ branchId, services }: { branchId: string; services: { id: string; name: string }[] }) {
+  const [overrides, setOverrides] = useState<Record<string, boolean> | null>(null);
+  const [busyId, setBusyId] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    getBranchServiceOverrides(branchId).then(setOverrides);
+  }, [branchId]);
+
+  async function toggle(serviceId: string, currentlyOffered: boolean) {
+    setBusyId(serviceId);
+    setError(null);
+    const result = await setBranchServiceOffered(branchId, serviceId, !currentlyOffered);
+    setBusyId(null);
+    if (!result.ok) return setError(result.error);
+    setOverrides((prev) => ({ ...prev, [serviceId]: !currentlyOffered }));
+  }
+
+  if (overrides === null) return <p className="text-sm text-muted-foreground">Loading...</p>;
+
+  return (
+    <div className="space-y-2">
+      <p className="text-xs text-muted-foreground">
+        On by default everywhere — turn a service off here if this branch doesn&apos;t offer it (or leave a
+        branch-only service, like bamboo massage, off everywhere except the one store that has it).
+      </p>
+      <div className="max-h-72 space-y-1 overflow-y-auto">
+        {services.map((s) => {
+          const offered = overrides[s.id] ?? true;
+          return (
+            <label key={s.id} className="flex items-center justify-between gap-2 rounded-lg border border-border px-3 py-1.5 text-sm">
+              <span className={offered ? "" : "text-muted-foreground line-through"}>{s.name}</span>
+              <input
+                type="checkbox"
+                checked={offered}
+                disabled={busyId === s.id}
+                onChange={() => toggle(s.id, offered)}
+              />
+            </label>
+          );
+        })}
+        {services.length === 0 && <p className="text-sm text-muted-foreground">No services in the catalogue yet.</p>}
+      </div>
+      {error && <p className="text-sm text-destructive">{error}</p>}
+    </div>
+  );
+}
+
 export function BranchSettingsForm({
   branch,
   therapists,
   assignedTherapistIds,
+  services,
 }: {
   branch: Branch;
   therapists: Therapist[];
   assignedTherapistIds: string[];
+  services: { id: string; name: string }[];
 }) {
   const [open, setOpen] = useState(false);
-  const [tab, setTab] = useState<"settings" | "hours" | "therapists">("settings");
+  const [tab, setTab] = useState<"settings" | "hours" | "therapists" | "services">("settings");
 
   if (!open) {
     return (
@@ -231,6 +288,7 @@ export function BranchSettingsForm({
           ["settings", "Payroll & queue"],
           ["hours", "Opening hours"],
           ["therapists", "Therapists"],
+          ["services", "Services"],
         ] as const).map(([key, label]) => (
           <button
             key={key}
@@ -246,6 +304,7 @@ export function BranchSettingsForm({
       {tab === "settings" && <SettingsSection branch={branch} />}
       {tab === "hours" && <HoursSection branchId={branch.id} hours={branch.hours} />}
       {tab === "therapists" && <TherapistsSection branchId={branch.id} therapists={therapists} assignedIds={assignedTherapistIds} />}
+      {tab === "services" && <ServicesSection branchId={branch.id} services={services} />}
 
       <button type="button" onClick={() => setOpen(false)} className="text-xs text-muted-foreground hover:underline">
         Close

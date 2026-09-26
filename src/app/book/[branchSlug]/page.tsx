@@ -17,19 +17,23 @@ export default async function BranchBookingPage({
 
   if (!branch) notFound();
 
-  const [{ data: services }, { data: categories }] = await Promise.all([
+  const [{ data: services }, { data: categories }, { data: overrides }] = await Promise.all([
     supabase
       .from("services")
       .select(
-        "id, name, name_th, category_id, duration_minutes, default_price_cents, service_price_options(duration_minutes, price_cents)",
+        "id, name, name_th, category_id, image_url, background_color, duration_minutes, default_price_cents, service_price_options(duration_minutes, price_cents)",
       )
       .eq("is_active", true)
       .order("name"),
     supabase
       .from("service_categories")
-      .select("id, name, name_th, description, image_url")
+      .select("id, name, name_th, name_zh, name_ko, name_ja, description, image_url, background_color")
       .order("sort_order"),
+    supabase.from("branch_service_overrides").select("service_id, is_offered").eq("branch_id", branch.id),
   ]);
+
+  const notOffered = new Set((overrides ?? []).filter((o) => !o.is_offered).map((o) => o.service_id));
+  const availableServices = (services ?? []).filter((s) => !notOffered.has(s.id));
 
   return (
     <main className="mx-auto flex w-full max-w-2xl flex-1 flex-col gap-6 px-6 py-16">
@@ -39,7 +43,7 @@ export default async function BranchBookingPage({
       </div>
       <BookingFlow
         branchId={branch.id}
-        services={services ?? []}
+        services={availableServices}
         categories={categories ?? []}
         depositRequired={branch.deposit_required}
       />
