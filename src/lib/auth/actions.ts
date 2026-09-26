@@ -12,6 +12,12 @@ export async function signOutStaff(): Promise<void> {
   redirect("/auth/staff-login");
 }
 
+export async function signOutCustomer(): Promise<void> {
+  const supabase = await createServerSupabaseClient();
+  await supabase.auth.signOut();
+  redirect("/auth/customer-login");
+}
+
 /**
  * Creates the auth.users row for an accepted staff invite. The staff row,
  * staff_branch_roles, and invite.accepted_at are populated by the

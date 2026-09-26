@@ -2,6 +2,7 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { requireStaffContext } from "@/lib/auth/session";
 import { isOwner } from "@/lib/auth/roles";
+import { signOutStaff } from "@/lib/auth/actions";
 
 const NAV = [
   { href: "/admin", label: "Dashboard" },
@@ -40,6 +41,11 @@ export default async function AdminLayout({ children }: LayoutProps<"/admin">) {
           Signed in as {ctx.firstName || ctx.email}
           {isOwner(ctx) && <span className="ml-1 font-medium text-primary">(owner)</span>}
         </div>
+        <form action={signOutStaff} className="mt-2">
+          <button type="submit" className="text-xs text-muted-foreground hover:text-foreground hover:underline">
+            Sign out
+          </button>
+        </form>
       </aside>
       <main className="flex-1 p-6">{children}</main>
     </div>
