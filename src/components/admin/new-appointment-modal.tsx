@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { getDurationOptions, type PricedDuration } from "@/lib/pos/sale-actions";
 import { getRoomsWithBeds, getBedAvailability, createStaffAppointment, type RoomWithBeds, type BedAvailability } from "@/lib/admin/scheduling-actions";
+import { getTherapistAvailability, type TherapistAvailability } from "@/lib/admin/calendar-actions";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -42,6 +43,8 @@ export function NewAppointmentModal({
   const [roomId, setRoomId] = useState<string | null>(null);
   const [bedId, setBedId] = useState<string | null>(null);
 
+  const [therapists, setTherapists] = useState<TherapistAvailability[]>([]);
+  const [staffId, setStaffId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
@@ -65,6 +68,11 @@ export function NewAppointmentModal({
     if (!open || !active) return;
     const endAtISO = new Date(new Date(startAtISO).getTime() + active.durationMinutes * 60_000).toISOString();
     getBedAvailability({ branchId, startAt: startAtISO, endAt: endAtISO, serviceIds: selectedServiceIds }).then(setAvailability);
+    getTherapistAvailability({ branchId, startAt: startAtISO, endAt: endAtISO }).then((list) => {
+      setTherapists(list);
+      // Drop a picked therapist who is busy at the new time.
+      setStaffId((current) => (current && list.find((t) => t.id === current)?.busy ? null : current));
+    });
   }, [open, active, startAtISO, branchId, selectedServiceIds]);
 
   const filteredServices = services.filter((s) => categoryId === "all" || s.category_id === categoryId);
@@ -96,11 +104,15 @@ export function NewAppointmentModal({
     setSuccess(null);
     if (!active) return setError("Choose a duration that has a configured price.");
     if (!bedId) return setError("Select a room and bed.");
+    if (staffId && therapists.find((t) => t.id === staffId)?.busy) {
+      return setError("That therapist is busy at this time. Pick another therapist or time.");
+    }
 
     setLoading(true);
     const result = await createStaffAppointment({
       branchId,
       bedId,
+      staffId,
       customer: { name, email, phone, nationality },
       serviceIds: selectedServiceIds,
       durationMinutes: active.durationMinutes,
@@ -118,6 +130,7 @@ export function NewAppointmentModal({
     setSelectedServiceIds([]);
     setRoomId(null);
     setBedId(null);
+    setStaffId(null);
     router.refresh();
     setTimeout(() => setOpen(false), 800);
   }
@@ -230,6 +243,47 @@ export function NewAppointmentModal({
                     </button>
                   ))}
                 </div>
+              )}
+            </div>
+          )}
+
+          {active && (
+            <div className="space-y-2">
+              <Label>Therapist</Label>
+              <div className="flex flex-wrap gap-2">
+                <button
+                  type="button"
+                  onClick={() => setStaffId(null)}
+                  className={cn(
+                    "rounded-full border px-3 py-1.5 text-sm",
+                    staffId === null ? "border-primary bg-primary text-primary-foreground" : "border-border",
+                  )}
+                >
+                  Any available
+                </button>
+                {therapists.map((t) => (
+                  <button
+                    key={t.id}
+                    type="button"
+                    disabled={t.busy}
+                    title={t.reason ?? undefined}
+                    onClick={() => setStaffId(t.id)}
+                    className={cn(
+                      "rounded-full border px-3 py-1.5 text-sm",
+                      staffId === t.id
+                        ? "border-primary bg-primary text-primary-foreground"
+                        : t.busy
+                          ? "cursor-not-allowed border-destructive/30 bg-destructive/5 text-muted-foreground line-through"
+                          : "border-[#1f7a35]/40 bg-[#1f7a35]/5",
+                    )}
+                  >
+                    <span data-no-translate>{t.name}</span>
+                    {t.busy && t.reason && <span className="ml-1 text-xs no-underline">({t.reason})</span>}
+                  </button>
+                ))}
+              </div>
+              {therapists.length === 0 && (
+                <p className="text-xs text-muted-foreground">No therapists are assigned to this branch yet.</p>
               )}
             </div>
           )}

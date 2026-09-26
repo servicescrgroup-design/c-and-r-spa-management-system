@@ -11,12 +11,15 @@ type Branch = { id: string; name: string };
 export function BranchOrderTabs({
   branches,
   activeBranchId,
-  hrefFor,
+  hrefBase,
   canReorder,
 }: {
   branches: Branch[];
   activeBranchId: string;
-  hrefFor: (branchId: string) => string;
+  /** Link prefix; the branch id is appended, e.g. "/admin/scheduling?branchId=".
+   * A string rather than a function because server pages can't pass
+   * functions to client components. */
+  hrefBase: string;
   canReorder: boolean;
 }) {
   const router = useRouter();
@@ -30,7 +33,7 @@ export function BranchOrderTabs({
         {branches.map((b) => (
           <Link
             key={b.id}
-            href={hrefFor(b.id)}
+            href={`${hrefBase}${b.id}`}
             className={cn(
               "rounded-full border px-3.5 py-1.5 text-sm transition-colors",
               b.id === activeBranchId ? "border-primary bg-primary text-primary-foreground" : "border-border",
@@ -69,7 +72,7 @@ export function BranchOrderTabs({
       {order.map((b) => (
         <Link
           key={b.id}
-          href={hrefFor(b.id)}
+          href={`${hrefBase}${b.id}`}
           draggable
           onDragStart={() => setDragId(b.id)}
           onDragOver={(e) => e.preventDefault()}

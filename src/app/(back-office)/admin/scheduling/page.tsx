@@ -10,6 +10,8 @@ import { NewAppointmentModal } from "@/components/admin/new-appointment-modal";
 import { RoomsBedsManager } from "@/components/admin/rooms-beds-manager";
 import { BranchOrderTabs } from "@/components/admin/branch-order-tabs";
 import { DAY_NAMES } from "@/lib/admin/schedule-constants";
+import { ScheduleCalendar } from "@/components/admin/schedule-calendar";
+import { bangkokToday, getCalendarDay } from "@/lib/admin/calendar-data";
 
 export default async function SchedulingPage({ searchParams }: PageProps<"/admin/scheduling">) {
   const ctx = await requireStaffContext();
@@ -21,9 +23,14 @@ export default async function SchedulingPage({ searchParams }: PageProps<"/admin
     return <p className="text-muted-foreground">You aren&apos;t assigned to a branch yet.</p>;
   }
 
+  const today = bangkokToday();
+  const date = typeof sp.date === "string" && /^\d{4}-\d{2}-\d{2}$/.test(sp.date) ? sp.date : today;
+  const dateQuery = date === today ? "" : `&date=${date}`;
+
   const supabase = await createServerSupabaseClient();
-  const [{ data: staff }, { data: schedules }, { data: appointments }, { data: services }, { data: categories }, rooms] =
+  const [calendar, { data: staff }, { data: schedules }, { data: appointments }, { data: services }, { data: categories }, rooms] =
     await Promise.all([
+      getCalendarDay(date),
       supabase.from("staff").select("id, first_name, last_name").order("first_name"),
       supabase
         .from("staff_schedules")
@@ -46,25 +53,33 @@ export default async function SchedulingPage({ searchParams }: PageProps<"/admin
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="font-display text-3xl font-medium tracking-tight">Scheduling</h1>
-        <p className="text-muted-foreground">
-          Check in today&apos;s staff first, then book appointments into a room and bed.
-        </p>
+      <div className="flex flex-wrap items-end justify-between gap-3">
+        <div>
+          <h1 className="font-display text-3xl font-medium tracking-tight">Scheduling</h1>
+          <p className="text-muted-foreground">
+            Every booking and walk-in massage at both branches, by room. A therapist can only be in one service at a time.
+          </p>
+        </div>
+        <NewAppointmentModal branchId={branchId} services={services ?? []} categories={categories ?? []} />
       </div>
 
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <BranchOrderTabs
-          branches={branches}
-          activeBranchId={branchId}
-          hrefFor={(id) => `/admin/scheduling?branchId=${id}`}
-          canReorder={isOwner(ctx)}
-        />
-        <div className="flex items-center gap-3">
-          <Link href={`/pos/queue?branchId=${branchId}`} className="text-sm text-primary hover:underline">
+      <ScheduleCalendar day={calendar} today={today} />
+
+      <div className="flex flex-wrap items-center justify-between gap-3 border-t border-border pt-6">
+        <div>
+          <h2 className="font-display text-2xl">Branch setup</h2>
+          <p className="text-sm text-muted-foreground">Rooms, beds, schedules and new appointments for the selected branch.</p>
+        </div>
+        <div className="flex flex-wrap items-center gap-3">
+          <BranchOrderTabs
+            branches={branches}
+            activeBranchId={branchId}
+            hrefBase={`/admin/scheduling?${dateQuery ? `${dateQuery.slice(1)}&` : ""}branchId=`}
+            canReorder={isOwner(ctx)}
+          />
+          <Link href={`/pos/queue?branchId=${branchId}`} className="text-sm text-accent hover:underline">
             Check in staff for today &rarr;
           </Link>
-          <NewAppointmentModal branchId={branchId} services={services ?? []} categories={categories ?? []} />
         </div>
       </div>
 

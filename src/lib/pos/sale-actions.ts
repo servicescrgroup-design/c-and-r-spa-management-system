@@ -1,6 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { getStaffConflicts } from "@/lib/admin/calendar-data";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { requireStaffContext } from "@/lib/auth/session";
 import { isOwner } from "@/lib/auth/roles";
@@ -160,6 +161,17 @@ export async function sellService(input: {
   }
   if (session.status !== "available") {
     return { ok: false, error: "Therapist is not currently available." };
+  }
+
+  // Don't start a walk-in that would run into this therapist's next booking.
+  {
+    const now = new Date();
+    const jobEnd = new Date(now.getTime() + input.durationMinutes * 60_000);
+    const conflicts = await getStaffConflicts([session.staff_id], now.toISOString(), jobEnd.toISOString());
+    const reason = conflicts.get(session.staff_id);
+    if (reason) {
+      return { ok: false, error: `This therapist isn't free for ${input.durationMinutes} min: ${reason}. Pick another therapist or a shorter service.` };
+    }
   }
 
   if (input.roomId) {

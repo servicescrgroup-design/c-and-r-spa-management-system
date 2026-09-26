@@ -5,6 +5,7 @@ import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { requireStaffContext } from "@/lib/auth/session";
 import { isOwner } from "@/lib/auth/roles";
 import type { Enums } from "@/types/database.types";
+import { getStaffConflicts } from "@/lib/admin/calendar-data";
 
 type ActionResult = { ok: true } | { ok: false; error: string };
 type BedType = Enums<"bed_type">;
@@ -127,6 +128,7 @@ export async function getBedAvailability(input: {
 export async function createStaffAppointment(input: {
   branchId: string;
   bedId: string | null;
+  staffId?: string | null;
   customer: { name: string; email: string; phone: string; nationality: string };
   serviceIds: string[];
   durationMinutes: number;
@@ -171,6 +173,13 @@ export async function createStaffAppointment(input: {
   const startAt = new Date(input.startAt);
   const endAt = new Date(startAt.getTime() + input.durationMinutes * 60_000);
 
+  // A therapist can only do one service at a time, across both branches.
+  if (input.staffId) {
+    const conflicts = await getStaffConflicts([input.staffId], startAt.toISOString(), endAt.toISOString());
+    const reason = conflicts.get(input.staffId);
+    if (reason) return { ok: false, error: `That therapist isn't free: ${reason}. Pick another therapist or time.` };
+  }
+
   const { data: appointment, error: apptError } = await supabase
     .from("appointments")
     .insert({
@@ -195,9 +204,15 @@ export async function createStaffAppointment(input: {
       price_cents: i === 0 ? input.priceCents : 0,
       duration_minutes: input.durationMinutes,
       sort_order: i,
+      staff_id: input.staffId ?? null,
     })),
   );
-  if (servicesError) return { ok: false, error: servicesError.message };
+  if (servicesError) {
+    // Don't leave a half-created appointment behind (e.g. the database's
+    // double-booking rule rejected the therapist).
+    await supabase.from("appointments").delete().eq("id", appointment.id);
+    return { ok: false, error: servicesError.message };
+  }
 
   revalidatePath("/admin/scheduling");
   return { ok: true, appointmentId: appointment.id };

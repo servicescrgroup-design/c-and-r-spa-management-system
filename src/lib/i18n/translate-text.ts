@@ -71,6 +71,13 @@ const PATTERNS: [RegExp, string][] = [
   [/^(\d+) min$/, "$1 นาที"],
   [/^(\d+(?:\.\d+)?) ?h$/, "$1 ชม."],
   [/^Signed in as (.+)$/, "เข้าสู่ระบบในชื่อ $1"],
+  [/^(\d+) min left$/, "เหลือ $1 นาที"],
+  [/^Starts in (\d+) min$/, "เริ่มในอีก $1 นาที"],
+  [/^\(?Booked (\d{2}:\d{2}–\d{2}:\d{2})\)?$/, "จองแล้ว $1"],
+  [/^\(?In service until about (\d{2}:\d{2})\)?$/, "ให้บริการถึงประมาณ $1"],
+  [/^(.+) is already booked from (\S+) to (\S+)\. Pick another therapist or time\.$/, "$1 มีคิวจองแล้ว $2–$3 เลือกหมอนวดหรือเวลาอื่น"],
+  [/^That therapist isn't free: (.+)\. Pick another therapist or time\.$/, "หมอนวดคนนี้ไม่ว่าง: $1 เลือกหมอนวดหรือเวลาอื่น"],
+  [/^This therapist isn't free for (\d+) min: (.+)\. Pick another therapist or a shorter service\.$/, "หมอนวดคนนี้ไม่ว่าง $1 นาที: $2 เลือกหมอนวดอื่นหรือบริการที่สั้นกว่า"],
 ];
 
 /**

@@ -3479,6 +3479,19 @@ export type Database = {
         Args: { p_branch_id: string; p_locked: boolean; p_work_date: string }
         Returns: undefined
       }
+      staff_booking_conflicts: {
+        Args: {
+          p_end: string
+          p_exclude_appointment?: string
+          p_staff_ids: string[]
+          p_start: string
+        }
+        Returns: {
+          end_at: string
+          staff_id: string
+          start_at: string
+        }[]
+      }
       therapist_documents_complete: {
         Args: { p_staff_id: string }
         Returns: boolean
