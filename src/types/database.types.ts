@@ -156,6 +156,7 @@ export type Database = {
       }
       appointments: {
         Row: {
+          bed_id: string | null
           branch_id: string
           created_at: string
           created_by_staff_id: string | null
@@ -172,6 +173,7 @@ export type Database = {
           status: Database["public"]["Enums"]["appointment_status"]
         }
         Insert: {
+          bed_id?: string | null
           branch_id: string
           created_at?: string
           created_by_staff_id?: string | null
@@ -188,6 +190,7 @@ export type Database = {
           status?: Database["public"]["Enums"]["appointment_status"]
         }
         Update: {
+          bed_id?: string | null
           branch_id?: string
           created_at?: string
           created_by_staff_id?: string | null
@@ -204,6 +207,13 @@ export type Database = {
           status?: Database["public"]["Enums"]["appointment_status"]
         }
         Relationships: [
+          {
+            foreignKeyName: "appointments_bed_id_fkey"
+            columns: ["bed_id"]
+            isOneToOne: false
+            referencedRelation: "room_beds"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "appointments_branch_id_fkey"
             columns: ["branch_id"]
@@ -288,6 +298,29 @@ export type Database = {
             columns: ["staff_id"]
             isOneToOne: false
             referencedRelation: "staff"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      bed_type_allowed_services: {
+        Row: {
+          bed_type: Database["public"]["Enums"]["bed_type"]
+          service_id: string
+        }
+        Insert: {
+          bed_type: Database["public"]["Enums"]["bed_type"]
+          service_id: string
+        }
+        Update: {
+          bed_type?: Database["public"]["Enums"]["bed_type"]
+          service_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "bed_type_allowed_services_service_id_fkey"
+            columns: ["service_id"]
+            isOneToOne: false
+            referencedRelation: "services"
             referencedColumns: ["id"]
           },
         ]
@@ -777,6 +810,7 @@ export type Database = {
           id: string
           last_name: string
           marketing_opt_in: boolean
+          nationality: string | null
           notes: string | null
           org_id: string
           phone: string | null
@@ -790,6 +824,7 @@ export type Database = {
           id?: string
           last_name: string
           marketing_opt_in?: boolean
+          nationality?: string | null
           notes?: string | null
           org_id: string
           phone?: string | null
@@ -803,6 +838,7 @@ export type Database = {
           id?: string
           last_name?: string
           marketing_opt_in?: boolean
+          nationality?: string | null
           notes?: string | null
           org_id?: string
           phone?: string | null
@@ -1972,6 +2008,38 @@ export type Database = {
           },
         ]
       }
+      room_beds: {
+        Row: {
+          bed_type: Database["public"]["Enums"]["bed_type"]
+          id: string
+          is_active: boolean
+          name: string
+          room_id: string
+        }
+        Insert: {
+          bed_type?: Database["public"]["Enums"]["bed_type"]
+          id?: string
+          is_active?: boolean
+          name: string
+          room_id: string
+        }
+        Update: {
+          bed_type?: Database["public"]["Enums"]["bed_type"]
+          id?: string
+          is_active?: boolean
+          name?: string
+          room_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "room_beds_room_id_fkey"
+            columns: ["room_id"]
+            isOneToOne: false
+            referencedRelation: "branch_rooms"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       service_categories: {
         Row: {
           id: string
@@ -3090,6 +3158,7 @@ export type Database = {
         | "completed"
         | "cancelled"
         | "no_show"
+      bed_type: "foot_chair" | "oil_bed" | "thai_bed" | "other"
       billing_interval: "one_time" | "monthly" | "annual"
       clock_status: "available" | "in_service" | "on_break" | "off_duty"
       customer_package_status: "active" | "expired" | "cancelled"
@@ -3283,6 +3352,7 @@ export const Constants = {
         "cancelled",
         "no_show",
       ],
+      bed_type: ["foot_chair", "oil_bed", "thai_bed", "other"],
       billing_interval: ["one_time", "monthly", "annual"],
       clock_status: ["available", "in_service", "on_break", "off_duty"],
       customer_package_status: ["active", "expired", "cancelled"],
