@@ -1764,6 +1764,45 @@ export type Database = {
           },
         ]
       }
+      service_edit_log: {
+        Row: {
+          created_at: string
+          id: string
+          service_id: string
+          staff_id: string | null
+          summary: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          service_id: string
+          staff_id?: string | null
+          summary: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          service_id?: string
+          staff_id?: string | null
+          summary?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "service_edit_log_service_id_fkey"
+            columns: ["service_id"]
+            isOneToOne: false
+            referencedRelation: "services"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "service_edit_log_staff_id_fkey"
+            columns: ["staff_id"]
+            isOneToOne: false
+            referencedRelation: "staff"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       service_price_options: {
         Row: {
           duration_minutes: number

@@ -13,17 +13,9 @@ function canManageCatalog(ctx: Awaited<ReturnType<typeof requireStaffContext>>) 
 
 export type VariantInput = { durationMinutes: number; priceDollars: number };
 
-export async function createService(formData: FormData): Promise<ActionResult> {
-  const ctx = await requireStaffContext();
-  if (!canManageCatalog(ctx)) {
-    return { ok: false, error: "Only an owner or manager can add services." };
-  }
-
-  const name = String(formData.get("name") ?? "").trim();
-  const nameTh = String(formData.get("nameTh") ?? "").trim() || null;
-
+function parseVariants(formData: FormData, maxSlots: number): VariantInput[] {
   const variants: VariantInput[] = [];
-  for (let i = 0; i < 4; i++) {
+  for (let i = 0; i < maxSlots; i++) {
     const duration = formData.get(`duration${i}`);
     const price = formData.get(`price${i}`);
     if (!duration || !price) continue;
@@ -33,6 +25,18 @@ export async function createService(formData: FormData): Promise<ActionResult> {
       variants.push({ durationMinutes, priceDollars });
     }
   }
+  return variants;
+}
+
+export async function createService(formData: FormData): Promise<ActionResult> {
+  const ctx = await requireStaffContext();
+  if (!canManageCatalog(ctx)) {
+    return { ok: false, error: "Only an owner or manager can add services." };
+  }
+
+  const name = String(formData.get("name") ?? "").trim();
+  const nameTh = String(formData.get("nameTh") ?? "").trim() || null;
+  const variants = parseVariants(formData, 4);
 
   if (!name) return { ok: false, error: "Service name is required." };
   if (variants.length === 0) {
@@ -70,4 +74,94 @@ export async function createService(formData: FormData): Promise<ActionResult> {
 
   revalidatePath("/admin/services");
   return { ok: true };
+}
+
+export async function updateService(serviceId: string, formData: FormData): Promise<ActionResult> {
+  const ctx = await requireStaffContext();
+  if (!canManageCatalog(ctx)) {
+    return { ok: false, error: "Only an owner or manager can edit services." };
+  }
+
+  const name = String(formData.get("name") ?? "").trim();
+  const nameTh = String(formData.get("nameTh") ?? "").trim() || null;
+  const description = String(formData.get("description") ?? "").trim() || null;
+  const descriptionTh = String(formData.get("descriptionTh") ?? "").trim() || null;
+  const categoryId = String(formData.get("categoryId") ?? "").trim() || null;
+  const isActive = formData.get("isActive") === "on";
+  const variants = parseVariants(formData, 8);
+
+  if (!name) return { ok: false, error: "Service name is required." };
+  if (variants.length === 0) return { ok: false, error: "Keep at least one duration and price." };
+
+  const supabase = await createServerSupabaseClient();
+  const first = variants[0];
+
+  const { error: updateError } = await supabase
+    .from("services")
+    .update({
+      name,
+      name_th: nameTh,
+      description,
+      description_th: descriptionTh,
+      category_id: categoryId,
+      is_active: isActive,
+      duration_minutes: Math.round(first.durationMinutes),
+      default_price_cents: Math.round(first.priceDollars * 100),
+    })
+    .eq("id", serviceId);
+  if (updateError) return { ok: false, error: updateError.message };
+
+  const { data: existingOptions } = await supabase
+    .from("service_price_options")
+    .select("id, duration_minutes, price_cents")
+    .eq("service_id", serviceId);
+
+  const existingByDuration = new Map((existingOptions ?? []).map((o) => [o.duration_minutes, o]));
+  const keptDurations = new Set<number>();
+
+  for (const [i, v] of variants.entries()) {
+    const duration = Math.round(v.durationMinutes);
+    const priceCents = Math.round(v.priceDollars * 100);
+    keptDurations.add(duration);
+    const existing = existingByDuration.get(duration);
+
+    if (existing) {
+      if (existing.price_cents !== priceCents) {
+        const { error } = await supabase
+          .from("service_price_options")
+          .update({ price_cents: priceCents, sort_order: i })
+          .eq("id", existing.id);
+        if (error) return { ok: false, error: error.message };
+      }
+    } else {
+      const { error } = await supabase
+        .from("service_price_options")
+        .insert({ service_id: serviceId, duration_minutes: duration, price_cents: priceCents, sort_order: i });
+      if (error) return { ok: false, error: error.message };
+    }
+  }
+
+  const removedIds = (existingOptions ?? [])
+    .filter((o) => !keptDurations.has(o.duration_minutes))
+    .map((o) => o.id);
+  if (removedIds.length > 0) {
+    const { error } = await supabase.from("service_price_options").delete().in("id", removedIds);
+    if (error) return { ok: false, error: error.message };
+  }
+
+  revalidatePath("/admin/services");
+  revalidatePath(`/admin/services/${serviceId}`);
+  return { ok: true };
+}
+
+export async function getServiceEditHistory(serviceId: string) {
+  await requireStaffContext();
+  const supabase = await createServerSupabaseClient();
+  const { data } = await supabase
+    .from("service_edit_log")
+    .select("id, summary, created_at, staff:staff_id(first_name, last_name)")
+    .eq("service_id", serviceId)
+    .order("created_at", { ascending: false })
+    .limit(50);
+  return data ?? [];
 }

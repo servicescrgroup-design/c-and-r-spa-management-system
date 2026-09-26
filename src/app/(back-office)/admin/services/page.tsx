@@ -3,16 +3,20 @@ import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { NewServiceForm } from "@/components/admin/new-service-form";
 import { NewPackageForm } from "@/components/admin/new-package-form";
+import { ServicesExplorer } from "@/components/admin/services-explorer";
 import { formatCents } from "@/lib/utils";
 
 export default async function ServicesPage() {
   await requireStaffContext();
   const supabase = await createServerSupabaseClient();
-  const [{ data: services }, { data: packages }] = await Promise.all([
+  const [{ data: services }, { data: categories }, { data: packages }] = await Promise.all([
     supabase
       .from("services")
-      .select("id, name, name_th, duration_minutes, default_price_cents, is_active, service_price_options(duration_minutes, price_cents)")
-      .order("created_at"),
+      .select(
+        "id, name, name_th, is_active, category_id, duration_minutes, default_price_cents, service_price_options(duration_minutes, price_cents)",
+      )
+      .order("name"),
+    supabase.from("service_categories").select("id, name").order("sort_order"),
     supabase
       .from("packages")
       .select("id, name, price_cents, validity_days, package_items(quantity, service:service_id(name))")
@@ -22,35 +26,13 @@ export default async function ServicesPage() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-2xl font-semibold">Services</h1>
+        <h1 className="font-display text-3xl font-medium tracking-tight">Services</h1>
         <p className="text-muted-foreground">
           Your service menu. Branches can override pricing later.
         </p>
       </div>
 
-      <div className="grid gap-3 sm:grid-cols-2">
-        {(services ?? []).map((service) => (
-          <Card key={service.id}>
-            <CardHeader>
-              <CardTitle>
-                {service.name}
-                {service.name_th && <span className="ml-2 text-muted-foreground">({service.name_th})</span>}
-              </CardTitle>
-              <CardDescription>
-                {(service.service_price_options ?? []).length > 0
-                  ? (service.service_price_options ?? [])
-                      .map((o) => `${o.duration_minutes} min · ${formatCents(o.price_cents)}`)
-                      .join("  |  ")
-                  : `${service.duration_minutes} min · ${formatCents(service.default_price_cents)}`}
-                {!service.is_active && " (inactive)"}
-              </CardDescription>
-            </CardHeader>
-          </Card>
-        ))}
-        {(services ?? []).length === 0 && (
-          <p className="text-sm text-muted-foreground">No services yet — add your first one.</p>
-        )}
-      </div>
+      <ServicesExplorer services={services ?? []} categories={categories ?? []} />
 
       <Card className="max-w-md">
         <CardHeader>
@@ -62,7 +44,7 @@ export default async function ServicesPage() {
       </Card>
 
       <div>
-        <h2 className="text-xl font-semibold">Packages</h2>
+        <h2 className="font-display text-2xl font-medium tracking-tight">Packages</h2>
         <p className="text-muted-foreground">Prepaid service bundles, sellable at the POS.</p>
       </div>
 
