@@ -2,6 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
+import { createAdminSupabaseClient } from "@/lib/supabase/admin";
 import { requireStaffContext } from "@/lib/auth/session";
 import { isOwner } from "@/lib/auth/roles";
 import type { Enums } from "@/types/database.types";
@@ -12,6 +13,42 @@ type DocType = Enums<"staff_document_type">;
 
 function canManageHR(ctx: Awaited<ReturnType<typeof requireStaffContext>>) {
   return isOwner(ctx) || ctx.roles.some((r) => r.role === "manager");
+}
+
+/** Owner-only: changes a staff member's name, login email, and/or password.
+ * Email/password go through the admin API since they live in auth.users,
+ * not a table the RLS-bound client can touch for someone else's account. */
+export async function updateStaffAccount(
+  staffId: string,
+  input: { firstName: string; lastName: string; email: string; password: string },
+): Promise<ActionResult> {
+  const ctx = await requireStaffContext();
+  if (!isOwner(ctx)) return { ok: false, error: "Only an owner can edit login accounts." };
+
+  const firstName = input.firstName.trim();
+  const lastName = input.lastName.trim();
+  const email = input.email.trim().toLowerCase();
+  if (!firstName) return { ok: false, error: "First name is required." };
+  if (!email) return { ok: false, error: "Email is required." };
+  if (input.password && input.password.length < 8) {
+    return { ok: false, error: "Password must be at least 8 characters." };
+  }
+
+  const admin = createAdminSupabaseClient();
+  const authUpdate: { email?: string; password?: string } = { email };
+  if (input.password) authUpdate.password = input.password;
+  const { error: authError } = await admin.auth.admin.updateUserById(staffId, authUpdate);
+  if (authError) return { ok: false, error: authError.message };
+
+  const { error } = await admin
+    .from("staff")
+    .update({ first_name: firstName, last_name: lastName, email })
+    .eq("id", staffId);
+  if (error) return { ok: false, error: error.message };
+
+  revalidatePath("/admin/staff");
+  revalidatePath(`/admin/staff/${staffId}`);
+  return { ok: true };
 }
 
 export async function updateTherapistProfile(staffId: string, formData: FormData): Promise<ActionResult> {
@@ -199,4 +236,99 @@ export async function getDocumentSignedUrl(path: string): Promise<string | null>
   const supabase = await createServerSupabaseClient();
   const { data } = await supabase.storage.from("staff-documents").createSignedUrl(path, 60 * 10);
   return data?.signedUrl ?? null;
+}
+
+export type DepositLedgerEntry = {
+  id: string;
+  entryType: "deposit_charge" | "uniform_charge" | "payment" | "deduction";
+  amountCents: number;
+  note: string | null;
+  createdAt: string;
+};
+
+export async function getDepositLedger(staffId: string): Promise<{ entries: DepositLedgerEntry[]; balanceCents: number }> {
+  await requireStaffContext();
+  const supabase = await createServerSupabaseClient();
+  const { data } = await supabase
+    .from("therapist_deposit_ledger")
+    .select("id, entry_type, amount_cents, note, created_at")
+    .eq("staff_id", staffId)
+    .order("created_at");
+
+  const entries = (data ?? []).map((r) => ({
+    id: r.id,
+    entryType: r.entry_type,
+    amountCents: r.amount_cents,
+    note: r.note,
+    createdAt: r.created_at,
+  }));
+  const balanceCents = entries.reduce(
+    (sum, e) => sum + (e.entryType === "payment" || e.entryType === "deduction" ? -e.amountCents : e.amountCents),
+    0,
+  );
+  return { entries, balanceCents };
+}
+
+/** One-click assessment of the standard 3,000฿ working deposit + 2,000฿ uniform fee. */
+export async function chargeStandardDeposit(staffId: string): Promise<ActionResult> {
+  const ctx = await requireStaffContext();
+  if (!canManageHR(ctx)) return { ok: false, error: "Only an owner or manager can charge a deposit." };
+
+  const supabase = await createServerSupabaseClient();
+  const { error } = await supabase.from("therapist_deposit_ledger").insert([
+    { staff_id: staffId, entry_type: "deposit_charge", amount_cents: 300_00, note: "Working deposit", created_by_staff_id: ctx.staffId },
+    { staff_id: staffId, entry_type: "uniform_charge", amount_cents: 200_00, note: "ค่าชุด (uniform fee)", created_by_staff_id: ctx.staffId },
+  ]);
+  if (error) return { ok: false, error: error.message };
+
+  revalidatePath(`/admin/staff/${staffId}`);
+  return { ok: true };
+}
+
+/**
+ * Records a lump-sum payment or a payroll deduction against the deposit
+ * balance. A deduction also mirrors into payroll_adjustments so it shows up
+ * on that branch/day's payroll the same as any other deduction — the ledger
+ * stays the source of truth for the running balance, payroll just reflects it.
+ */
+export async function addDepositEntry(input: {
+  staffId: string;
+  entryType: "payment" | "deduction";
+  amountDollars: number;
+  note: string;
+  branchId?: string;
+  workDate?: string;
+}): Promise<ActionResult> {
+  const ctx = await requireStaffContext();
+  if (!canManageHR(ctx)) return { ok: false, error: "Only an owner or manager can record deposit payments." };
+  if (!Number.isFinite(input.amountDollars) || input.amountDollars <= 0) {
+    return { ok: false, error: "Enter an amount greater than zero." };
+  }
+
+  const supabase = await createServerSupabaseClient();
+  const amountCents = Math.round(input.amountDollars * 100);
+
+  const { error } = await supabase.from("therapist_deposit_ledger").insert({
+    staff_id: input.staffId,
+    entry_type: input.entryType,
+    amount_cents: amountCents,
+    note: input.note || null,
+    created_by_staff_id: ctx.staffId,
+  });
+  if (error) return { ok: false, error: error.message };
+
+  if (input.entryType === "deduction" && input.branchId && input.workDate) {
+    await supabase.from("payroll_adjustments").insert({
+      staff_id: input.staffId,
+      branch_id: input.branchId,
+      work_date: input.workDate,
+      type: "deduction",
+      amount_cents: amountCents,
+      reason: input.note || "Deposit/uniform fee deduction",
+      created_by_staff_id: ctx.staffId,
+    });
+  }
+
+  revalidatePath(`/admin/staff/${input.staffId}`);
+  return { ok: true };
 }

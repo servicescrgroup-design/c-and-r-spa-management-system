@@ -20,17 +20,26 @@ export function StaffLoginForm() {
     setError(null);
 
     const supabase = createClient();
-    const { error: signInError } = await supabase.auth.signInWithPassword({
+    const { data, error: signInError } = await supabase.auth.signInWithPassword({
       email,
       password,
     });
 
-    setLoading(false);
-    if (signInError) {
-      setError(signInError.message);
+    if (signInError || !data.user) {
+      setLoading(false);
+      setError(signInError?.message ?? "Sign in failed.");
       return;
     }
-    router.push("/admin");
+
+    const { data: adminRoles } = await supabase
+      .from("staff_branch_roles")
+      .select("role")
+      .eq("staff_id", data.user.id)
+      .in("role", ["owner", "manager", "front_desk"])
+      .limit(1);
+
+    setLoading(false);
+    router.push(adminRoles && adminRoles.length > 0 ? "/admin" : "/therapist");
     router.refresh();
   }
 

@@ -3,6 +3,10 @@ import { notFound } from "next/navigation";
 import { requireStaffContext } from "@/lib/auth/session";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { StaffHRDetail } from "@/components/admin/staff-hr-detail";
+import { DepositLedgerCard } from "@/components/admin/deposit-ledger-card";
+import { StaffAccountEditor } from "@/components/admin/staff-account-editor";
+import { getDepositLedger } from "@/lib/admin/staff-hr-actions";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 
 export default async function StaffDetailPage({ params }: PageProps<"/admin/staff/[staffId]">) {
   await requireStaffContext();
@@ -18,6 +22,7 @@ export default async function StaffDetailPage({ params }: PageProps<"/admin/staf
     { data: branchRoles },
     { data: branches },
     { data: complete },
+    depositLedger,
   ] = await Promise.all([
     supabase.from("staff").select("id, first_name, last_name, email, phone, employment_status").eq("id", staffId).maybeSingle(),
     supabase.from("therapist_profiles").select("*").eq("staff_id", staffId).maybeSingle(),
@@ -27,6 +32,7 @@ export default async function StaffDetailPage({ params }: PageProps<"/admin/staf
     supabase.from("staff_branch_roles").select("branch_id, is_home").eq("staff_id", staffId).eq("role", "therapist"),
     supabase.from("branches").select("id, name").order("name"),
     supabase.rpc("therapist_documents_complete", { p_staff_id: staffId }),
+    getDepositLedger(staffId),
   ]);
 
   if (!staff) notFound();
@@ -41,7 +47,24 @@ export default async function StaffDetailPage({ params }: PageProps<"/admin/staf
           {staff.first_name} {staff.last_name}
         </h1>
         <p className="text-muted-foreground">{staff.email}</p>
+        <div className="mt-2">
+          <StaffAccountEditor staffId={staff.id} firstName={staff.first_name} lastName={staff.last_name} email={staff.email} />
+        </div>
       </div>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Working deposit &amp; uniform fee</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <DepositLedgerCard
+            staffId={staff.id}
+            entries={depositLedger.entries}
+            balanceCents={depositLedger.balanceCents}
+            branches={branches ?? []}
+          />
+        </CardContent>
+      </Card>
 
       <StaffHRDetail
         staffId={staff.id}

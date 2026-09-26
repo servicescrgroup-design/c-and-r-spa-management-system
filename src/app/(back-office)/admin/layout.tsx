@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { redirect } from "next/navigation";
 import { requireStaffContext } from "@/lib/auth/session";
 import { isOwner } from "@/lib/auth/roles";
 
@@ -16,6 +17,9 @@ const NAV = [
 
 export default async function AdminLayout({ children }: LayoutProps<"/admin">) {
   const ctx = await requireStaffContext();
+  if (!ctx.roles.some((r) => r.role === "owner" || r.role === "manager" || r.role === "front_desk")) {
+    redirect("/therapist");
+  }
 
   return (
     <div className="flex min-h-svh flex-1">

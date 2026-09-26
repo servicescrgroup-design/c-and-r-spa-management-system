@@ -18,7 +18,7 @@ const ROLES = [
   },
   {
     key: "manager",
-    label: "Manager",
+    label: "Admin (Backend Team)",
     summary: "Runs the day-to-day at their assigned branch(es).",
     capabilities: [
       "Manages the queue, sales, and refunds at their branch",

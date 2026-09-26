@@ -2830,6 +2830,51 @@ export type Database = {
           },
         ]
       }
+      therapist_deposit_ledger: {
+        Row: {
+          amount_cents: number
+          created_at: string
+          created_by_staff_id: string | null
+          entry_type: Database["public"]["Enums"]["deposit_entry_type"]
+          id: string
+          note: string | null
+          staff_id: string
+        }
+        Insert: {
+          amount_cents: number
+          created_at?: string
+          created_by_staff_id?: string | null
+          entry_type: Database["public"]["Enums"]["deposit_entry_type"]
+          id?: string
+          note?: string | null
+          staff_id: string
+        }
+        Update: {
+          amount_cents?: number
+          created_at?: string
+          created_by_staff_id?: string | null
+          entry_type?: Database["public"]["Enums"]["deposit_entry_type"]
+          id?: string
+          note?: string | null
+          staff_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "therapist_deposit_ledger_created_by_staff_id_fkey"
+            columns: ["created_by_staff_id"]
+            isOneToOne: false
+            referencedRelation: "staff"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "therapist_deposit_ledger_staff_id_fkey"
+            columns: ["staff_id"]
+            isOneToOne: false
+            referencedRelation: "staff"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       therapist_profiles: {
         Row: {
           bank_account_name: string | null
@@ -3162,6 +3207,11 @@ export type Database = {
       billing_interval: "one_time" | "monthly" | "annual"
       clock_status: "available" | "in_service" | "on_break" | "off_duty"
       customer_package_status: "active" | "expired" | "cancelled"
+      deposit_entry_type:
+        | "deposit_charge"
+        | "uniform_charge"
+        | "payment"
+        | "deduction"
       deposit_status:
         | "not_required"
         | "pending"
@@ -3356,6 +3406,12 @@ export const Constants = {
       billing_interval: ["one_time", "monthly", "annual"],
       clock_status: ["available", "in_service", "on_break", "off_duty"],
       customer_package_status: ["active", "expired", "cancelled"],
+      deposit_entry_type: [
+        "deposit_charge",
+        "uniform_charge",
+        "payment",
+        "deduction",
+      ],
       deposit_status: ["not_required", "pending", "paid", "failed", "refunded"],
       drawer_session_status: ["open", "closed"],
       gift_card_txn_type: ["issue", "redeem", "reload", "adjust"],

@@ -4,7 +4,9 @@ import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { InviteStaffForm } from "@/components/admin/invite-staff-form";
 import { StaffRoleEditor } from "@/components/admin/staff-role-editor";
+import { StaffAccountEditor } from "@/components/admin/staff-account-editor";
 import { RoleCapabilitiesCard } from "@/components/admin/role-capabilities-card";
+import { roleLabel } from "@/lib/role-labels";
 
 type RoleRow = { role: "owner" | "manager" | "front_desk" | "therapist"; branch_id: string | null };
 type StaffRow = {
@@ -56,19 +58,27 @@ function StaffCard({
       <CardContent className="space-y-2 text-sm text-muted-foreground">
         {admin && (
           <p>
-            {admin.role.replace("_", " ")}
+            {roleLabel(admin.role)}
             {admin.branch_id && ` · ${branchName(admin.branch_id)}`}
             {!admin.branch_id && admin.role !== "owner" && " · all branches"}
           </p>
         )}
         {isTherapist && <p>Therapist · {therapistBranches.join(", ") || "no branch"}</p>}
         {!admin && !isTherapist && <p>No role assigned</p>}
-        <StaffRoleEditor
-          staffId={staff.id}
-          currentRole={(admin?.role as "owner" | "manager" | "front_desk") ?? ""}
-          currentBranchId={admin?.branch_id ?? null}
-          branches={branches}
-        />
+        <div className="flex gap-3">
+          <StaffRoleEditor
+            staffId={staff.id}
+            currentRole={(admin?.role as "owner" | "manager" | "front_desk") ?? ""}
+            currentBranchId={admin?.branch_id ?? null}
+            branches={branches}
+          />
+          <StaffAccountEditor
+            staffId={staff.id}
+            firstName={staff.first_name}
+            lastName={staff.last_name}
+            email={staff.email}
+          />
+        </div>
       </CardContent>
     </Card>
   );
@@ -161,7 +171,7 @@ export default async function StaffPage() {
             {(invites ?? []).map((invite) => (
               <div key={invite.id} className="flex flex-col gap-1 border-b border-border pb-2 last:border-0">
                 <span className="font-medium">
-                  {invite.email} &middot; {invite.role}
+                  {invite.email} &middot; {roleLabel(invite.role)}
                 </span>
                 <code className="break-all text-xs text-muted-foreground">
                   {siteUrl}/auth/staff-invite/{invite.token}

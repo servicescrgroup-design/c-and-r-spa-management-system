@@ -1,8 +1,16 @@
 "use server";
 
+import { redirect } from "next/navigation";
 import { createAdminSupabaseClient } from "@/lib/supabase/admin";
+import { createServerSupabaseClient } from "@/lib/supabase/server";
 
 type ActionResult = { ok: true } | { ok: false; error: string };
+
+export async function signOutStaff(): Promise<void> {
+  const supabase = await createServerSupabaseClient();
+  await supabase.auth.signOut();
+  redirect("/auth/staff-login");
+}
 
 /**
  * Creates the auth.users row for an accepted staff invite. The staff row,

@@ -52,7 +52,7 @@ export function StaffRoleEditor({
       >
         <option value="">No admin role (therapist only)</option>
         <option value="owner">Owner</option>
-        <option value="manager">Manager</option>
+        <option value="manager">Admin (Backend Team)</option>
         <option value="front_desk">Front desk</option>
       </select>
       {role && role !== "owner" && (
