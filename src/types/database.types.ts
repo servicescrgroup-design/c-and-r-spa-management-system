@@ -3148,7 +3148,10 @@ export type Database = {
           active_item_id: string | null
           branch_id: string
           clock_in_at: string
+          clock_in_recorded_at: string | null
           clock_out_at: string | null
+          clocked_in_by_staff_id: string | null
+          clocked_out_by_staff_id: string | null
           current_room_id: string | null
           id: string
           jobs_today: number
@@ -3161,7 +3164,10 @@ export type Database = {
           active_item_id?: string | null
           branch_id: string
           clock_in_at?: string
+          clock_in_recorded_at?: string | null
           clock_out_at?: string | null
+          clocked_in_by_staff_id?: string | null
+          clocked_out_by_staff_id?: string | null
           current_room_id?: string | null
           id?: string
           jobs_today?: number
@@ -3174,7 +3180,10 @@ export type Database = {
           active_item_id?: string | null
           branch_id?: string
           clock_in_at?: string
+          clock_in_recorded_at?: string | null
           clock_out_at?: string | null
+          clocked_in_by_staff_id?: string | null
+          clocked_out_by_staff_id?: string | null
           current_room_id?: string | null
           id?: string
           jobs_today?: number
@@ -3196,6 +3205,20 @@ export type Database = {
             columns: ["branch_id"]
             isOneToOne: false
             referencedRelation: "branches"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "therapist_clock_sessions_clocked_in_by_staff_id_fkey"
+            columns: ["clocked_in_by_staff_id"]
+            isOneToOne: false
+            referencedRelation: "staff"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "therapist_clock_sessions_clocked_out_by_staff_id_fkey"
+            columns: ["clocked_out_by_staff_id"]
+            isOneToOne: false
+            referencedRelation: "staff"
             referencedColumns: ["id"]
           },
           {

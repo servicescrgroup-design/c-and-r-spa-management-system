@@ -74,6 +74,7 @@ const PATTERNS: [RegExp, string][] = [
   [/^(\d+) min left$/, "เหลือ $1 นาที"],
   [/^(\d+) more$/, "อีก $1 รายการ"],
   [/^(\d+) selected$/, "เลือกแล้ว $1"],
+  [/^Remove (.+)'s check-in\? You can check them in again afterwards\.$/, "ลบการเช็คอินของ $1 หรือไม่? เช็คอินใหม่ได้ภายหลัง"],
   [/^You already have a drawer open \((.+)\)\. Close it before opening another\.$/, "คุณเปิดลิ้นชักไว้แล้ว ($1) ปิดก่อนเปิดเครื่องอื่น"],
   [/^Already checked in at (.+) today\. A therapist can only work at one store per day\.$/, "เช็คอินที่ $1 แล้ววันนี้ หมอนวดทำงานได้วันละหนึ่งสาขาเท่านั้น"],
   [/^Starts in (\d+) min$/, "เริ่มในอีก $1 นาที"],

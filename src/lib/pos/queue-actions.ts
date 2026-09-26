@@ -117,6 +117,9 @@ export type CombinedQueueEntry = {
   /** 1-based position in that store's own queue. */
   /** 1-based place in the shared queue across both stores. */
   queueNumber: number;
+  /** When the check-in button was pressed (clockInAt may be a typed time). */
+  recordedAt: string | null;
+  checkedInBy: string | null;
 };
 
 export type ClockInCandidate = {
@@ -140,7 +143,7 @@ export async function getCombinedQueueData(branchIds: string[]) {
   const [{ data: sessions }, { data: roles }, { data: profiles }] = await Promise.all([
     supabase
       .from("therapist_clock_sessions")
-      .select("id, staff_id, branch_id, status, clock_in_at, clock_out_at, queue_position, jobs_today, staff:staff_id(first_name, last_name)")
+      .select("id, staff_id, branch_id, status, clock_in_at, clock_out_at, clock_in_recorded_at, queue_position, jobs_today, staff:staff_id(first_name, last_name), checked_in_by:clocked_in_by_staff_id(first_name, last_name)")
       .eq("work_date", workDate)
       .in("branch_id", branchIds)
       .order("queue_position"),
@@ -168,6 +171,8 @@ export async function getCombinedQueueData(branchIds: string[]) {
       status: s.status,
       clockInAt: s.clock_in_at,
       jobsToday: s.jobs_today,
+      recordedAt: s.clock_in_recorded_at,
+      checkedInBy: s.checked_in_by ? `${s.checked_in_by.first_name} ${s.checked_in_by.last_name}`.trim() : null,
     }))
     .map((entry, i) => ({ ...entry, queueNumber: i + 1 }));
 
@@ -213,7 +218,12 @@ export async function getTherapistSkillIds(staffId: string): Promise<string[]> {
   return (data ?? []).map((r) => r.service_id);
 }
 
-export async function clockIn(branchId: string, staffId: string): Promise<ActionResult> {
+/**
+ * Check a therapist in. `checkInTime` ("HH:MM", Chiang Mai time) lets the
+ * receptionist enter when they actually arrived; the moment the button was
+ * pressed and who pressed it are recorded separately.
+ */
+export async function clockIn(branchId: string, staffId: string, checkInTime?: string | null): Promise<ActionResult> {
   const ctx = await requireStaffContext();
   if (!canOperateQueue(ctx, branchId)) return { ok: false, error: "Not authorized to manage the queue here." };
 
@@ -224,6 +234,16 @@ export async function clockIn(branchId: string, staffId: string): Promise<Action
     .eq("id", branchId)
     .single();
   const workDate = workDateFor(branch?.timezone ?? "Asia/Bangkok");
+
+  const pressedAt = new Date();
+  let checkInAt = pressedAt;
+  if (checkInTime) {
+    if (!/^([01]\d|2[0-3]):[0-5]\d$/.test(checkInTime)) return { ok: false, error: "Enter the check-in time as HH:MM." };
+    checkInAt = new Date(`${workDate}T${checkInTime}:00+07:00`);
+    if (checkInAt.getTime() > pressedAt.getTime() + 5 * 60_000) {
+      return { ok: false, error: "The check-in time can't be later than now." };
+    }
+  }
 
   if (branch?.require_documents_for_clockin) {
     const { data: complete } = await supabase.rpc("therapist_documents_complete", { p_staff_id: staffId });
@@ -258,8 +278,11 @@ export async function clockIn(branchId: string, staffId: string): Promise<Action
       work_date: workDate,
       status: "available",
       queue_position: nextPosition ?? 0,
-      clock_in_at: new Date().toISOString(),
+      clock_in_at: checkInAt.toISOString(),
+      clock_in_recorded_at: pressedAt.toISOString(),
+      clocked_in_by_staff_id: ctx.staffId,
       clock_out_at: null,
+      clocked_out_by_staff_id: null,
     },
     { onConflict: "staff_id,branch_id,work_date" },
   );
@@ -276,9 +299,49 @@ export async function clockOut(branchId: string, sessionId: string): Promise<Act
   const supabase = await createServerSupabaseClient();
   const { error } = await supabase
     .from("therapist_clock_sessions")
-    .update({ clock_out_at: new Date().toISOString() })
+    .update({ clock_out_at: new Date().toISOString(), clocked_out_by_staff_id: ctx.staffId })
     .eq("id", sessionId);
   if (error) return { ok: false, error: error.message };
+
+  revalidatePath("/pos/queue");
+  return { ok: true };
+}
+
+/**
+ * Undo a mistaken check-in. Only allowed before the therapist has done any
+ * job today, so no pay or sales depend on it. They can then be checked in
+ * again, at either store.
+ */
+export async function removeCheckIn(branchId: string, sessionId: string): Promise<ActionResult> {
+  const ctx = await requireStaffContext();
+  if (!canOperateQueue(ctx, branchId)) return { ok: false, error: "Not authorized to manage the queue here." };
+
+  const supabase = await createServerSupabaseClient();
+  const { data: session } = await supabase
+    .from("therapist_clock_sessions")
+    .select("id, staff_id, jobs_today, active_item_id, status, clock_in_at, clocked_in_by_staff_id")
+    .eq("id", sessionId)
+    .maybeSingle();
+  if (!session) return { ok: false, error: "Check-in not found." };
+  if (session.jobs_today > 0 || session.active_item_id || session.status === "in_service") {
+    return { ok: false, error: "This therapist already has jobs today. Clock them out instead of removing the check-in." };
+  }
+
+  const { error } = await supabase.from("therapist_clock_sessions").delete().eq("id", sessionId);
+  if (error) return { ok: false, error: error.message };
+
+  const { data: org } = await supabase.from("organizations").select("id").limit(1).single();
+  if (org) {
+    await supabase.from("audit_log").insert({
+      org_id: org.id,
+      branch_id: branchId,
+      staff_id: ctx.staffId,
+      action: "clock_in_removed",
+      entity_type: "therapist_clock_session",
+      entity_id: sessionId,
+      detail: { therapist: session.staff_id, clock_in_at: session.clock_in_at, checked_in_by: session.clocked_in_by_staff_id },
+    });
+  }
 
   revalidatePath("/pos/queue");
   return { ok: true };

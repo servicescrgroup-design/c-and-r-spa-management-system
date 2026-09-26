@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import {
   clockIn,
   clockOut,
+  removeCheckIn,
   reorderCombinedQueue,
   setTherapistStatus,
   getTherapistSkillIds,
@@ -144,6 +145,8 @@ export function QueueBoard({
   const [freelancerName, setFreelancerName] = useState("");
   const [freelancerBranch, setFreelancerBranch] = useState(branches[0]?.id ?? "");
   const [filter, setFilter] = useState<string>("all");
+  // Empty = the moment the button is pressed.
+  const [checkInTime, setCheckInTime] = useState("");
 
   const branchName = useMemo(() => new Map(branches.map((b) => [b.id, b.name])), [branches]);
   const branchColor = useMemo(
@@ -314,7 +317,21 @@ export function QueueBoard({
                         )}
                       </button>
                     </td>
-                    <td className="px-2 py-3 tabular-nums">{clock(q.clockInAt)}</td>
+                    <td className="px-2 py-3">
+                      <p className="font-medium tabular-nums">{clock(q.clockInAt)}</p>
+                      {(q.checkedInBy || q.recordedAt) && (
+                        <p className="text-[11px] leading-tight text-muted-foreground">
+                          {q.checkedInBy && (
+                            <>
+                              by <span data-no-translate>{q.checkedInBy}</span>
+                            </>
+                          )}
+                          {q.recordedAt && Math.abs(new Date(q.recordedAt).getTime() - new Date(q.clockInAt).getTime()) > 60_000 && (
+                            <span className="block">entered at {clock(q.recordedAt)}</span>
+                          )}
+                        </p>
+                      )}
+                    </td>
                     <td className="px-2 py-3">
                       <select
                         aria-label="Status"
@@ -351,6 +368,22 @@ export function QueueBoard({
                         >
                           Clock out
                         </Button>
+                        {q.jobsToday === 0 && q.status !== "in_service" && (
+                          <Button
+                            type="button"
+                            size="sm"
+                            variant="ghost"
+                            disabled={busy === q.sessionId}
+                            title="Undo a mistaken check-in so they can be checked in again"
+                            onClick={() => {
+                              if (!confirm(`Remove ${q.nickname ?? q.name}'s check-in? You can check them in again afterwards.`)) return;
+                              void run(q.sessionId, () => removeCheckIn(q.branchId, q.sessionId));
+                            }}
+                            className="text-muted-foreground hover:text-destructive"
+                          >
+                            Remove
+                          </Button>
+                        )}
                       </div>
                     </td>
                   </tr>
@@ -394,6 +427,25 @@ export function QueueBoard({
         <div className="space-y-3 rounded-[18px] bg-card p-4 ring-1 ring-black/[0.06] dark:ring-white/[0.08]">
           <p className="font-medium">Check in</p>
           <p className="text-xs text-muted-foreground">A therapist can only work at one store per day.</p>
+          <div className="flex items-center gap-2 rounded-xl bg-muted/60 p-2.5">
+            <label htmlFor="check-in-time" className="text-xs font-medium text-muted-foreground">
+              Check-in time
+            </label>
+            <input
+              id="check-in-time"
+              type="time"
+              value={checkInTime}
+              onChange={(e) => setCheckInTime(e.target.value)}
+              className="h-8 rounded-lg border border-border bg-card px-2 text-sm tabular-nums"
+            />
+            {checkInTime ? (
+              <button type="button" onClick={() => setCheckInTime("")} className="text-xs text-accent hover:underline">
+                Use now
+              </button>
+            ) : (
+              <span className="text-xs text-muted-foreground">Now</span>
+            )}
+          </div>
           {candidates.length === 0 ? (
             <p className="text-sm text-muted-foreground">Everyone is already checked in.</p>
           ) : (
@@ -419,7 +471,13 @@ export function QueueBoard({
                           key={b}
                           type="button"
                           disabled={busy === c.staffId}
-                          onClick={() => run(c.staffId, () => clockIn(b, c.staffId))}
+                          onClick={() =>
+                            run(c.staffId, async () => {
+                              const result = await clockIn(b, c.staffId, checkInTime || null);
+                              if (result.ok) setCheckInTime("");
+                              return result;
+                            })
+                          }
                           className="flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-medium ring-1 ring-border transition-colors hover:bg-muted disabled:opacity-50"
                         >
                           <span className="size-2 rounded-full" style={{ background: branchColor.get(b) }} />
