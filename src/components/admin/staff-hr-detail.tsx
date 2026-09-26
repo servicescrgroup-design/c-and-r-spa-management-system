@@ -39,6 +39,7 @@ type TherapistProfile = {
   bank_account_number: string | null;
   bank_account_name: string | null;
   notes: string | null;
+  experience_notes: string | null;
   photo_url: string | null;
   guarantee_override_cents: number | null;
   min_hours_override: number | null;
@@ -159,6 +160,16 @@ function ProfileForm({ staffId, profile }: { staffId: string; profile: Therapist
             defaultValue={profile?.min_hours_override ?? ""}
           />
         </div>
+      </div>
+
+      <div className="space-y-2">
+        <Label htmlFor="experienceNotes">Massage experience</Label>
+        <Input
+          id="experienceNotes"
+          name="experienceNotes"
+          placeholder="e.g. 5 years, Thai &amp; oil massage"
+          defaultValue={profile?.experience_notes ?? ""}
+        />
       </div>
 
       <div className="space-y-2">

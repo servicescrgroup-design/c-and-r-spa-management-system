@@ -3101,6 +3101,7 @@ export type Database = {
           bank_name: string | null
           dob: string | null
           end_date: string | null
+          experience_notes: string | null
           gender: string | null
           guarantee_override_cents: number | null
           line_id: string | null
@@ -3119,6 +3120,7 @@ export type Database = {
           bank_name?: string | null
           dob?: string | null
           end_date?: string | null
+          experience_notes?: string | null
           gender?: string | null
           guarantee_override_cents?: number | null
           line_id?: string | null
@@ -3137,6 +3139,7 @@ export type Database = {
           bank_name?: string | null
           dob?: string | null
           end_date?: string | null
+          experience_notes?: string | null
           gender?: string | null
           guarantee_override_cents?: number | null
           line_id?: string | null

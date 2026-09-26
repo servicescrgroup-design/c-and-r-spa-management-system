@@ -52,6 +52,25 @@ export async function updateStaffAccount(
   return { ok: true };
 }
 
+/** Owner-only: sets the same new password on several staff accounts at
+ * once — e.g. resetting every therapist's login after handing out printed
+ * credentials. */
+export async function bulkSetStaffPasswords(staffIds: string[], password: string): Promise<ActionResult> {
+  const ctx = await requireStaffContext();
+  if (!isOwner(ctx)) return { ok: false, error: "Only an owner can reset passwords." };
+  if (staffIds.length === 0) return { ok: false, error: "Select at least one staff member." };
+  if (password.length < 8) return { ok: false, error: "Password must be at least 8 characters." };
+
+  const admin = createAdminSupabaseClient();
+  for (const staffId of staffIds) {
+    const { error } = await admin.auth.admin.updateUserById(staffId, { password });
+    if (error) return { ok: false, error: `Failed on one account: ${error.message}` };
+  }
+
+  revalidatePath("/admin/staff");
+  return { ok: true };
+}
+
 export async function updateTherapistProfile(staffId: string, formData: FormData): Promise<ActionResult> {
   const ctx = await requireStaffContext();
   if (!canManageHR(ctx)) return { ok: false, error: "Only an owner or manager can edit HR profiles." };
@@ -68,6 +87,7 @@ export async function updateTherapistProfile(staffId: string, formData: FormData
   const bankAccountNumber = String(formData.get("bankAccountNumber") ?? "").trim() || null;
   const bankAccountName = String(formData.get("bankAccountName") ?? "").trim() || null;
   const notes = String(formData.get("notes") ?? "").trim() || null;
+  const experienceNotes = String(formData.get("experienceNotes") ?? "").trim() || null;
   const guaranteeOverride = formData.get("guaranteeOverride");
   const minHoursOverride = formData.get("minHoursOverride");
 
@@ -84,6 +104,7 @@ export async function updateTherapistProfile(staffId: string, formData: FormData
     bank_account_number: bankAccountNumber,
     bank_account_name: bankAccountName,
     notes,
+    experience_notes: experienceNotes,
     guarantee_override_cents: guaranteeOverride ? Math.round(Number(guaranteeOverride) * 100) : null,
     min_hours_override: minHoursOverride ? Number(minHoursOverride) : null,
     updated_at: new Date().toISOString(),
@@ -498,4 +519,58 @@ export async function getTherapistLifetimeStats(staffId: string): Promise<StaffL
     currentPeriodEarningsCents: periodItems.reduce((sum, i) => sum + i.payout_cents, 0),
     currentPeriodRevenueCents: periodItems.reduce((sum, i) => sum + i.total_cents, 0),
   };
+}
+
+const DAY_ABBR = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+
+export type TherapistOverview = {
+  startDate: string | null;
+  experienceNotes: string | null;
+  daysOff: string[] | null;
+  lifetimeHours: number;
+};
+
+/** Quick-glance HR facts for the staff list: join date, days with no
+ * schedule block at any branch, prior massage experience, and lifetime
+ * hours massaged — one bulk lookup for a whole page of therapists rather
+ * than one query per card. */
+export async function getTherapistsOverview(staffIds: string[]): Promise<Record<string, TherapistOverview>> {
+  await requireStaffContext();
+  if (staffIds.length === 0) return {};
+  const supabase = await createServerSupabaseClient();
+
+  const [{ data: profiles }, { data: schedules }, { data: items }] = await Promise.all([
+    supabase.from("therapist_profiles").select("staff_id, start_date, experience_notes").in("staff_id", staffIds),
+    supabase.from("staff_schedules").select("staff_id, day_of_week").in("staff_id", staffIds),
+    supabase
+      .from("pos_transaction_items")
+      .select("staff_id, duration_minutes")
+      .in("staff_id", staffIds)
+      .not("completed_at", "is", null),
+  ]);
+
+  const workedDaysByStaff = new Map<string, Set<number>>();
+  for (const s of schedules ?? []) {
+    (workedDaysByStaff.get(s.staff_id) ?? workedDaysByStaff.set(s.staff_id, new Set()).get(s.staff_id)!).add(s.day_of_week);
+  }
+
+  const minutesByStaff = new Map<string, number>();
+  for (const i of items ?? []) {
+    minutesByStaff.set(i.staff_id!, (minutesByStaff.get(i.staff_id!) ?? 0) + (i.duration_minutes ?? 0));
+  }
+
+  const result: Record<string, TherapistOverview> = {};
+  for (const staffId of staffIds) {
+    const profile = (profiles ?? []).find((p) => p.staff_id === staffId);
+    const worked = workedDaysByStaff.get(staffId);
+    const daysOff = worked && worked.size > 0 ? DAY_ABBR.filter((_, i) => !worked.has(i)) : null;
+
+    result[staffId] = {
+      startDate: profile?.start_date ?? null,
+      experienceNotes: profile?.experience_notes ?? null,
+      daysOff,
+      lifetimeHours: Math.round(((minutesByStaff.get(staffId) ?? 0) / 60) * 10) / 10,
+    };
+  }
+  return result;
 }
