@@ -482,6 +482,7 @@ export type Database = {
           hours: Json
           id: string
           is_active: boolean
+          map_url: string | null
           name: string
           org_id: string
           payroll_guarantee_cents: number
@@ -507,6 +508,7 @@ export type Database = {
           hours?: Json
           id?: string
           is_active?: boolean
+          map_url?: string | null
           name: string
           org_id: string
           payroll_guarantee_cents?: number
@@ -532,6 +534,7 @@ export type Database = {
           hours?: Json
           id?: string
           is_active?: boolean
+          map_url?: string | null
           name?: string
           org_id?: string
           payroll_guarantee_cents?: number
@@ -2467,6 +2470,27 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      site_content: {
+        Row: {
+          branches_image_url: string | null
+          hero_image_url: string | null
+          id: boolean
+          updated_at: string
+        }
+        Insert: {
+          branches_image_url?: string | null
+          hero_image_url?: string | null
+          id?: boolean
+          updated_at?: string
+        }
+        Update: {
+          branches_image_url?: string | null
+          hero_image_url?: string | null
+          id?: boolean
+          updated_at?: string
+        }
+        Relationships: []
       }
       staff: {
         Row: {

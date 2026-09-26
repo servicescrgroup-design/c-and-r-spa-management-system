@@ -9,6 +9,8 @@ import { ChangePasswordForm } from "@/components/admin/change-password-form";
 import { RoleCapabilitiesCard } from "@/components/admin/role-capabilities-card";
 import { RequiredDocumentsForm } from "@/components/admin/required-documents-form";
 import { CertificationsManager } from "@/components/admin/certifications-manager";
+import { HomepageImagesCard } from "@/components/admin/homepage-images-card";
+import { getSiteContent } from "@/lib/admin/site-content-actions";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 
 const QUICK_LINKS = [
@@ -24,10 +26,11 @@ const QUICK_LINKS = [
 
 export default async function SettingsPage() {
   const ctx = await requireStaffContext();
-  const [org, requiredDocTypes, certifications] = await Promise.all([
+  const [org, requiredDocTypes, certifications, siteContent] = await Promise.all([
     getOrganization(),
     getRequiredDocumentTypes(),
     getCertifications(),
+    getSiteContent(),
   ]);
   if (!org) notFound();
 
@@ -56,6 +59,18 @@ export default async function SettingsPage() {
               </Link>
             ))}
           </div>
+        </CardContent>
+      </Card>
+
+      <Card id="homepage">
+        <CardHeader>
+          <CardTitle>Homepage photos</CardTitle>
+          <CardDescription>
+            Background photos for your public homepage. Wide landscape photos work best (at least 2000 px wide).
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <HomepageImagesCard heroUrl={siteContent.hero_image_url} branchesUrl={siteContent.branches_image_url} />
         </CardContent>
       </Card>
 

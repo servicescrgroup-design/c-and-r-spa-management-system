@@ -97,6 +97,33 @@ export async function updateBranchSettings(branchId: string, formData: FormData)
   return { ok: true };
 }
 
+export async function updateBranchMapUrl(branchId: string, mapUrl: string): Promise<ActionResult> {
+  const ctx = await requireStaffContext();
+  if (!isOwner(ctx)) return { ok: false, error: "Only an owner can change branch directions." };
+
+  const trimmed = mapUrl.trim();
+  let value: string | null = null;
+  if (trimmed) {
+    const withScheme = /^https?:\/\//i.test(trimmed) ? trimmed : `https://${trimmed}`;
+    try {
+      const url = new URL(withScheme);
+      if (url.protocol !== "https:" && url.protocol !== "http:") throw new Error();
+      value = url.toString();
+    } catch {
+      return { ok: false, error: "Paste a full Google Maps link, e.g. https://maps.app.goo.gl/..." };
+    }
+  }
+
+  const supabase = await createServerSupabaseClient();
+  const { error } = await supabase.from("branches").update({ map_url: value }).eq("id", branchId);
+  if (error) return { ok: false, error: error.message };
+
+  revalidatePath("/admin/branches");
+  revalidatePath("/");
+  revalidatePath("/book");
+  return { ok: true };
+}
+
 export type DayHours = { open: string; close: string; closed: boolean };
 export type WeekHours = Record<"mon" | "tue" | "wed" | "thu" | "fri" | "sat" | "sun", DayHours>;
 

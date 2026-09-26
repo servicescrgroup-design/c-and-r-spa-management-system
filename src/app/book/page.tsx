@@ -6,7 +6,7 @@ export default async function BookLandingPage() {
   const supabase = await createServerSupabaseClient();
   const { data: branches } = await supabase
     .from("branches")
-    .select("id, name, slug, address")
+    .select("id, name, slug, address, map_url")
     .eq("is_active", true)
     .eq("booking_enabled", true)
     .order("sort_order");
@@ -22,15 +22,23 @@ export default async function BookLandingPage() {
 
         <div className="grid gap-4 sm:grid-cols-2">
           {(branches ?? []).map((branch) => (
-            <Link
+            <div
               key={branch.id}
-              href={`/book/${branch.slug}`}
-              className="group rounded-[18px] bg-card p-7 shadow-[0_2px_12px_rgba(0,0,0,0.06)] ring-1 ring-black/[0.04] transition-shadow hover:shadow-[0_6px_24px_rgba(0,0,0,0.1)] dark:ring-white/[0.06]"
+              className="rounded-[18px] bg-card p-7 shadow-[0_2px_12px_rgba(0,0,0,0.06)] ring-1 ring-black/[0.04] dark:ring-white/[0.06]"
             >
               <p className="font-display text-2xl">{branch.name}</p>
               {branch.address && <p className="mt-2 text-sm text-muted-foreground">{branch.address}</p>}
-              <p className="mt-6 text-[15px] text-accent group-hover:underline">Book here &rsaquo;</p>
-            </Link>
+              <div className="mt-6 flex flex-wrap gap-x-6 gap-y-2 text-[15px]">
+                <Link href={`/book/${branch.slug}`} className="text-accent hover:underline">
+                  Book here &rsaquo;
+                </Link>
+                {branch.map_url && (
+                  <a href={branch.map_url} target="_blank" rel="noopener noreferrer" className="text-accent hover:underline">
+                    Get directions &rsaquo;
+                  </a>
+                )}
+              </div>
+            </div>
           ))}
           {(branches ?? []).length === 0 && (
             <p className="text-center text-sm text-muted-foreground sm:col-span-2">

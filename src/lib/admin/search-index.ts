@@ -8,6 +8,8 @@ export const SEARCH_INDEX: SearchItem[] = [
   { label: "Revenue by branch", href: "/admin", keywords: "chart revenue sales dashboard custom range" },
 
   { label: "Branches", href: "/admin/branches" },
+  { label: "Branch directions (Google Maps)", href: "/admin/branches", keywords: "map location address directions google" },
+  { label: "Homepage photos", href: "/admin/settings#homepage", keywords: "background image picture banner website homepage" },
   { label: "Branch opening hours", href: "/admin/branches", keywords: "hours schedule open close time" },
   { label: "Branch payroll & queue settings", href: "/admin/branches", keywords: "guarantee minimum hours transportation fee queue" },
   { label: "Branch therapists", href: "/admin/branches", keywords: "assign therapist to branch" },

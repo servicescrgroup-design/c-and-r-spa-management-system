@@ -1,4 +1,5 @@
 import { requireStaffContext } from "@/lib/auth/session";
+import { BranchDirectionsField } from "@/components/admin/branch-directions-field";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { NewBranchForm } from "@/components/admin/new-branch-form";
@@ -14,7 +15,7 @@ export default async function BranchesPage() {
       supabase
         .from("branches")
         .select(
-          "id, name, slug, is_active, booking_enabled, deposit_required, payroll_min_hours, payroll_guarantee_cents, transportation_fee_cents, queue_send_to_back, require_documents_for_clockin, hours",
+          "id, name, slug, is_active, booking_enabled, deposit_required, payroll_min_hours, payroll_guarantee_cents, transportation_fee_cents, queue_send_to_back, require_documents_for_clockin, hours, map_url",
         )
         .order("created_at"),
       supabase
@@ -73,6 +74,7 @@ export default async function BranchesPage() {
             </CardHeader>
             <CardContent className="space-y-3">
               <BookingLink slug={branch.slug} />
+              <BranchDirectionsField branchId={branch.id} mapUrl={branch.map_url} />
               <div className="flex flex-wrap gap-2 text-xs text-muted-foreground">
                 <span>{branch.is_active ? "Active" : "Inactive"}</span>
                 <span>&middot;</span>

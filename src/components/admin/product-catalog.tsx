@@ -1,5 +1,6 @@
 "use client";
 
+import { resizeImage } from "@/lib/client/resize-image";
 import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { setProductOrder, setBranchProductCarried, uploadProductImage } from "@/lib/admin/product-actions";
@@ -34,7 +35,7 @@ function ProductImage({ product }: { product: Product }) {
     setLoading(true);
     setError(null);
     const formData = new FormData();
-    formData.set("image", file);
+    formData.set("image", await resizeImage(file));
     const result = await uploadProductImage(product.id, formData);
     setLoading(false);
     if (!result.ok) return setError(result.error);
