@@ -73,6 +73,10 @@ export async function createService(formData: FormData): Promise<ActionResult> {
   );
   if (optionsError) return { ok: false, error: optionsError.message };
 
+  // Default a new service to the Thai bed so scheduling isn't immediately
+  // stuck with zero compatible beds; the owner can narrow it from here.
+  await supabase.from("bed_type_allowed_services").insert({ service_id: service.id, bed_type: "thai_bed" });
+
   revalidatePath("/admin/services");
   return { ok: true };
 }
@@ -156,6 +160,30 @@ export async function updateService(serviceId: string, formData: FormData): Prom
   }
 
   revalidatePath("/admin/services");
+  revalidatePath(`/admin/services/${serviceId}`);
+  return { ok: true };
+}
+
+export async function setServiceBedTypes(
+  serviceId: string,
+  bedTypes: Array<"foot_chair" | "oil_bed" | "thai_bed" | "other">,
+): Promise<ActionResult> {
+  const ctx = await requireStaffContext();
+  if (!canManageCatalog(ctx)) {
+    return { ok: false, error: "Only an owner or manager can edit which beds a service can use." };
+  }
+
+  const supabase = await createServerSupabaseClient();
+  const { error: deleteError } = await supabase.from("bed_type_allowed_services").delete().eq("service_id", serviceId);
+  if (deleteError) return { ok: false, error: deleteError.message };
+
+  if (bedTypes.length > 0) {
+    const { error } = await supabase
+      .from("bed_type_allowed_services")
+      .insert(bedTypes.map((bedType) => ({ service_id: serviceId, bed_type: bedType })));
+    if (error) return { ok: false, error: error.message };
+  }
+
   revalidatePath(`/admin/services/${serviceId}`);
   return { ok: true };
 }

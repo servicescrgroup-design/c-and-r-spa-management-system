@@ -4,6 +4,7 @@ import { requireStaffContext } from "@/lib/auth/session";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { getServiceEditHistory } from "@/lib/admin/service-actions";
 import { ServiceEditForm } from "@/components/admin/service-edit-form";
+import { ServiceBedTypesForm } from "@/components/admin/service-bed-types-form";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 
 export default async function ServiceDetailPage({
@@ -13,7 +14,7 @@ export default async function ServiceDetailPage({
   const { serviceId } = await params;
   const supabase = await createServerSupabaseClient();
 
-  const [{ data: service }, { data: categories }, history] = await Promise.all([
+  const [{ data: service }, { data: categories }, history, { data: bedTypeRows }] = await Promise.all([
     supabase
       .from("services")
       .select(
@@ -23,6 +24,7 @@ export default async function ServiceDetailPage({
       .maybeSingle(),
     supabase.from("service_categories").select("id, name").order("sort_order"),
     getServiceEditHistory(serviceId),
+    supabase.from("bed_type_allowed_services").select("bed_type").eq("service_id", serviceId),
   ]);
 
   if (!service) notFound();
@@ -71,6 +73,15 @@ export default async function ServiceDetailPage({
               variants,
             }}
           />
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Bed types</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <ServiceBedTypesForm serviceId={service.id} initialBedTypes={(bedTypeRows ?? []).map((r) => r.bed_type)} />
         </CardContent>
       </Card>
 
