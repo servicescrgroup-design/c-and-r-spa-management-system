@@ -31,15 +31,17 @@ export function StaffLoginForm() {
       return;
     }
 
-    const { data: adminRoles } = await supabase
+    const { data: roleRows } = await supabase
       .from("staff_branch_roles")
       .select("role")
       .eq("staff_id", data.user.id)
-      .in("role", ["owner", "manager", "front_desk"])
-      .limit(1);
+      .in("role", ["owner", "manager", "front_desk"]);
+
+    const roles = new Set((roleRows ?? []).map((r) => r.role));
+    const destination = roles.has("owner") || roles.has("manager") ? "/admin" : roles.has("front_desk") ? "/pos" : "/therapist";
 
     setLoading(false);
-    router.push(adminRoles && adminRoles.length > 0 ? "/admin" : "/therapist");
+    router.push(destination);
     router.refresh();
   }
 

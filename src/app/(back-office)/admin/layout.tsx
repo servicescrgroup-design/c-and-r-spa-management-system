@@ -14,16 +14,44 @@ const NAV = [
   { href: "/admin/payroll", label: "Payroll" },
   { href: "/admin/accounting", label: "Accounting" },
   { href: "/admin/reports", label: "Reports" },
+  { href: "/admin/settings", label: "Settings" },
 ];
 
 export default async function AdminLayout({ children }: LayoutProps<"/admin">) {
   const ctx = await requireStaffContext();
-  if (!ctx.roles.some((r) => r.role === "owner" || r.role === "manager" || r.role === "front_desk")) {
-    redirect("/therapist");
+  if (!ctx.roles.some((r) => r.role === "owner" || r.role === "manager")) {
+    redirect(ctx.roles.some((r) => r.role === "front_desk") ? "/pos" : "/therapist");
   }
 
   return (
-    <div className="flex min-h-svh flex-1">
+    <div className="flex min-h-svh flex-1 flex-col sm:flex-row">
+      {/* Mobile top bar: the sidebar below is hidden under `sm`, so this is the
+       * only way to sign out or reach settings on a phone-width screen. */}
+      <header className="flex items-center justify-between border-b border-border bg-card px-4 py-3 sm:hidden">
+        <p className="text-sm font-semibold">C&amp;R Back Office</p>
+        <div className="flex items-center gap-3">
+          <Link href="/admin/settings" className="text-sm text-muted-foreground hover:text-foreground">
+            Settings
+          </Link>
+          <form action={signOutStaff}>
+            <button type="submit" className="text-sm text-muted-foreground hover:text-foreground">
+              Sign out
+            </button>
+          </form>
+        </div>
+      </header>
+      <nav className="flex gap-1 overflow-x-auto border-b border-border bg-card px-3 py-2 sm:hidden">
+        {NAV.map((item) => (
+          <Link
+            key={item.href}
+            href={item.href}
+            className="shrink-0 rounded-full px-3 py-1.5 text-xs text-foreground/80 hover:bg-muted hover:text-foreground"
+          >
+            {item.label}
+          </Link>
+        ))}
+      </nav>
+
       <aside className="hidden w-60 shrink-0 border-r border-border bg-card p-4 sm:block">
         <p className="mb-6 text-sm font-semibold">C&amp;R Back Office</p>
         <nav className="flex flex-col gap-1">
@@ -47,7 +75,7 @@ export default async function AdminLayout({ children }: LayoutProps<"/admin">) {
           </button>
         </form>
       </aside>
-      <main className="flex-1 p-6">{children}</main>
+      <main className="flex-1 p-4 sm:p-6">{children}</main>
     </div>
   );
 }

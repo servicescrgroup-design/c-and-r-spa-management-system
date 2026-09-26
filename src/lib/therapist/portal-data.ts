@@ -58,6 +58,7 @@ export async function getTherapistPortalData() {
     sessions: sessions ?? [],
     schedules: schedules ?? [],
     jobsToday: todayItems,
+    jobsWeek: items ?? [],
     earningsTodayCents,
     earningsWeekCents,
     depositBalanceCents,
