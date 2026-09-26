@@ -3571,6 +3571,7 @@ export type Database = {
         }
         Returns: string
       }
+      next_queue_position: { Args: { p_work_date: string }; Returns: number }
       owner_exists: { Args: never; Returns: boolean }
       post_pos_refund: {
         Args: { p_refund_transaction_id: string }

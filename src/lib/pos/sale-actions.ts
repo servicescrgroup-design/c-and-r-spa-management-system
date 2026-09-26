@@ -316,14 +316,10 @@ export async function completeJob(branchId: string, sessionId: string): Promise<
 
   let nextPosition: number | undefined;
   if (branch?.queue_send_to_back ?? true) {
-    const { data: maxRow } = await supabase
-      .from("therapist_clock_sessions")
-      .select("queue_position")
-      .eq("branch_id", branchId)
-      .order("queue_position", { ascending: false })
-      .limit(1)
-      .maybeSingle();
-    nextPosition = (maxRow?.queue_position ?? -1) + 1;
+    // Back of the shared queue across both stores.
+    const workDate = new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Bangkok" }).format(new Date());
+    const { data: next } = await supabase.rpc("next_queue_position", { p_work_date: workDate });
+    nextPosition = next ?? undefined;
   }
 
   const { error } = await supabase

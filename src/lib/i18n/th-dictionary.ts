@@ -1059,4 +1059,5 @@ export const TH: Record<string, string> = {
   "This date and time is saved as the opening time when you open the drawer.": "วันที่และเวลานี้จะถูกบันทึกเป็นเวลาเปิดเมื่อคุณเปิดลิ้นชัก",
   "opened": "เปิดเมื่อ",
   "No register open": "ยังไม่ได้เปิดเครื่องคิดเงิน",
+  "One shared queue for both stores. #1 is next. Drag a row (or use ▲▼) to change the order.": "คิวเดียวรวมทั้งสองสาขา อันดับ 1 คือคนถัดไป ลากแถว (หรือใช้ ▲▼) เพื่อเปลี่ยนลำดับ",
 };

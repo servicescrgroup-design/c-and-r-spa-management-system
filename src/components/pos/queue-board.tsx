@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import {
   clockIn,
   clockOut,
-  reorderQueue,
+  reorderCombinedQueue,
   setTherapistStatus,
   getTherapistSkillIds,
   type CombinedQueueEntry,
@@ -164,27 +164,46 @@ export function QueueBoard({
     router.refresh();
   }
 
-  function move(entry: CombinedQueueEntry, direction: -1 | 1) {
-    const store = queue
-      .filter((q) => q.branchId === entry.branchId)
-      .sort((a, b) => a.storePosition - b.storePosition);
-    const index = store.findIndex((q) => q.sessionId === entry.sessionId);
-    const target = index + direction;
-    if (target < 0 || target >= store.length) return;
-    const next = [...store];
-    [next[index], next[target]] = [next[target], next[index]];
-    void run(entry.sessionId, () => reorderQueue(entry.branchId, next.map((q) => q.sessionId)));
+  // Local copy so drag and drop feels instant; the server order replaces it on refresh.
+  const [order, setOrder] = useState(queue);
+  const [dragId, setDragId] = useState<string | null>(null);
+  const [overId, setOverId] = useState<string | null>(null);
+  const [lastQueue, setLastQueue] = useState(queue);
+  if (lastQueue !== queue) {
+    setLastQueue(queue);
+    setOrder(queue);
   }
 
-  const shown = filter === "all" ? queue : queue.filter((q) => q.branchId === filter);
-  const storeSize = (branchId: string) => queue.filter((q) => q.branchId === branchId).length;
+  function saveOrder(next: CombinedQueueEntry[]) {
+    setOrder(next.map((q, i) => ({ ...q, queueNumber: i + 1 })));
+    void run("reorder", () => reorderCombinedQueue(next.map((q) => q.sessionId)));
+  }
+
+  function moveTo(sessionId: string, targetId: string) {
+    if (sessionId === targetId) return;
+    const next = [...order];
+    const from = next.findIndex((q) => q.sessionId === sessionId);
+    const to = next.findIndex((q) => q.sessionId === targetId);
+    if (from < 0 || to < 0) return;
+    const [moved] = next.splice(from, 1);
+    next.splice(to, 0, moved);
+    saveOrder(next);
+  }
+
+  function move(entry: CombinedQueueEntry, direction: -1 | 1) {
+    const index = order.findIndex((q) => q.sessionId === entry.sessionId);
+    const target = order[index + direction];
+    if (target) moveTo(entry.sessionId, target.sessionId);
+  }
+
+  const shown = filter === "all" ? order : order.filter((q) => q.branchId === filter);
 
   return (
     <div className="grid gap-6 xl:grid-cols-[1fr_320px]">
       <div className="min-w-0 space-y-4">
         <div className="flex flex-wrap items-center justify-between gap-2">
           <p className="text-sm text-muted-foreground">
-            Both stores, sorted by check-in time. # is each person&apos;s place in their own store&apos;s queue (#1 is next).
+            One shared queue for both stores. #1 is next. Drag a row (or use ▲▼) to change the order.
           </p>
           {branches.length > 1 && (
             <div className="flex rounded-full bg-muted p-0.5 text-[13px]">
@@ -221,7 +240,31 @@ export function QueueBoard({
               {shown.map((q) => {
                 const color = branchColor.get(q.branchId) ?? "#8e8e93";
                 return (
-                  <tr key={q.sessionId} className="border-b border-border last:border-0">
+                  <tr
+                    key={q.sessionId}
+                    draggable
+                    onDragStart={() => setDragId(q.sessionId)}
+                    onDragOver={(e) => {
+                      e.preventDefault();
+                      setOverId(q.sessionId);
+                    }}
+                    onDragLeave={() => setOverId((cur) => (cur === q.sessionId ? null : cur))}
+                    onDrop={(e) => {
+                      e.preventDefault();
+                      if (dragId) moveTo(dragId, q.sessionId);
+                      setDragId(null);
+                      setOverId(null);
+                    }}
+                    onDragEnd={() => {
+                      setDragId(null);
+                      setOverId(null);
+                    }}
+                    className={cn(
+                      "cursor-grab border-b border-border last:border-0 active:cursor-grabbing",
+                      dragId === q.sessionId && "opacity-40",
+                      overId === q.sessionId && dragId !== q.sessionId && "bg-primary/5 outline outline-2 -outline-offset-2 outline-primary/40",
+                    )}
+                  >
                     <td className="px-4 py-3">
                       <span className="flex items-center gap-2 whitespace-nowrap">
                         <span className="size-2.5 rounded-full" style={{ background: color }} />
@@ -230,12 +273,13 @@ export function QueueBoard({
                     </td>
                     <td className="px-2 py-3">
                       <span className="flex items-center gap-1">
-                        <span className="w-5 text-center font-semibold tabular-nums">{q.storePosition}</span>
+                        <span aria-hidden className="mr-1 select-none text-muted-foreground/60">⋮⋮</span>
+                        <span className="w-5 text-center font-semibold tabular-nums">{q.queueNumber}</span>
                         <span className="flex flex-col">
                           <button
                             type="button"
                             aria-label="Move up in queue"
-                            disabled={busy === q.sessionId || q.storePosition === 1}
+                            disabled={busy === "reorder" || q.queueNumber === 1}
                             onClick={() => move(q, -1)}
                             className="text-[10px] leading-none text-muted-foreground hover:text-foreground disabled:opacity-30"
                           >
@@ -244,7 +288,7 @@ export function QueueBoard({
                           <button
                             type="button"
                             aria-label="Move down in queue"
-                            disabled={busy === q.sessionId || q.storePosition === storeSize(q.branchId)}
+                            disabled={busy === "reorder" || q.queueNumber === order.length}
                             onClick={() => move(q, 1)}
                             className="text-[10px] leading-none text-muted-foreground hover:text-foreground disabled:opacity-30"
                           >
@@ -263,7 +307,7 @@ export function QueueBoard({
                         <span className="font-medium" data-no-translate>
                           {q.nickname ?? q.name}
                         </span>
-                        {q.nickname && (
+                        {q.nickname && q.nickname !== q.name && (
                           <span className="block text-xs text-muted-foreground" data-no-translate>
                             {q.name}
                           </span>

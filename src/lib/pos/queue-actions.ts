@@ -115,7 +115,8 @@ export type CombinedQueueEntry = {
   clockInAt: string;
   jobsToday: number;
   /** 1-based position in that store's own queue. */
-  storePosition: number;
+  /** 1-based place in the shared queue across both stores. */
+  queueNumber: number;
 };
 
 export type ClockInCandidate = {
@@ -152,13 +153,9 @@ export async function getCombinedQueueData(branchIds: string[]) {
   ]);
   const profileById = new Map((profiles ?? []).map((p) => [p.staff_id, p]));
 
-  const open = (sessions ?? []).filter((s) => !s.clock_out_at);
-  const positionInStore = new Map<string, number>();
-  for (const branchId of branchIds) {
-    open
-      .filter((s) => s.branch_id === branchId)
-      .forEach((s, i) => positionInStore.set(s.id, i + 1));
-  }
+  const open = (sessions ?? [])
+    .filter((s) => !s.clock_out_at)
+    .sort((a, b) => a.queue_position - b.queue_position || a.clock_in_at.localeCompare(b.clock_in_at));
 
   const queue: CombinedQueueEntry[] = open
     .map((s) => ({
@@ -171,9 +168,8 @@ export async function getCombinedQueueData(branchIds: string[]) {
       status: s.status,
       clockInAt: s.clock_in_at,
       jobsToday: s.jobs_today,
-      storePosition: positionInStore.get(s.id) ?? 0,
     }))
-    .sort((a, b) => a.clockInAt.localeCompare(b.clockInAt));
+    .map((entry, i) => ({ ...entry, queueNumber: i + 1 }));
 
   const openStaff = new Set(open.map((s) => s.staff_id));
   const workedToday = new Map<string, { branchId: string; clockOutAt: string | null }>();
@@ -252,16 +248,8 @@ export async function clockIn(branchId: string, staffId: string): Promise<Action
     };
   }
 
-  const { data: maxRow } = await supabase
-    .from("therapist_clock_sessions")
-    .select("queue_position")
-    .eq("branch_id", branchId)
-    .eq("work_date", workDate)
-    .order("queue_position", { ascending: false })
-    .limit(1)
-    .maybeSingle();
-
-  const nextPosition = (maxRow?.queue_position ?? -1) + 1;
+  // One shared queue across both stores: new check-ins go to the back of it.
+  const { data: nextPosition } = await supabase.rpc("next_queue_position", { p_work_date: workDate });
 
   const { error } = await supabase.from("therapist_clock_sessions").upsert(
     {
@@ -269,7 +257,7 @@ export async function clockIn(branchId: string, staffId: string): Promise<Action
       branch_id: branchId,
       work_date: workDate,
       status: "available",
-      queue_position: nextPosition,
+      queue_position: nextPosition ?? 0,
       clock_in_at: new Date().toISOString(),
       clock_out_at: null,
     },
@@ -337,6 +325,39 @@ export async function reorderQueue(branchId: string, orderedSessionIds: string[]
     entity_id: branchId,
     detail: { order: orderedSessionIds },
   });
+
+  revalidatePath("/pos/queue");
+  return { ok: true };
+}
+
+/** Reorder the shared queue (both stores) after a drag and drop. */
+export async function reorderCombinedQueue(orderedSessionIds: string[]): Promise<ActionResult> {
+  const ctx = await requireStaffContext();
+  const supabase = await createServerSupabaseClient();
+  const { data: sessions } = await supabase
+    .from("therapist_clock_sessions")
+    .select("id, branch_id")
+    .in("id", orderedSessionIds);
+  const branchOf = new Map((sessions ?? []).map((s) => [s.id, s.branch_id]));
+  if (orderedSessionIds.some((id) => !branchOf.has(id) || !canOperateQueue(ctx, branchOf.get(id)!))) {
+    return { ok: false, error: "Not authorized to manage the queue here." };
+  }
+
+  for (const [index, sessionId] of orderedSessionIds.entries()) {
+    const { error } = await supabase.from("therapist_clock_sessions").update({ queue_position: index }).eq("id", sessionId);
+    if (error) return { ok: false, error: error.message };
+  }
+
+  const { data: org } = await supabase.from("organizations").select("id").limit(1).single();
+  if (org) {
+    await supabase.from("audit_log").insert({
+      org_id: org.id,
+      staff_id: ctx.staffId,
+      action: "queue_reorder",
+      entity_type: "queue",
+      detail: { order: orderedSessionIds },
+    });
+  }
 
   revalidatePath("/pos/queue");
   return { ok: true };
