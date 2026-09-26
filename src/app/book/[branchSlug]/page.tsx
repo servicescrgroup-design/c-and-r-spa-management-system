@@ -17,11 +17,19 @@ export default async function BranchBookingPage({
 
   if (!branch) notFound();
 
-  const { data: services } = await supabase
-    .from("services")
-    .select("id, name, name_th, duration_minutes, default_price_cents, service_price_options(duration_minutes, price_cents)")
-    .eq("is_active", true)
-    .order("name");
+  const [{ data: services }, { data: categories }] = await Promise.all([
+    supabase
+      .from("services")
+      .select(
+        "id, name, name_th, category_id, duration_minutes, default_price_cents, service_price_options(duration_minutes, price_cents)",
+      )
+      .eq("is_active", true)
+      .order("name"),
+    supabase
+      .from("service_categories")
+      .select("id, name, name_th, description, image_url")
+      .order("sort_order"),
+  ]);
 
   return (
     <main className="mx-auto flex w-full max-w-2xl flex-1 flex-col gap-6 px-6 py-16">
@@ -29,7 +37,12 @@ export default async function BranchBookingPage({
         <h1 className="font-display text-4xl font-medium tracking-tight">{branch.name}</h1>
         {branch.address && <p className="mt-1 text-muted-foreground">{branch.address}</p>}
       </div>
-      <BookingFlow branchId={branch.id} services={services ?? []} depositRequired={branch.deposit_required} />
+      <BookingFlow
+        branchId={branch.id}
+        services={services ?? []}
+        categories={categories ?? []}
+        depositRequired={branch.deposit_required}
+      />
     </main>
   );
 }

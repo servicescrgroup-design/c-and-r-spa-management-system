@@ -5,6 +5,7 @@ import { NewServiceForm } from "@/components/admin/new-service-form";
 import { NewPackageForm } from "@/components/admin/new-package-form";
 import { ServicesExplorer } from "@/components/admin/services-explorer";
 import { ComboManager } from "@/components/admin/combo-manager";
+import { CategoryManager } from "@/components/admin/category-manager";
 import { formatCents } from "@/lib/utils";
 
 export default async function ServicesPage() {
@@ -18,7 +19,7 @@ export default async function ServicesPage() {
           "id, name, name_th, is_active, category_id, duration_minutes, default_price_cents, service_price_options(duration_minutes, price_cents)",
         )
         .order("name"),
-      supabase.from("service_categories").select("id, name").order("sort_order"),
+      supabase.from("service_categories").select("id, name, name_th, description, image_url").order("sort_order"),
       supabase
         .from("packages")
         .select("id, name, price_cents, validity_days, package_items(quantity, service:service_id(name))")
@@ -37,6 +38,8 @@ export default async function ServicesPage() {
           Your service menu. Branches can override pricing later.
         </p>
       </div>
+
+      <CategoryManager categories={categories ?? []} />
 
       <ServicesExplorer services={services ?? []} categories={categories ?? []} />
 

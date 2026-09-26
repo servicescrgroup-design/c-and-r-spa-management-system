@@ -2106,20 +2106,29 @@ export type Database = {
       }
       service_categories: {
         Row: {
+          description: string | null
           id: string
+          image_url: string | null
           name: string
+          name_th: string | null
           org_id: string
           sort_order: number
         }
         Insert: {
+          description?: string | null
           id?: string
+          image_url?: string | null
           name: string
+          name_th?: string | null
           org_id: string
           sort_order?: number
         }
         Update: {
+          description?: string | null
           id?: string
+          image_url?: string | null
           name?: string
+          name_th?: string | null
           org_id?: string
           sort_order?: number
         }

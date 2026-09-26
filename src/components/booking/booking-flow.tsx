@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { findAvailableSlots, submitBooking, createDepositPaymentIntent } from "@/lib/booking/actions";
 import { DepositCheckout } from "@/components/booking/deposit-checkout";
 import { Button } from "@/components/ui/button";
@@ -14,12 +14,141 @@ type Service = {
   id: string;
   name: string;
   name_th: string | null;
+  category_id: string | null;
   duration_minutes: number;
   default_price_cents: number;
   service_price_options: PriceOption[];
 };
+type Category = { id: string; name: string; name_th: string | null; description: string | null; image_url: string | null };
 
 type Selection = { serviceId: string; duration: number; priceCents: number };
+
+type Lang = "en" | "th" | "zh" | "ko" | "ja";
+
+const LANG_OPTIONS: { code: Lang; label: string }[] = [
+  { code: "en", label: "English" },
+  { code: "th", label: "ไทย" },
+  { code: "zh", label: "中文" },
+  { code: "ko", label: "한국어" },
+  { code: "ja", label: "日本語" },
+];
+
+// Only English and Thai have real translated content in the database (name_th
+// on services/categories). Chinese/Korean/Japanese translate the surrounding
+// interface below; service and category names fall back to English for those
+// three until translated names are added to the catalogue.
+const DICT: Record<Lang, Record<string, string>> = {
+  en: {
+    chooseCategory: "Choose a category",
+    allCategories: "All",
+    changeCategory: "Change category",
+    chooseServices: "Choose your service(s)",
+    duration: "Duration",
+    chooseTime: "Pick a date and time",
+    findTimes: "Find times",
+    yourDetails: "Your details",
+    confirm: "Confirm booking",
+    booked: "You're booked!",
+    total: "Total",
+    noOpenings: "No openings that day — try another date.",
+    payDeposit: "Pay deposit",
+    depositTitle: "Secure your booking with a deposit",
+    depositNote: "deposit required to confirm",
+    noServices: "No services are available online yet.",
+    date: "Date",
+    firstName: "First name",
+    lastName: "Last name",
+    phone: "Phone",
+  },
+  th: {
+    chooseCategory: "เลือกหมวดหมู่",
+    allCategories: "ทั้งหมด",
+    changeCategory: "เปลี่ยนหมวดหมู่",
+    chooseServices: "เลือกบริการของคุณ",
+    duration: "ระยะเวลา",
+    chooseTime: "เลือกวันและเวลา",
+    findTimes: "ค้นหาเวลาว่าง",
+    yourDetails: "ข้อมูลของคุณ",
+    confirm: "ยืนยันการจอง",
+    booked: "จองสำเร็จแล้ว!",
+    total: "ยอดรวม",
+    noOpenings: "ไม่มีคิวว่างในวันนี้ ลองเลือกวันอื่น",
+    payDeposit: "ชำระเงินมัดจำ",
+    depositTitle: "ชำระมัดจำเพื่อยืนยันการจอง",
+    depositNote: "ต้องชำระมัดจำเพื่อยืนยัน",
+    noServices: "ยังไม่มีบริการให้จองออนไลน์",
+    date: "วันที่",
+    firstName: "ชื่อ",
+    lastName: "นามสกุล",
+    phone: "เบอร์โทร",
+  },
+  zh: {
+    chooseCategory: "选择类别",
+    allCategories: "全部",
+    changeCategory: "更改类别",
+    chooseServices: "选择您的服务",
+    duration: "时长",
+    chooseTime: "选择日期和时间",
+    findTimes: "查找可用时间",
+    yourDetails: "您的信息",
+    confirm: "确认预约",
+    booked: "预约成功！",
+    total: "总计",
+    noOpenings: "当天没有空档，请选择其他日期。",
+    payDeposit: "支付押金",
+    depositTitle: "支付押金以确认预约",
+    depositNote: "需支付押金以确认",
+    noServices: "暂无可在线预约的服务。",
+    date: "日期",
+    firstName: "名",
+    lastName: "姓",
+    phone: "电话",
+  },
+  ko: {
+    chooseCategory: "카테고리 선택",
+    allCategories: "전체",
+    changeCategory: "카테고리 변경",
+    chooseServices: "서비스를 선택하세요",
+    duration: "소요 시간",
+    chooseTime: "날짜와 시간 선택",
+    findTimes: "가능한 시간 찾기",
+    yourDetails: "고객 정보",
+    confirm: "예약 확정",
+    booked: "예약이 완료되었습니다!",
+    total: "합계",
+    noOpenings: "해당 날짜에 빈 자리가 없습니다. 다른 날짜를 선택해 주세요.",
+    payDeposit: "예약금 결제",
+    depositTitle: "예약금을 결제하여 예약을 확정하세요",
+    depositNote: "확정을 위해 예약금이 필요합니다",
+    noServices: "아직 온라인 예약 가능한 서비스가 없습니다.",
+    date: "날짜",
+    firstName: "이름",
+    lastName: "성",
+    phone: "전화번호",
+  },
+  ja: {
+    chooseCategory: "カテゴリーを選択",
+    allCategories: "すべて",
+    changeCategory: "カテゴリーを変更",
+    chooseServices: "サービスを選択してください",
+    duration: "所要時間",
+    chooseTime: "日時を選択",
+    findTimes: "空き時間を検索",
+    yourDetails: "お客様情報",
+    confirm: "予約を確定する",
+    booked: "予約が完了しました！",
+    total: "合計",
+    noOpenings: "その日は空きがありません。別の日をお試しください。",
+    payDeposit: "デポジットを支払う",
+    depositTitle: "デポジットを支払って予約を確定してください",
+    depositNote: "確定にはデポジットが必要です",
+    noServices: "オンライン予約可能なサービスはまだありません。",
+    date: "日付",
+    firstName: "名",
+    lastName: "姓",
+    phone: "電話番号",
+  },
+};
 
 function todayIso() {
   return new Date().toISOString().slice(0, 10);
@@ -34,13 +163,16 @@ function optionsFor(service: Service): PriceOption[] {
 export function BookingFlow({
   branchId,
   services,
+  categories,
   depositRequired,
 }: {
   branchId: string;
   services: Service[];
+  categories: Category[];
   depositRequired: boolean;
 }) {
-  const [lang, setLang] = useState<"en" | "th">("en");
+  const [lang, setLang] = useState<Lang>("en");
+  const [categoryId, setCategoryId] = useState<string | "all" | null>(categories.length > 0 ? null : "all");
   const [selections, setSelections] = useState<Record<string, Selection>>({});
   const [date, setDate] = useState(todayIso());
   const [slots, setSlots] = useState<string[] | null>(null);
@@ -57,23 +189,20 @@ export function BookingFlow({
   const [email, setEmail] = useState("");
   const [phone, setPhone] = useState("");
 
-  const t = {
-    chooseServices: lang === "en" ? "Choose your service(s)" : "เลือกบริการของคุณ",
-    duration: lang === "en" ? "Duration" : "ระยะเวลา",
-    chooseTime: lang === "en" ? "Pick a date and time" : "เลือกวันและเวลา",
-    findTimes: lang === "en" ? "Find times" : "ค้นหาเวลาว่าง",
-    yourDetails: lang === "en" ? "Your details" : "ข้อมูลของคุณ",
-    confirm: lang === "en" ? "Confirm booking" : "ยืนยันการจอง",
-    booked: lang === "en" ? "You're booked!" : "จองสำเร็จแล้ว!",
-    total: lang === "en" ? "Total" : "ยอดรวม",
-    noOpenings: lang === "en" ? "No openings that day — try another date." : "ไม่มีคิวว่างในวันนี้ ลองเลือกวันอื่น",
-    payDeposit: lang === "en" ? "Pay deposit" : "ชำระเงินมัดจำ",
-    depositTitle: lang === "en" ? "Secure your booking with a deposit" : "ชำระมัดจำเพื่อยืนยันการจอง",
-  };
+  const t = DICT[lang];
+
+  function categoryName(c: Category) {
+    return lang === "th" && c.name_th ? c.name_th : c.name;
+  }
 
   function serviceName(s: Service) {
     return lang === "th" && s.name_th ? s.name_th : s.name;
   }
+
+  const visibleServices = useMemo(
+    () => (categoryId && categoryId !== "all" ? services.filter((s) => s.category_id === categoryId) : services),
+    [services, categoryId],
+  );
 
   function toggleService(service: Service) {
     setSlots(null);
@@ -164,28 +293,21 @@ export function BookingFlow({
   }
 
   const langToggle = (
-    <div className="flex justify-end">
-      <div className="inline-flex items-center rounded-full border border-border bg-secondary/50 p-0.5 text-sm">
-        <button
-          type="button"
-          onClick={() => setLang("en")}
-          className={cn(
-            "rounded-full px-3 py-1 transition-colors",
-            lang === "en" ? "bg-card font-medium shadow-sm" : "text-muted-foreground",
-          )}
-        >
-          English
-        </button>
-        <button
-          type="button"
-          onClick={() => setLang("th")}
-          className={cn(
-            "rounded-full px-3 py-1 transition-colors",
-            lang === "th" ? "bg-card font-medium shadow-sm" : "text-muted-foreground",
-          )}
-        >
-          ไทย
-        </button>
+    <div className="flex flex-wrap justify-end gap-1">
+      <div className="inline-flex flex-wrap items-center gap-0.5 rounded-full border border-border bg-secondary/50 p-0.5 text-sm">
+        {LANG_OPTIONS.map((opt) => (
+          <button
+            key={opt.code}
+            type="button"
+            onClick={() => setLang(opt.code)}
+            className={cn(
+              "rounded-full px-3 py-1 transition-colors",
+              lang === opt.code ? "bg-card font-medium shadow-sm" : "text-muted-foreground",
+            )}
+          >
+            {opt.label}
+          </button>
+        ))}
       </div>
     </div>
   );
@@ -241,86 +363,134 @@ export function BookingFlow({
   return (
     <div className="space-y-6">
       {langToggle}
-      <Card>
-        <CardHeader>
-          <CardTitle>{t.chooseServices}</CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-2.5">
-          {services.map((service) => {
-            const selection = selections[service.id];
-            const options = optionsFor(service);
-            return (
-              <div
-                key={service.id}
-                className={cn(
-                  "rounded-xl border p-4 text-sm transition-colors",
-                  selection ? "border-primary/50 bg-secondary/50" : "border-border hover:border-primary/30",
-                )}
-              >
-                <label className="flex cursor-pointer items-center justify-between gap-3">
-                  <span className="flex items-center gap-3">
-                    <span
-                      className={cn(
-                        "flex h-5 w-5 shrink-0 items-center justify-center rounded-full border transition-colors",
-                        selection ? "border-primary bg-primary text-primary-foreground" : "border-border",
-                      )}
-                      aria-hidden
-                    >
-                      {selection && (
-                        <svg viewBox="0 0 12 12" className="h-3 w-3" fill="none">
-                          <path
-                            d="M2.5 6.5L4.75 8.75L9.5 3.5"
-                            stroke="currentColor"
-                            strokeWidth="1.5"
-                            strokeLinecap="round"
-                            strokeLinejoin="round"
-                          />
-                        </svg>
-                      )}
-                    </span>
-                    <input
-                      type="checkbox"
-                      checked={Boolean(selection)}
-                      onChange={() => toggleService(service)}
-                      className="sr-only"
-                    />
-                    <span className="font-medium">{serviceName(service)}</span>
-                  </span>
-                  {selection && (
-                    <span className="whitespace-nowrap font-display text-base">
-                      {formatCents(selection.priceCents)}
-                    </span>
-                  )}
-                </label>
-                {selection && options.length > 0 && (
-                  <div className="mt-3 flex items-center gap-2 pl-8">
-                    <Label htmlFor={`duration-${service.id}`} className="normal-case tracking-normal">
-                      {t.duration}
-                    </Label>
-                    <select
-                      id={`duration-${service.id}`}
-                      value={selection.duration}
-                      onChange={(e) => setDuration(service, Number(e.target.value))}
-                      className="h-8 rounded-lg border border-border bg-background px-2 text-sm"
-                    >
-                      {options.map((o) => (
-                        <option key={o.duration_minutes} value={o.duration_minutes}>
-                          {o.duration_minutes} min &middot; {formatCents(o.price_cents)}
-                        </option>
-                      ))}
-                    </select>
+
+      {categoryId === null ? (
+        <Card>
+          <CardHeader>
+            <CardTitle>{t.chooseCategory}</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="grid grid-cols-2 gap-4 sm:grid-cols-3">
+              {categories.map((c) => (
+                <button
+                  key={c.id}
+                  type="button"
+                  onClick={() => setCategoryId(c.id)}
+                  className="group flex aspect-square flex-col overflow-hidden rounded-2xl border border-border shadow-sm transition-transform hover:-translate-y-0.5 hover:shadow-md"
+                >
+                  <div
+                    className="relative flex-[3] bg-cover bg-center"
+                    style={{
+                      backgroundImage: c.image_url
+                        ? `linear-gradient(180deg, rgba(47,74,63,0.15), rgba(30,50,42,0.55)), url(${c.image_url})`
+                        : "linear-gradient(160deg, #7fa085 0%, #4c6b52 55%, #2f4a3f 100%)",
+                    }}
+                  />
+                  <div className="flex flex-1 flex-col items-start justify-center gap-0.5 bg-gradient-to-b from-[#3c5a48] to-[#25382d] px-3 py-2 text-left text-primary-foreground">
+                    <span className="font-display text-sm font-medium leading-tight">{categoryName(c)}</span>
+                    {c.description && <span className="line-clamp-2 text-[11px] opacity-80">{c.description}</span>}
                   </div>
-                )}
-              </div>
-            );
-          })}
-          {services.length === 0 && (
-            <p className="text-muted-foreground">
-              {lang === "en" ? "No services are available online yet." : "ยังไม่มีบริการให้จองออนไลน์"}
-            </p>
+                </button>
+              ))}
+              <button
+                type="button"
+                onClick={() => setCategoryId("all")}
+                className="flex aspect-square flex-col items-center justify-center gap-1 rounded-2xl border border-dashed border-border bg-muted/40 text-sm text-muted-foreground hover:border-primary/40 hover:text-foreground"
+              >
+                {t.allCategories}
+              </button>
+            </div>
+          </CardContent>
+        </Card>
+      ) : (
+        <>
+          {categories.length > 0 && (
+            <button
+              type="button"
+              onClick={() => setCategoryId(null)}
+              className="text-sm text-primary hover:underline"
+            >
+              &larr; {t.changeCategory}
+            </button>
           )}
-        </CardContent>
-      </Card>
+          <Card>
+            <CardHeader>
+              <CardTitle>{t.chooseServices}</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-2.5">
+              {visibleServices.map((service) => {
+                const selection = selections[service.id];
+                const options = optionsFor(service);
+                return (
+                  <div
+                    key={service.id}
+                    className={cn(
+                      "rounded-xl border p-4 text-sm transition-colors",
+                      selection ? "border-primary/50 bg-secondary/50" : "border-border hover:border-primary/30",
+                    )}
+                  >
+                    <label className="flex cursor-pointer items-center justify-between gap-3">
+                      <span className="flex items-center gap-3">
+                        <span
+                          className={cn(
+                            "flex h-5 w-5 shrink-0 items-center justify-center rounded-full border transition-colors",
+                            selection ? "border-primary bg-primary text-primary-foreground" : "border-border",
+                          )}
+                          aria-hidden
+                        >
+                          {selection && (
+                            <svg viewBox="0 0 12 12" className="h-3 w-3" fill="none">
+                              <path
+                                d="M2.5 6.5L4.75 8.75L9.5 3.5"
+                                stroke="currentColor"
+                                strokeWidth="1.5"
+                                strokeLinecap="round"
+                                strokeLinejoin="round"
+                              />
+                            </svg>
+                          )}
+                        </span>
+                        <input
+                          type="checkbox"
+                          checked={Boolean(selection)}
+                          onChange={() => toggleService(service)}
+                          className="sr-only"
+                        />
+                        <span className="font-medium">{serviceName(service)}</span>
+                      </span>
+                      {selection && (
+                        <span className="whitespace-nowrap font-display text-base">
+                          {formatCents(selection.priceCents)}
+                        </span>
+                      )}
+                    </label>
+                    {selection && options.length > 0 && (
+                      <div className="mt-3 flex items-center gap-2 pl-8">
+                        <Label htmlFor={`duration-${service.id}`} className="normal-case tracking-normal">
+                          {t.duration}
+                        </Label>
+                        <select
+                          id={`duration-${service.id}`}
+                          value={selection.duration}
+                          onChange={(e) => setDuration(service, Number(e.target.value))}
+                          className="h-8 rounded-lg border border-border bg-background px-2 text-sm"
+                        >
+                          {options.map((o) => (
+                            <option key={o.duration_minutes} value={o.duration_minutes}>
+                              {o.duration_minutes} min &middot; {formatCents(o.price_cents)}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+              {visibleServices.length === 0 && <p className="text-muted-foreground">{t.noServices}</p>}
+            </CardContent>
+          </Card>
+        </>
+      )}
 
       {selectionList.length > 0 && (
         <Card>
@@ -329,18 +499,13 @@ export function BookingFlow({
             <CardDescription>
               {t.total}: {totalDuration} min &middot;{" "}
               <span className="font-display text-foreground">{formatCents(totalPrice)}</span>
-              {depositRequired && (
-                <span className="text-accent">
-                  {" "}
-                  &middot; {lang === "en" ? "deposit required to confirm" : "ต้องชำระมัดจำเพื่อยืนยัน"}
-                </span>
-              )}
+              {depositRequired && <span className="text-accent"> &middot; {t.depositNote}</span>}
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
             <div className="flex items-end gap-3">
               <div className="space-y-2">
-                <Label htmlFor="date">{lang === "en" ? "Date" : "วันที่"}</Label>
+                <Label htmlFor="date">{t.date}</Label>
                 <Input
                   id="date"
                   type="date"
@@ -391,11 +556,11 @@ export function BookingFlow({
             <form onSubmit={handleSubmit} className="space-y-4">
               <div className="grid grid-cols-2 gap-3">
                 <div className="space-y-2">
-                  <Label htmlFor="firstName">{lang === "en" ? "First name" : "ชื่อ"}</Label>
+                  <Label htmlFor="firstName">{t.firstName}</Label>
                   <Input id="firstName" required value={firstName} onChange={(e) => setFirstName(e.target.value)} />
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="lastName">{lang === "en" ? "Last name" : "นามสกุล"}</Label>
+                  <Label htmlFor="lastName">{t.lastName}</Label>
                   <Input id="lastName" required value={lastName} onChange={(e) => setLastName(e.target.value)} />
                 </div>
               </div>
@@ -404,7 +569,7 @@ export function BookingFlow({
                 <Input id="email" type="email" required value={email} onChange={(e) => setEmail(e.target.value)} />
               </div>
               <div className="space-y-2">
-                <Label htmlFor="phone">{lang === "en" ? "Phone" : "เบอร์โทร"}</Label>
+                <Label htmlFor="phone">{t.phone}</Label>
                 <Input id="phone" type="tel" value={phone} onChange={(e) => setPhone(e.target.value)} />
               </div>
               {error && <p className="text-sm text-destructive">{error}</p>}
