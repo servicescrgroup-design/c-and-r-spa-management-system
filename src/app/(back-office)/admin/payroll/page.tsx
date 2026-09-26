@@ -1,8 +1,12 @@
 import Link from "next/link";
+import { requireStaffContext } from "@/lib/auth/session";
+import { isOwner } from "@/lib/auth/roles";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { getStaffBranches } from "@/lib/pos/session";
 import { getPayrollDays, getDocumentExpiryList } from "@/lib/admin/payroll-actions";
+import { getReceptionistPayroll } from "@/lib/admin/receptionist-payroll-actions";
 import { PayrollBoard } from "@/components/admin/payroll-board";
+import { ReceptionistPayrollBoard } from "@/components/admin/receptionist-payroll-board";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
 
@@ -18,6 +22,7 @@ function monthRange(month: string): { start: string; end: string } {
 }
 
 export default async function PayrollPage({ searchParams }: PageProps<"/admin/payroll">) {
+  const ctx = await requireStaffContext();
   const sp = await searchParams;
   const branches = await getStaffBranches();
   const branchId = (typeof sp.branchId === "string" ? sp.branchId : branches[0]?.id) ?? null;
@@ -25,6 +30,9 @@ export default async function PayrollPage({ searchParams }: PageProps<"/admin/pa
   if (!branchId) {
     return <p className="text-muted-foreground">No branch available.</p>;
   }
+
+  const canViewReceptionistPayroll = isOwner(ctx);
+  const section = sp.section === "receptionists" && canViewReceptionistPayroll ? "receptionists" : "therapists";
 
   const supabase = await createServerSupabaseClient();
   const { data: branch } = await supabase
@@ -34,9 +42,64 @@ export default async function PayrollPage({ searchParams }: PageProps<"/admin/pa
     .single();
   const timezone = branch?.timezone ?? "Asia/Bangkok";
   const minHours = branch?.payroll_min_hours ?? 3;
+  const today = workDateFor(timezone);
+
+  if (section === "receptionists") {
+    const periodStart = typeof sp.periodStart === "string" ? sp.periodStart : `${today.slice(0, 8)}01`;
+    const periodEnd = typeof sp.periodEnd === "string" ? sp.periodEnd : today;
+    const summary = await getReceptionistPayroll(periodStart, periodEnd);
+
+    return (
+      <div className="space-y-6">
+        <div>
+          <h1 className="font-display text-3xl font-medium tracking-tight">Payroll</h1>
+          <p className="text-muted-foreground">Base pay, commission, and per-branch performance for the front desk.</p>
+        </div>
+
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div className="flex gap-1 rounded-full border border-border bg-secondary/40 p-1">
+            <Link
+              href={`/admin/payroll?branchId=${branchId}&section=therapists`}
+              className="rounded-full px-3.5 py-1.5 text-sm text-muted-foreground transition-colors"
+            >
+              Therapists
+            </Link>
+            <Link
+              href={`/admin/payroll?branchId=${branchId}&section=receptionists`}
+              className="rounded-full bg-card px-3.5 py-1.5 text-sm font-medium shadow-sm transition-colors"
+            >
+              Receptionists
+            </Link>
+          </div>
+
+          <form className="flex flex-wrap items-center gap-2">
+            <input type="hidden" name="branchId" value={branchId} />
+            <input type="hidden" name="section" value="receptionists" />
+            <input
+              type="date"
+              name="periodStart"
+              defaultValue={periodStart}
+              className="h-10 rounded-md border border-border bg-background px-3 text-sm"
+            />
+            <span className="text-sm text-muted-foreground">to</span>
+            <input
+              type="date"
+              name="periodEnd"
+              defaultValue={periodEnd}
+              className="h-10 rounded-md border border-border bg-background px-3 text-sm"
+            />
+            <button type="submit" className="text-sm text-primary hover:underline">
+              Go
+            </button>
+          </form>
+        </div>
+
+        <ReceptionistPayrollBoard summary={summary} />
+      </div>
+    );
+  }
 
   const view = sp.view === "monthly" ? "monthly" : "daily";
-  const today = workDateFor(timezone);
   const date = typeof sp.date === "string" ? sp.date : today;
   const month = typeof sp.month === "string" ? sp.month : today.slice(0, 7);
 
@@ -53,19 +116,37 @@ export default async function PayrollPage({ searchParams }: PageProps<"/admin/pa
         </p>
       </div>
 
-      <div className="flex flex-wrap items-center gap-2">
-        {branches.map((b) => (
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div className="flex gap-1 rounded-full border border-border bg-secondary/40 p-1">
           <Link
-            key={b.id}
-            href={`/admin/payroll?branchId=${b.id}&view=${view}&date=${date}&month=${month}`}
-            className={cn(
-              "rounded-full border px-3.5 py-1.5 text-sm transition-colors",
-              b.id === branchId ? "border-primary bg-primary text-primary-foreground" : "border-border",
-            )}
+            href={`/admin/payroll?branchId=${branchId}&section=therapists`}
+            className="rounded-full bg-card px-3.5 py-1.5 text-sm font-medium shadow-sm transition-colors"
           >
-            {b.name}
+            Therapists
           </Link>
-        ))}
+          {canViewReceptionistPayroll && (
+            <Link
+              href={`/admin/payroll?branchId=${branchId}&section=receptionists`}
+              className="rounded-full px-3.5 py-1.5 text-sm text-muted-foreground transition-colors"
+            >
+              Receptionists
+            </Link>
+          )}
+        </div>
+        <div className="flex flex-wrap gap-2">
+          {branches.map((b) => (
+            <Link
+              key={b.id}
+              href={`/admin/payroll?branchId=${b.id}&view=${view}&date=${date}&month=${month}`}
+              className={cn(
+                "rounded-full border px-3.5 py-1.5 text-sm transition-colors",
+                b.id === branchId ? "border-primary bg-primary text-primary-foreground" : "border-border",
+              )}
+            >
+              {b.name}
+            </Link>
+          ))}
+        </div>
       </div>
 
       <div className="flex flex-wrap items-center gap-4">
