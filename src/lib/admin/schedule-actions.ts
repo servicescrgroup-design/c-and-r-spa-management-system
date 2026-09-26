@@ -8,28 +8,35 @@ import { isOwner } from "@/lib/auth/roles";
 
 type ActionResult = { ok: true } | { ok: false; error: string };
 
+/** One block per (branch, day) combination selected, so a therapist who
+ * works both stores on Mon/Wed/Fri can be scheduled in a single submit. */
 export async function addScheduleBlock(formData: FormData): Promise<ActionResult> {
   await requireStaffContext();
 
   const staffId = String(formData.get("staffId") ?? "");
-  const branchId = String(formData.get("branchId") ?? "");
-  const dayOfWeek = Number(formData.get("dayOfWeek"));
+  const branchIds = formData.getAll("branchIds").map(String).filter(Boolean);
+  const dayOfWeeks = formData.getAll("dayOfWeeks").map(Number).filter((d) => Number.isInteger(d));
   const startTime = String(formData.get("startTime") ?? "");
   const endTime = String(formData.get("endTime") ?? "");
 
-  if (!staffId || !branchId) return { ok: false, error: "Staff and branch are required." };
+  if (!staffId) return { ok: false, error: "Staff member is required." };
+  if (branchIds.length === 0) return { ok: false, error: "Select at least one branch." };
+  if (dayOfWeeks.length === 0) return { ok: false, error: "Select at least one day." };
   if (!startTime || !endTime || startTime >= endTime) {
     return { ok: false, error: "End time must be after start time." };
   }
 
   const supabase = await createServerSupabaseClient();
-  const { error } = await supabase.from("staff_schedules").insert({
-    staff_id: staffId,
-    branch_id: branchId,
-    day_of_week: dayOfWeek,
-    start_time: startTime,
-    end_time: endTime,
-  });
+  const rows = branchIds.flatMap((branchId) =>
+    dayOfWeeks.map((dayOfWeek) => ({
+      staff_id: staffId,
+      branch_id: branchId,
+      day_of_week: dayOfWeek,
+      start_time: startTime,
+      end_time: endTime,
+    })),
+  );
+  const { error } = await supabase.from("staff_schedules").insert(rows);
 
   if (error) return { ok: false, error: error.message };
 

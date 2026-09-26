@@ -8,7 +8,7 @@ export async function getStaffBranches() {
   const supabase = await createServerSupabaseClient();
 
   if (isOwner(ctx)) {
-    const { data } = await supabase.from("branches").select("id, name").order("name");
+    const { data } = await supabase.from("branches").select("id, name").order("sort_order").order("name");
     return data ?? [];
   }
 
@@ -19,6 +19,7 @@ export async function getStaffBranches() {
     .from("branches")
     .select("id, name")
     .in("id", branchIds)
+    .order("sort_order")
     .order("name");
   return data ?? [];
 }

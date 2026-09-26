@@ -40,6 +40,26 @@ export async function createBranch(formData: FormData): Promise<ActionResult> {
   return { ok: true };
 }
 
+/** Owner reorders branches by dragging them (e.g. scheduling page tabs) — the
+ * saved order is used everywhere branches are listed as tabs/buttons. */
+export async function setBranchOrder(branchIds: string[]): Promise<ActionResult> {
+  const ctx = await requireStaffContext();
+  if (!isOwner(ctx)) return { ok: false, error: "Only an owner can reorder branches." };
+
+  const supabase = await createServerSupabaseClient();
+  for (const [index, branchId] of branchIds.entries()) {
+    const { error } = await supabase.from("branches").update({ sort_order: index }).eq("id", branchId);
+    if (error) return { ok: false, error: error.message };
+  }
+
+  revalidatePath("/admin/scheduling");
+  revalidatePath("/admin/branches");
+  revalidatePath("/pos/sale");
+  revalidatePath("/pos/queue");
+  revalidatePath("/admin/payroll");
+  return { ok: true };
+}
+
 export async function updateBranchSettings(branchId: string, formData: FormData): Promise<ActionResult> {
   const ctx = await requireStaffContext();
   if (!isOwner(ctx)) return { ok: false, error: "Only an owner can change branch settings." };

@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { requireStaffContext } from "@/lib/auth/session";
+import { isOwner } from "@/lib/auth/roles";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { getStaffBranches } from "@/lib/pos/session";
 import { getRoomsWithBeds } from "@/lib/admin/scheduling-actions";
@@ -7,11 +8,11 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { NewScheduleForm } from "@/components/admin/new-schedule-form";
 import { NewAppointmentModal } from "@/components/admin/new-appointment-modal";
 import { RoomsBedsManager } from "@/components/admin/rooms-beds-manager";
+import { BranchOrderTabs } from "@/components/admin/branch-order-tabs";
 import { DAY_NAMES } from "@/lib/admin/schedule-constants";
-import { cn } from "@/lib/utils";
 
 export default async function SchedulingPage({ searchParams }: PageProps<"/admin/scheduling">) {
-  await requireStaffContext();
+  const ctx = await requireStaffContext();
   const sp = await searchParams;
   const branches = await getStaffBranches();
   const branchId = (typeof sp.branchId === "string" ? sp.branchId : branches[0]?.id) ?? null;
@@ -53,20 +54,12 @@ export default async function SchedulingPage({ searchParams }: PageProps<"/admin
       </div>
 
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <div className="flex flex-wrap gap-2">
-          {branches.map((b) => (
-            <Link
-              key={b.id}
-              href={`/admin/scheduling?branchId=${b.id}`}
-              className={cn(
-                "rounded-full border px-3.5 py-1.5 text-sm transition-colors",
-                b.id === branchId ? "border-primary bg-primary text-primary-foreground" : "border-border",
-              )}
-            >
-              {b.name}
-            </Link>
-          ))}
-        </div>
+        <BranchOrderTabs
+          branches={branches}
+          activeBranchId={branchId}
+          hrefFor={(id) => `/admin/scheduling?branchId=${id}`}
+          canReorder={isOwner(ctx)}
+        />
         <div className="flex items-center gap-3">
           <Link href={`/pos/queue?branchId=${branchId}`} className="text-sm text-primary hover:underline">
             Check in staff for today &rarr;

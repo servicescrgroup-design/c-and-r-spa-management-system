@@ -457,6 +457,7 @@ export type Database = {
           queue_send_to_back: boolean
           require_documents_for_clockin: boolean
           slug: string
+          sort_order: number
           stripe_location_id: string | null
           tax_id: string | null
           timezone: string
@@ -481,6 +482,7 @@ export type Database = {
           queue_send_to_back?: boolean
           require_documents_for_clockin?: boolean
           slug: string
+          sort_order?: number
           stripe_location_id?: string | null
           tax_id?: string | null
           timezone?: string
@@ -505,6 +507,7 @@ export type Database = {
           queue_send_to_back?: boolean
           require_documents_for_clockin?: boolean
           slug?: string
+          sort_order?: number
           stripe_location_id?: string | null
           tax_id?: string | null
           timezone?: string

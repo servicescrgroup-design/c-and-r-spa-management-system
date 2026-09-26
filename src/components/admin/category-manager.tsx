@@ -63,7 +63,7 @@ function CategoryEditForm({ category }: { category: Category }) {
   const filledLangs = TRANSLATION_LANGS.filter((l) => translations[l.value].trim());
 
   return (
-    <form onSubmit={handleSubmit} className="space-y-2 rounded-lg border border-border p-3">
+    <form onSubmit={handleSubmit} className="space-y-2 rounded-lg border border-border bg-muted/30 p-3">
       <div className="flex items-center gap-3">
         {category.image_url ? (
           // eslint-disable-next-line @next/next/no-img-element
@@ -137,6 +137,54 @@ function CategoryEditForm({ category }: { category: Category }) {
   );
 }
 
+function CategoryRow({ category }: { category: Category }) {
+  const [editing, setEditing] = useState(false);
+  const translationCount = [category.name_th, category.name_zh, category.name_ko, category.name_ja].filter(
+    (v) => v && v.trim(),
+  ).length;
+
+  return (
+    <>
+      <tr className="border-b border-border last:border-0">
+        <td className="py-2 pr-3">
+          {category.image_url ? (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img src={category.image_url} alt="" className="h-9 w-9 rounded-md object-cover" />
+          ) : (
+            <div
+              className="h-9 w-9 rounded-md"
+              style={
+                category.background_color
+                  ? { backgroundColor: category.background_color }
+                  : { background: "linear-gradient(180deg, #5c7c62, #2f4a3f)" }
+              }
+            />
+          )}
+        </td>
+        <td className="px-3 py-2 text-sm font-medium">{category.name}</td>
+        <td className="px-3 py-2 text-sm text-muted-foreground">
+          {translationCount > 0 ? `${translationCount} language${translationCount === 1 ? "" : "s"}` : "English only"}
+        </td>
+        <td className="max-w-[16rem] truncate px-3 py-2 text-sm text-muted-foreground">
+          {category.description || "—"}
+        </td>
+        <td className="py-2 pl-3 text-right">
+          <button type="button" onClick={() => setEditing((v) => !v)} className="text-sm text-primary hover:underline">
+            {editing ? "Close" : "Edit"}
+          </button>
+        </td>
+      </tr>
+      {editing && (
+        <tr className="border-b border-border last:border-0">
+          <td colSpan={5} className="px-0 py-2">
+            <CategoryEditForm category={category} />
+          </td>
+        </tr>
+      )}
+    </>
+  );
+}
+
 function NewCategoryForm() {
   const router = useRouter();
   const [loading, setLoading] = useState(false);
@@ -171,12 +219,29 @@ export function CategoryManager({ categories }: { categories: Category[] }) {
       <CardHeader>
         <CardTitle>Categories</CardTitle>
       </CardHeader>
-      <CardContent className="space-y-3">
-        <div className="grid gap-3 sm:grid-cols-2">
-          {categories.map((c) => (
-            <CategoryEditForm key={c.id} category={c} />
-          ))}
-        </div>
+      <CardContent className="space-y-4">
+        {categories.length === 0 ? (
+          <p className="text-sm text-muted-foreground">No categories yet.</p>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full min-w-[520px] text-left">
+              <thead>
+                <tr className="border-b border-border text-xs uppercase tracking-wide text-muted-foreground">
+                  <th className="py-2 pr-3 font-medium">Image</th>
+                  <th className="px-3 py-2 font-medium">Name</th>
+                  <th className="px-3 py-2 font-medium">Translations</th>
+                  <th className="px-3 py-2 font-medium">Description</th>
+                  <th className="py-2 pl-3" />
+                </tr>
+              </thead>
+              <tbody>
+                {categories.map((c) => (
+                  <CategoryRow key={c.id} category={c} />
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
         <NewCategoryForm />
       </CardContent>
     </Card>

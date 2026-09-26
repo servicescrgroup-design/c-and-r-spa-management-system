@@ -90,14 +90,18 @@ export default async function StaffDetailPage({ params }: PageProps<"/admin/staf
         <CardContent>
           <div className="grid gap-4 sm:grid-cols-2">
             <div className="rounded-xl bg-muted/40 p-3">
-              <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Current pay period</p>
+              <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Current pay period &middot; earned</p>
               <p className="font-display mt-1 text-xl">{formatCents(lifetimeStats.currentPeriodEarningsCents)}</p>
-              <p className="text-xs text-muted-foreground">{lifetimeStats.currentPeriodHours}h massaged</p>
+              <p className="text-xs text-muted-foreground">
+                {lifetimeStats.currentPeriodHours}h massaged &middot; {formatCents(lifetimeStats.currentPeriodRevenueCents)} revenue
+              </p>
             </div>
-            <div className="rounded-xl bg-muted/40 p-3">
-              <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Lifetime at C&amp;R</p>
-              <p className="font-display mt-1 text-xl">{formatCents(lifetimeStats.lifetimeEarningsCents)}</p>
-              <p className="text-xs text-muted-foreground">{lifetimeStats.lifetimeHours}h massaged</p>
+            <div className="rounded-xl bg-primary/10 p-3">
+              <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Lifetime revenue at C&amp;R</p>
+              <p className="font-display mt-1 text-xl text-primary">{formatCents(lifetimeStats.lifetimeRevenueCents)}</p>
+              <p className="text-xs text-muted-foreground">
+                {lifetimeStats.lifetimeHours}h massaged &middot; {formatCents(lifetimeStats.lifetimeEarningsCents)} paid out
+              </p>
             </div>
           </div>
           {profile?.start_date && (

@@ -152,6 +152,12 @@ export function ServiceEditForm({
 
       <div className="space-y-2">
         <Label>Durations, prices &amp; payout (ค่ามือ)</Label>
+        <div className="grid grid-cols-[1fr_1fr_1fr_auto] gap-3 text-xs font-medium text-muted-foreground">
+          <span>Minutes</span>
+          <span>Retail price (฿)</span>
+          <span>Therapist share (฿)</span>
+          <span />
+        </div>
         <div className="space-y-2">
           {variants.map((v, i) => (
             <div key={i} className="grid grid-cols-[1fr_1fr_1fr_auto] items-center gap-3">

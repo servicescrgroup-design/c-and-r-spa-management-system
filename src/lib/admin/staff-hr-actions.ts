@@ -429,9 +429,11 @@ export async function getDocumentCompleteness(staffId: string): Promise<DocCompl
 export type StaffLifetimeStats = {
   lifetimeHours: number;
   lifetimeEarningsCents: number;
+  lifetimeRevenueCents: number;
   currentPeriodLabel: string;
   currentPeriodHours: number;
   currentPeriodEarningsCents: number;
+  currentPeriodRevenueCents: number;
 };
 
 /** Semi-monthly pay period (1st–15th, 16th–end of month) containing `date`,
@@ -469,13 +471,14 @@ export async function getTherapistLifetimeStats(staffId: string): Promise<StaffL
 
   const { data: items } = await supabase
     .from("pos_transaction_items")
-    .select("duration_minutes, payout_cents, completed_at")
+    .select("duration_minutes, payout_cents, total_cents, completed_at")
     .eq("staff_id", staffId)
     .not("completed_at", "is", null);
 
   const all = items ?? [];
   const lifetimeMinutes = all.reduce((sum, i) => sum + (i.duration_minutes ?? 0), 0);
   const lifetimeEarningsCents = all.reduce((sum, i) => sum + i.payout_cents, 0);
+  const lifetimeRevenueCents = all.reduce((sum, i) => sum + i.total_cents, 0);
 
   const period = semiMonthlyPeriod(new Date());
   const periodStartMs = new Date(`${period.start}T00:00:00+07:00`).getTime();
@@ -489,8 +492,10 @@ export async function getTherapistLifetimeStats(staffId: string): Promise<StaffL
   return {
     lifetimeHours: Math.round((lifetimeMinutes / 60) * 10) / 10,
     lifetimeEarningsCents,
+    lifetimeRevenueCents,
     currentPeriodLabel: period.label,
     currentPeriodHours: Math.round((periodItems.reduce((sum, i) => sum + (i.duration_minutes ?? 0), 0) / 60) * 10) / 10,
     currentPeriodEarningsCents: periodItems.reduce((sum, i) => sum + i.payout_cents, 0),
+    currentPeriodRevenueCents: periodItems.reduce((sum, i) => sum + i.total_cents, 0),
   };
 }
