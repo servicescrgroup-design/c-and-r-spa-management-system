@@ -118,3 +118,16 @@ body {
     -webkit-backdrop-filter: none;
   }
 }
+
+/* Staff pages in Thai: hide the first English paint until AutoTranslate has
+ * run, with a 1.5s fallback so the page always appears even without JS. */
+[data-i18n-pending] {
+  visibility: hidden;
+  animation: i18n-reveal 0s linear 1.5s forwards;
+}
+
+@keyframes i18n-reveal {
+  to {
+    visibility: visible;
+  }
+}

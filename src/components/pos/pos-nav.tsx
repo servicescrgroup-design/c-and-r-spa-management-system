@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { ViewSwitcher } from "@/components/view-switcher";
+import { LanguageToggle } from "@/components/i18n/language-toggle";
 import { cn } from "@/lib/utils";
 
 const TABS = [
@@ -36,7 +37,15 @@ function TabIcon({ children }: { children: React.ReactNode }) {
   );
 }
 
-export function PosNav({ canAccessAdmin, userLabel }: { canAccessAdmin: boolean; userLabel: string }) {
+export function PosNav({
+  canAccessAdmin,
+  userLabel,
+  locale,
+}: {
+  canAccessAdmin: boolean;
+  userLabel: string;
+  locale: "en" | "th";
+}) {
   const pathname = usePathname();
 
   return (
@@ -68,7 +77,10 @@ export function PosNav({ canAccessAdmin, userLabel }: { canAccessAdmin: boolean;
             })}
           </nav>
 
-          <ViewSwitcher canAccessAdmin={canAccessAdmin} canAccessPos userLabel={userLabel} compact />
+          <div className="flex items-center gap-1">
+            <LanguageToggle locale={locale} />
+            <ViewSwitcher canAccessAdmin={canAccessAdmin} canAccessPos userLabel={userLabel} compact />
+          </div>
         </div>
       </header>
 

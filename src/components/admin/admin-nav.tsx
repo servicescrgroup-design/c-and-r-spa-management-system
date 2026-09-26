@@ -5,6 +5,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { AdminSearch } from "@/components/admin/admin-search";
 import { ViewSwitcher } from "@/components/view-switcher";
+import { LanguageToggle } from "@/components/i18n/language-toggle";
 import { signOutStaff } from "@/lib/auth/actions";
 import { cn } from "@/lib/utils";
 
@@ -40,7 +41,15 @@ function SearchIcon() {
  * section in a row on wide screens, collapsing into a full-screen menu with
  * large type on phones and tablets. Search opens as a panel under the bar.
  */
-export function AdminNav({ userLabel, isOwner }: { userLabel: string; isOwner: boolean }) {
+export function AdminNav({
+  userLabel,
+  isOwner,
+  locale,
+}: {
+  userLabel: string;
+  isOwner: boolean;
+  locale: "en" | "th";
+}) {
   const pathname = usePathname();
   const [menuOpen, setMenuOpen] = useState(false);
   const [searchOpen, setSearchOpen] = useState(false);
@@ -96,6 +105,7 @@ export function AdminNav({ userLabel, isOwner }: { userLabel: string; isOwner: b
           </p>
 
           <div className="flex shrink-0 items-center gap-1">
+            <LanguageToggle locale={locale} />
             <button
               type="button"
               aria-label="Search"
