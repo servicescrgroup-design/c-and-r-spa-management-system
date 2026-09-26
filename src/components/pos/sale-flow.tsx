@@ -31,7 +31,17 @@ const PAYMENT_METHODS: { value: SalePayment["method"]; label: string }[] = [
   { value: "card_manual", label: "Card" },
 ];
 
-export function SaleFlow({ branchId, services, rooms }: { branchId: string; services: Service[]; rooms: Room[] }) {
+export function SaleFlow({
+  branchId,
+  services,
+  rooms,
+  occupiedRoomIds,
+}: {
+  branchId: string;
+  services: Service[];
+  rooms: Room[];
+  occupiedRoomIds: string[];
+}) {
   const router = useRouter();
 
   const [selectedServiceIds, setSelectedServiceIds] = useState<string[]>([]);
@@ -44,6 +54,7 @@ export function SaleFlow({ branchId, services, rooms }: { branchId: string; serv
   const [freelanceSessionId, setFreelanceSessionId] = useState<string>("");
 
   const [roomId, setRoomId] = useState<string>("");
+  const occupiedRoomIdSet = useMemo(() => new Set(occupiedRoomIds), [occupiedRoomIds]);
   const [addOns, setAddOns] = useState<SaleAddOn[]>([]);
 
   const [customerName, setCustomerName] = useState("");
@@ -324,19 +335,53 @@ export function SaleFlow({ branchId, services, rooms }: { branchId: string; serv
           <CardHeader>
             <CardTitle>3. Room (optional)</CardTitle>
           </CardHeader>
-          <CardContent>
-            <select
-              value={roomId}
-              onChange={(e) => setRoomId(e.target.value)}
-              className="flex h-10 w-full max-w-xs rounded-md border border-border bg-background px-3 text-sm"
-            >
-              <option value="">No room assigned</option>
-              {rooms.map((r) => (
-                <option key={r.id} value={r.id}>
-                  {r.name}
-                </option>
-              ))}
-            </select>
+          <CardContent className="space-y-3">
+            <div className="flex items-center gap-4 text-xs text-muted-foreground">
+              <span className="flex items-center gap-1.5">
+                <span className="h-2.5 w-2.5 rounded-full bg-emerald-500" /> Available
+              </span>
+              <span className="flex items-center gap-1.5">
+                <span className="h-2.5 w-2.5 rounded-full bg-rose-500" /> In use
+              </span>
+            </div>
+            <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4">
+              <button
+                type="button"
+                onClick={() => setRoomId("")}
+                className={cn(
+                  "rounded-2xl border-2 p-4 text-center text-sm font-medium transition-colors",
+                  roomId === ""
+                    ? "border-primary bg-primary/10"
+                    : "border-dashed border-border text-muted-foreground hover:bg-muted",
+                )}
+              >
+                No room assigned
+              </button>
+              {rooms.map((r) => {
+                const occupied = occupiedRoomIdSet.has(r.id);
+                const selected = roomId === r.id;
+                return (
+                  <button
+                    key={r.id}
+                    type="button"
+                    disabled={occupied}
+                    onClick={() => setRoomId(r.id)}
+                    className={cn(
+                      "rounded-2xl border-2 p-4 text-center text-sm font-medium transition-colors disabled:cursor-not-allowed",
+                      occupied
+                        ? "border-rose-300 bg-rose-100 text-rose-900"
+                        : "border-emerald-300 bg-emerald-50 text-emerald-900 hover:bg-emerald-100",
+                      selected && !occupied && "border-primary ring-2 ring-primary ring-offset-1",
+                    )}
+                  >
+                    {r.name}
+                    <span className="mt-1 block text-xs font-normal opacity-75">
+                      {occupied ? "In use" : "Available"}
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
           </CardContent>
         </Card>
       )}

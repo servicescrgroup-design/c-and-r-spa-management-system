@@ -14,14 +14,24 @@ export default async function SalePage({ searchParams }: PageProps<"/pos/sale">)
   }
 
   const supabase = await createServerSupabaseClient();
-  const [{ data: services }, { data: rooms }] = await Promise.all([
+  const [{ data: services }, { data: rooms }, { data: occupiedSessions }] = await Promise.all([
     supabase
       .from("services")
       .select("id, name, name_th, category_id")
       .eq("is_active", true)
       .order("name"),
     supabase.from("branch_rooms").select("id, name").eq("branch_id", activeBranchId).order("name"),
+    supabase
+      .from("therapist_clock_sessions")
+      .select("current_room_id")
+      .eq("branch_id", activeBranchId)
+      .is("clock_out_at", null)
+      .not("current_room_id", "is", null),
   ]);
+
+  const occupiedRoomIds = (occupiedSessions ?? [])
+    .map((s) => s.current_room_id)
+    .filter((id): id is string => Boolean(id));
 
   return (
     <div className="max-w-3xl space-y-6">
@@ -47,7 +57,12 @@ export default async function SalePage({ searchParams }: PageProps<"/pos/sale">)
         </div>
       )}
 
-      <SaleFlow branchId={activeBranchId} services={services ?? []} rooms={rooms ?? []} />
+      <SaleFlow
+        branchId={activeBranchId}
+        services={services ?? []}
+        rooms={rooms ?? []}
+        occupiedRoomIds={occupiedRoomIds}
+      />
     </div>
   );
 }
