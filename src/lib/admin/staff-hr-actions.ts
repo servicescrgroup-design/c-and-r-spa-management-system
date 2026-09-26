@@ -96,7 +96,11 @@ export async function setTherapistSkills(staffId: string, serviceIds: string[]):
   return { ok: true };
 }
 
-export async function setTherapistBranches(staffId: string, branchIds: string[]): Promise<ActionResult> {
+export async function setTherapistBranches(
+  staffId: string,
+  branchIds: string[],
+  homeBranchId?: string | null,
+): Promise<ActionResult> {
   const ctx = await requireStaffContext();
   if (!canManageHR(ctx)) return { ok: false, error: "Only an owner or manager can edit branch assignments." };
 
@@ -109,13 +113,20 @@ export async function setTherapistBranches(staffId: string, branchIds: string[])
   if (deleteError) return { ok: false, error: deleteError.message };
 
   if (branchIds.length > 0) {
-    const { error } = await supabase
-      .from("staff_branch_roles")
-      .insert(branchIds.map((branchId) => ({ staff_id: staffId, branch_id: branchId, role: "therapist" as const })));
+    const home = homeBranchId && branchIds.includes(homeBranchId) ? homeBranchId : branchIds[0];
+    const { error } = await supabase.from("staff_branch_roles").insert(
+      branchIds.map((branchId) => ({
+        staff_id: staffId,
+        branch_id: branchId,
+        role: "therapist" as const,
+        is_home: branchId === home,
+      })),
+    );
     if (error) return { ok: false, error: error.message };
   }
 
   revalidatePath(`/admin/staff/${staffId}`);
+  revalidatePath("/admin/branches");
   return { ok: true };
 }
 

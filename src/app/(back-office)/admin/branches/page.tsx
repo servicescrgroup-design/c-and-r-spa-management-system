@@ -3,16 +3,45 @@ import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { NewBranchForm } from "@/components/admin/new-branch-form";
 import { BranchSettingsForm } from "@/components/admin/branch-settings-form";
+import type { WeekHours } from "@/lib/admin/branch-actions";
 
 export default async function BranchesPage() {
   await requireStaffContext();
   const supabase = await createServerSupabaseClient();
-  const { data: branches } = await supabase
-    .from("branches")
-    .select(
-      "id, name, slug, is_active, booking_enabled, deposit_required, payroll_min_hours, payroll_guarantee_cents, queue_send_to_back, require_documents_for_clockin",
-    )
-    .order("created_at");
+  const [{ data: branches }, { data: therapistStaff }, { data: therapistRoles }, { data: profiles }] = await Promise.all([
+    supabase
+      .from("branches")
+      .select(
+        "id, name, slug, is_active, booking_enabled, deposit_required, payroll_min_hours, payroll_guarantee_cents, transportation_fee_cents, queue_send_to_back, require_documents_for_clockin, hours",
+      )
+      .order("created_at"),
+    supabase
+      .from("staff_branch_roles")
+      .select("staff_id, staff:staff_id(id, first_name, last_name)")
+      .eq("role", "therapist"),
+    supabase.from("staff_branch_roles").select("staff_id, branch_id").eq("role", "therapist"),
+    supabase.from("therapist_profiles").select("staff_id, nickname"),
+  ]);
+
+  const nicknameByStaff = new Map((profiles ?? []).map((p) => [p.staff_id, p.nickname]));
+  const therapistById = new Map<string, { id: string; name: string; nickname: string | null }>();
+  for (const row of therapistStaff ?? []) {
+    if (!row.staff) continue;
+    therapistById.set(row.staff.id, {
+      id: row.staff.id,
+      name: `${row.staff.first_name} ${row.staff.last_name}`,
+      nickname: nicknameByStaff.get(row.staff.id) ?? null,
+    });
+  }
+  const therapists = Array.from(therapistById.values()).sort((a, b) => a.name.localeCompare(b.name));
+
+  const assignedByBranch = new Map<string, string[]>();
+  for (const row of therapistRoles ?? []) {
+    if (!row.branch_id) continue;
+    const list = assignedByBranch.get(row.branch_id) ?? [];
+    list.push(row.staff_id);
+    assignedByBranch.set(row.branch_id, list);
+  }
 
   return (
     <div className="space-y-6">
@@ -44,7 +73,11 @@ export default async function BranchesPage() {
                   </>
                 )}
               </div>
-              <BranchSettingsForm branch={branch} />
+              <BranchSettingsForm
+                branch={{ ...branch, hours: branch.hours as Partial<WeekHours> | null }}
+                therapists={therapists}
+                assignedTherapistIds={assignedByBranch.get(branch.id) ?? []}
+              />
             </CardContent>
           </Card>
         ))}

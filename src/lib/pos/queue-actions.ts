@@ -111,7 +111,7 @@ export async function clockIn(branchId: string, staffId: string): Promise<Action
   const supabase = await createServerSupabaseClient();
   const { data: branch } = await supabase
     .from("branches")
-    .select("timezone, require_documents_for_clockin")
+    .select("timezone, require_documents_for_clockin, transportation_fee_cents")
     .eq("id", branchId)
     .single();
   const workDate = workDateFor(branch?.timezone ?? "Asia/Bangkok");
@@ -147,6 +147,39 @@ export async function clockIn(branchId: string, staffId: string): Promise<Action
     { onConflict: "staff_id,branch_id,work_date" },
   );
   if (error) return { ok: false, error: error.message };
+
+  if (branch?.transportation_fee_cents) {
+    const { data: homeRole } = await supabase
+      .from("staff_branch_roles")
+      .select("branch_id")
+      .eq("staff_id", staffId)
+      .eq("role", "therapist")
+      .eq("is_home", true)
+      .maybeSingle();
+
+    if (homeRole && homeRole.branch_id !== branchId) {
+      const { data: existingFee } = await supabase
+        .from("payroll_adjustments")
+        .select("id")
+        .eq("staff_id", staffId)
+        .eq("branch_id", branchId)
+        .eq("work_date", workDate)
+        .eq("reason", "Transportation fee (non-home branch)")
+        .maybeSingle();
+
+      if (!existingFee) {
+        await supabase.from("payroll_adjustments").insert({
+          staff_id: staffId,
+          branch_id: branchId,
+          work_date: workDate,
+          type: "bonus",
+          amount_cents: branch.transportation_fee_cents,
+          reason: "Transportation fee (non-home branch)",
+          created_by_staff_id: ctx.staffId,
+        });
+      }
+    }
+  }
 
   revalidatePath("/pos/queue");
   return { ok: true };

@@ -24,7 +24,7 @@ export default async function StaffDetailPage({ params }: PageProps<"/admin/staf
     supabase.from("staff_documents").select("*").eq("staff_id", staffId).order("created_at", { ascending: false }),
     supabase.from("staff_services").select("service_id").eq("staff_id", staffId),
     supabase.from("services").select("id, name").eq("is_active", true).order("name"),
-    supabase.from("staff_branch_roles").select("branch_id").eq("staff_id", staffId).eq("role", "therapist"),
+    supabase.from("staff_branch_roles").select("branch_id, is_home").eq("staff_id", staffId).eq("role", "therapist"),
     supabase.from("branches").select("id, name").order("name"),
     supabase.rpc("therapist_documents_complete", { p_staff_id: staffId }),
   ]);
@@ -50,6 +50,7 @@ export default async function StaffDetailPage({ params }: PageProps<"/admin/staf
         skillServiceIds={(skills ?? []).map((s) => s.service_id)}
         services={services ?? []}
         assignedBranchIds={(branchRoles ?? []).map((r) => r.branch_id).filter((id): id is string => Boolean(id))}
+        homeBranchId={(branchRoles ?? []).find((r) => r.is_home)?.branch_id ?? null}
         branches={branches ?? []}
         documentsComplete={complete ?? true}
       />

@@ -221,21 +221,24 @@ function SkillsAndBranches({
   skillServiceIds,
   branches,
   assignedBranchIds,
+  homeBranchId,
 }: {
   staffId: string;
   services: { id: string; name: string }[];
   skillServiceIds: string[];
   branches: { id: string; name: string }[];
   assignedBranchIds: string[];
+  homeBranchId: string | null;
 }) {
   const router = useRouter();
   const [skills, setSkills] = useState<string[]>(skillServiceIds);
   const [branchIds, setBranchIds] = useState<string[]>(assignedBranchIds);
+  const [homeId, setHomeId] = useState<string | null>(homeBranchId);
   const [loading, setLoading] = useState(false);
 
   async function save() {
     setLoading(true);
-    await Promise.all([setTherapistSkills(staffId, skills), setTherapistBranches(staffId, branchIds)]);
+    await Promise.all([setTherapistSkills(staffId, skills), setTherapistBranches(staffId, branchIds, homeId)]);
     setLoading(false);
     router.refresh();
   }
@@ -264,22 +267,45 @@ function SkillsAndBranches({
       <div className="space-y-2">
         <Label>Assigned branches (for the live queue)</Label>
         <div className="flex flex-wrap gap-2">
-          {branches.map((b) => (
-            <button
-              key={b.id}
-              type="button"
-              onClick={() =>
-                setBranchIds((prev) => (prev.includes(b.id) ? prev.filter((x) => x !== b.id) : [...prev, b.id]))
-              }
-              className={cn(
-                "rounded-full border px-3 py-1.5 text-sm transition-colors",
-                branchIds.includes(b.id) ? "border-primary bg-primary text-primary-foreground" : "border-border",
-              )}
-            >
-              {b.name}
-            </button>
-          ))}
+          {branches.map((b) => {
+            const selected = branchIds.includes(b.id);
+            return (
+              <div key={b.id} className="flex items-center gap-1">
+                <button
+                  type="button"
+                  onClick={() =>
+                    setBranchIds((prev) => {
+                      const next = prev.includes(b.id) ? prev.filter((x) => x !== b.id) : [...prev, b.id];
+                      if (!next.includes(homeId ?? "")) setHomeId(next[0] ?? null);
+                      return next;
+                    })
+                  }
+                  className={cn(
+                    "rounded-full border px-3 py-1.5 text-sm transition-colors",
+                    selected ? "border-primary bg-primary text-primary-foreground" : "border-border",
+                  )}
+                >
+                  {b.name}
+                </button>
+                {selected && branchIds.length > 1 && (
+                  <button
+                    type="button"
+                    onClick={() => setHomeId(b.id)}
+                    className={cn("text-xs", homeId === b.id ? "font-medium text-accent-foreground" : "text-muted-foreground hover:underline")}
+                    title="Set as home branch"
+                  >
+                    {homeId === b.id ? "★ home" : "set home"}
+                  </button>
+                )}
+              </div>
+            );
+          })}
         </div>
+        {branchIds.length > 1 && (
+          <p className="text-xs text-muted-foreground">
+            Clocking in away from the home branch adds that branch&apos;s transportation fee automatically.
+          </p>
+        )}
       </div>
 
       <Button type="button" size="sm" disabled={loading} onClick={save}>
@@ -409,6 +435,7 @@ export function StaffHRDetail({
   skillServiceIds,
   services,
   assignedBranchIds,
+  homeBranchId,
   branches,
   documentsComplete,
 }: {
@@ -418,6 +445,7 @@ export function StaffHRDetail({
   skillServiceIds: string[];
   services: { id: string; name: string }[];
   assignedBranchIds: string[];
+  homeBranchId: string | null;
   branches: { id: string; name: string }[];
   documentsComplete: boolean;
 }) {
@@ -476,6 +504,7 @@ export function StaffHRDetail({
             skillServiceIds={skillServiceIds}
             branches={branches}
             assignedBranchIds={assignedBranchIds}
+            homeBranchId={homeBranchId}
           />
         </CardContent>
       </Card>

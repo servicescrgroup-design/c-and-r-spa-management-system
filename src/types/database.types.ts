@@ -428,6 +428,7 @@ export type Database = {
           stripe_location_id: string | null
           tax_id: string | null
           timezone: string
+          transportation_fee_cents: number
         }
         Insert: {
           address?: string | null
@@ -451,6 +452,7 @@ export type Database = {
           stripe_location_id?: string | null
           tax_id?: string | null
           timezone?: string
+          transportation_fee_cents?: number
         }
         Update: {
           address?: string | null
@@ -474,6 +476,7 @@ export type Database = {
           stripe_location_id?: string | null
           tax_id?: string | null
           timezone?: string
+          transportation_fee_cents?: number
         }
         Relationships: [
           {
@@ -2279,6 +2282,7 @@ export type Database = {
           branch_id: string | null
           created_at: string
           id: string
+          is_home: boolean
           is_primary: boolean
           role: Database["public"]["Enums"]["role_type"]
           staff_id: string
@@ -2287,6 +2291,7 @@ export type Database = {
           branch_id?: string | null
           created_at?: string
           id?: string
+          is_home?: boolean
           is_primary?: boolean
           role: Database["public"]["Enums"]["role_type"]
           staff_id: string
@@ -2295,6 +2300,7 @@ export type Database = {
           branch_id?: string | null
           created_at?: string
           id?: string
+          is_home?: boolean
           is_primary?: boolean
           role?: Database["public"]["Enums"]["role_type"]
           staff_id?: string
