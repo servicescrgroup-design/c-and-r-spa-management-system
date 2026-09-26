@@ -2961,6 +2961,28 @@ export type Database = {
         Args: { p_first_name: string; p_last_name: string }
         Returns: undefined
       }
+      compute_payroll_days: {
+        Args: { p_branch_id: string; p_end: string; p_start: string }
+        Returns: {
+          advance_cents: number
+          bonus_cents: number
+          clock_in_at: string
+          clock_out_at: string
+          clocked_hours: number
+          deduction_cents: number
+          gross_pay_cents: number
+          guarantee_topup_cents: number
+          jobs_count: number
+          locked: boolean
+          name: string
+          payout_cents: number
+          service_hours: number
+          session_id: string
+          staff_id: string
+          tips_cents: number
+          work_date: string
+        }[]
+      }
       create_booking_request: {
         Args: {
           p_branch_id: string
@@ -3032,6 +3054,10 @@ export type Database = {
           p_appointment_id: string
           p_provider_ref: string
         }
+        Returns: undefined
+      }
+      set_payroll_day_lock: {
+        Args: { p_branch_id: string; p_locked: boolean; p_work_date: string }
         Returns: undefined
       }
     }
