@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { getStaffBranches } from "@/lib/pos/session";
 import { getQueueData } from "@/lib/pos/queue-actions";
+import { getFreelanceSessions } from "@/lib/pos/sale-actions";
 import { QueueBoard } from "@/components/pos/queue-board";
 import { cn } from "@/lib/utils";
 
@@ -18,7 +19,10 @@ export default async function QueuePage({
     (Array.isArray(requestedBranchId) ? requestedBranchId[0] : requestedBranchId) ?? branches[0].id;
   const activeBranch = branches.find((b) => b.id === branchId) ?? branches[0];
 
-  const { queue, offDutyTherapists } = await getQueueData(activeBranch.id);
+  const [{ queue, offDutyTherapists }, freelancers] = await Promise.all([
+    getQueueData(activeBranch.id),
+    getFreelanceSessions(activeBranch.id),
+  ]);
 
   return (
     <div className="space-y-6">
@@ -45,7 +49,12 @@ export default async function QueuePage({
         )}
       </div>
 
-      <QueueBoard branchId={activeBranch.id} initialQueue={queue} offDutyTherapists={offDutyTherapists} />
+      <QueueBoard
+        branchId={activeBranch.id}
+        initialQueue={queue}
+        offDutyTherapists={offDutyTherapists}
+        freelancers={freelancers}
+      />
     </div>
   );
 }

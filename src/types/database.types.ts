@@ -993,6 +993,57 @@ export type Database = {
           },
         ]
       }
+      freelance_sessions: {
+        Row: {
+          branch_id: string
+          created_at: string
+          created_by_staff_id: string | null
+          id: string
+          jobs_today: number
+          name: string
+          queue_position: number
+          status: string
+          work_date: string
+        }
+        Insert: {
+          branch_id: string
+          created_at?: string
+          created_by_staff_id?: string | null
+          id?: string
+          jobs_today?: number
+          name: string
+          queue_position?: number
+          status?: string
+          work_date: string
+        }
+        Update: {
+          branch_id?: string
+          created_at?: string
+          created_by_staff_id?: string | null
+          id?: string
+          jobs_today?: number
+          name?: string
+          queue_position?: number
+          status?: string
+          work_date?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "freelance_sessions_branch_id_fkey"
+            columns: ["branch_id"]
+            isOneToOne: false
+            referencedRelation: "branches"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "freelance_sessions_created_by_staff_id_fkey"
+            columns: ["created_by_staff_id"]
+            isOneToOne: false
+            referencedRelation: "staff"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       gift_card_transactions: {
         Row: {
           amount_cents: number
@@ -1720,6 +1771,8 @@ export type Database = {
           description: string
           discount_cents: number
           duration_minutes: number | null
+          freelance_session_id: string | null
+          freelancer_paid: boolean
           id: string
           item_type: Database["public"]["Enums"]["pos_item_type"]
           payout_cents: number
@@ -1737,6 +1790,8 @@ export type Database = {
           description: string
           discount_cents?: number
           duration_minutes?: number | null
+          freelance_session_id?: string | null
+          freelancer_paid?: boolean
           id?: string
           item_type: Database["public"]["Enums"]["pos_item_type"]
           payout_cents?: number
@@ -1754,6 +1809,8 @@ export type Database = {
           description?: string
           discount_cents?: number
           duration_minutes?: number | null
+          freelance_session_id?: string | null
+          freelancer_paid?: boolean
           id?: string
           item_type?: Database["public"]["Enums"]["pos_item_type"]
           payout_cents?: number
@@ -1766,6 +1823,13 @@ export type Database = {
           unit_price_cents?: number
         }
         Relationships: [
+          {
+            foreignKeyName: "pos_transaction_items_freelance_session_id_fkey"
+            columns: ["freelance_session_id"]
+            isOneToOne: false
+            referencedRelation: "freelance_sessions"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "pos_transaction_items_staff_id_fkey"
             columns: ["staff_id"]

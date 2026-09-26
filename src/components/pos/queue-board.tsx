@@ -9,8 +9,9 @@ import {
   setTherapistStatus,
   type QueueEntry,
 } from "@/lib/pos/queue-actions";
-import { completeJob } from "@/lib/pos/sale-actions";
+import { completeJob, addFreelancer, removeFreelancer, type FreelanceSession } from "@/lib/pos/sale-actions";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
 
 const STATUS_LABEL: Record<QueueEntry["status"], string> = {
@@ -46,16 +47,36 @@ export function QueueBoard({
   branchId,
   initialQueue,
   offDutyTherapists,
+  freelancers,
 }: {
   branchId: string;
   initialQueue: QueueEntry[];
   offDutyTherapists: { staffId: string; name: string }[];
+  freelancers: FreelanceSession[];
 }) {
   const router = useRouter();
   const [queue, setQueue] = useState(initialQueue);
   const [dragIndex, setDragIndex] = useState<number | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [freelancerName, setFreelancerName] = useState("");
+  const [freelancerLoading, setFreelancerLoading] = useState(false);
+
+  async function handleAddFreelancer() {
+    if (!freelancerName.trim()) return;
+    setFreelancerLoading(true);
+    await addFreelancer(branchId, freelancerName);
+    setFreelancerLoading(false);
+    setFreelancerName("");
+    await refresh();
+  }
+
+  async function handleRemoveFreelancer(sessionId: string) {
+    setBusy(sessionId);
+    await removeFreelancer(sessionId);
+    setBusy(null);
+    await refresh();
+  }
 
   async function refresh() {
     router.refresh();
@@ -193,6 +214,25 @@ export function QueueBoard({
             </li>
           ))}
         </ol>
+
+        {freelancers.length > 0 && (
+          <div className="space-y-2 pt-2">
+            <p className="text-sm text-muted-foreground">Freelance (paid in cash per job)</p>
+            {freelancers.map((f) => (
+              <div key={f.id} className="flex items-center justify-between gap-4 rounded-2xl border border-dashed border-border bg-card p-3">
+                <div>
+                  <p className="font-medium">{f.name}</p>
+                  <p className="text-xs text-muted-foreground">
+                    Freelance &middot; {f.jobsToday} job{f.jobsToday === 1 ? "" : "s"} today
+                  </p>
+                </div>
+                <Button type="button" variant="outline" size="sm" disabled={busy === f.id} onClick={() => handleRemoveFreelancer(f.id)}>
+                  Remove
+                </Button>
+              </div>
+            ))}
+          </div>
+        )}
       </div>
 
       <div className="space-y-2 rounded-2xl border border-border bg-card p-4">
@@ -218,6 +258,22 @@ export function QueueBoard({
             ))}
           </ul>
         )}
+      </div>
+
+      <div className="space-y-2 rounded-2xl border border-border bg-card p-4">
+        <p className="font-medium">Add freelance masseur</p>
+        <p className="text-xs text-muted-foreground">Not a staff account — paid in cash right after each job.</p>
+        <div className="flex items-center gap-2">
+          <Input
+            value={freelancerName}
+            onChange={(e) => setFreelancerName(e.target.value)}
+            placeholder="Name"
+            className="h-9"
+          />
+          <Button type="button" size="sm" disabled={freelancerLoading} onClick={handleAddFreelancer}>
+            {freelancerLoading ? "Adding..." : "Add"}
+          </Button>
+        </div>
       </div>
     </div>
   );

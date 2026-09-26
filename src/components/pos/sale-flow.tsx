@@ -6,9 +6,12 @@ import {
   getDurationOptions,
   getAssignmentCandidates,
   sellService,
+  sellFreelanceService,
+  getFreelanceSessions,
   findOrCreateCustomer,
   type PricedDuration,
   type TherapistCandidate,
+  type FreelanceSession,
   type SaleAddOn,
   type SalePayment,
 } from "@/lib/pos/sale-actions";
@@ -37,6 +40,8 @@ export function SaleFlow({ branchId, services, rooms }: { branchId: string; serv
 
   const [candidates, setCandidates] = useState<TherapistCandidate[]>([]);
   const [therapistSessionId, setTherapistSessionId] = useState<string>("");
+  const [freelancers, setFreelancers] = useState<FreelanceSession[]>([]);
+  const [freelanceSessionId, setFreelanceSessionId] = useState<string>("");
 
   const [roomId, setRoomId] = useState<string>("");
   const [addOns, setAddOns] = useState<SaleAddOn[]>([]);
@@ -82,9 +87,15 @@ export function SaleFlow({ branchId, services, rooms }: { branchId: string; serv
     });
   }, [selectedServiceIds, branchId]);
 
+  useEffect(() => {
+    getFreelanceSessions(branchId).then(setFreelancers);
+  }, [branchId]);
+
   const active = durationOptions.find((o) => o.durationMinutes === durationMinutes) ?? null;
-  const addOnTotalCents = addOns.reduce((sum, a) => sum + a.priceCents, 0);
-  const addOnPayoutCents = addOns.reduce((sum, a) => sum + a.payoutCents, 0);
+  // Freelance sales don't support add-ons (sellFreelanceService is a single-item
+  // sale) — keep both totals out of the calc so the UI total matches the server's.
+  const addOnTotalCents = freelanceSessionId ? 0 : addOns.reduce((sum, a) => sum + a.priceCents, 0);
+  const addOnPayoutCents = freelanceSessionId ? 0 : addOns.reduce((sum, a) => sum + a.payoutCents, 0);
   const subtotalCents = (active?.priceCents ?? 0) + addOnTotalCents;
   const discountCents = Math.max(0, Math.round(discountDollars * 100));
   const tipCents = Math.max(0, Math.round(tipDollars * 100));
@@ -121,8 +132,11 @@ export function SaleFlow({ branchId, services, rooms }: { branchId: string; serv
   }
 
   const selectedTherapistName = useMemo(
-    () => candidates.find((c) => c.sessionId === therapistSessionId)?.name ?? "",
-    [candidates, therapistSessionId],
+    () =>
+      candidates.find((c) => c.sessionId === therapistSessionId)?.name ??
+      freelancers.find((f) => f.id === freelanceSessionId)?.name ??
+      "",
+    [candidates, therapistSessionId, freelancers, freelanceSessionId],
   );
 
   async function handleSubmit() {
@@ -130,7 +144,7 @@ export function SaleFlow({ branchId, services, rooms }: { branchId: string; serv
     setSuccess(null);
     if (selectedServiceIds.length === 0) return setError("Select at least one service.");
     if (!active) return setError("Choose a duration that has a configured price.");
-    if (!therapistSessionId) return setError("No available, qualified therapist to assign.");
+    if (!therapistSessionId && !freelanceSessionId) return setError("Select a therapist or freelancer.");
     if (balanceCents !== 0) return setError(`Payments must equal the total. Remaining: ${formatCents(balanceCents)}.`);
 
     setLoading(true);
@@ -144,25 +158,43 @@ export function SaleFlow({ branchId, services, rooms }: { branchId: string; serv
       customerId = result.customerId;
     }
 
-    const result = await sellService({
-      branchId,
-      customerId,
-      serviceIds: selectedServiceIds,
-      durationMinutes: active.durationMinutes,
-      priceCents: active.priceCents,
-      payoutCents: active.payoutCents + addOnPayoutCents,
-      therapistSessionId,
-      roomId: roomId || null,
-      addOns,
-      discountCents,
-      discountReason,
-      tipCents,
-      payments,
-    });
+    const result = freelanceSessionId
+      ? await sellFreelanceService({
+          branchId,
+          customerId,
+          freelanceSessionId,
+          serviceIds: selectedServiceIds,
+          durationMinutes: active.durationMinutes,
+          priceCents: active.priceCents,
+          payoutCents: active.payoutCents + addOnPayoutCents,
+          discountCents,
+          discountReason,
+          tipCents,
+          payments,
+        })
+      : await sellService({
+          branchId,
+          customerId,
+          serviceIds: selectedServiceIds,
+          durationMinutes: active.durationMinutes,
+          priceCents: active.priceCents,
+          payoutCents: active.payoutCents + addOnPayoutCents,
+          therapistSessionId,
+          roomId: roomId || null,
+          addOns,
+          discountCents,
+          discountReason,
+          tipCents,
+          payments,
+        });
     setLoading(false);
     if (!result.ok) return setError(result.error);
 
-    setSuccess(`Sale complete — ${selectedTherapistName} is now in service.`);
+    setSuccess(
+      freelanceSessionId
+        ? `Sale complete — paid ${selectedTherapistName} (freelance) in cash.`
+        : `Sale complete — ${selectedTherapistName} is now in service.`,
+    );
     setSelectedServiceIds([]);
     setDurationMinutes(null);
     setAddOns([]);
@@ -171,6 +203,7 @@ export function SaleFlow({ branchId, services, rooms }: { branchId: string; serv
     setDiscountDollars(0);
     setDiscountReason("");
     setTipDollars(0);
+    setFreelanceSessionId("");
     setPayments([{ method: "cash", amountCents: 0 }]);
     router.refresh();
   }
@@ -238,7 +271,7 @@ export function SaleFlow({ branchId, services, rooms }: { branchId: string; serv
             <CardTitle>2. Therapist</CardTitle>
           </CardHeader>
           <CardContent className="space-y-2">
-            {candidates.length === 0 && (
+            {candidates.length === 0 && freelancers.length === 0 && (
               <p className="text-sm text-muted-foreground">No therapists clocked in at this branch today.</p>
             )}
             {candidates.map((c) => (
@@ -252,40 +285,63 @@ export function SaleFlow({ branchId, services, rooms }: { branchId: string; serv
                 <span className="flex items-center gap-2">
                   <input
                     type="radio"
-                    name="therapist"
+                    name="assignee"
                     disabled={!c.qualified}
-                    checked={therapistSessionId === c.sessionId}
-                    onChange={() => setTherapistSessionId(c.sessionId)}
+                    checked={!freelanceSessionId && therapistSessionId === c.sessionId}
+                    onChange={() => {
+                      setTherapistSessionId(c.sessionId);
+                      setFreelanceSessionId("");
+                    }}
                   />
                   {c.name}
                 </span>
                 {c.skipReason && <span className="text-xs text-muted-foreground">{c.skipReason}</span>}
               </label>
             ))}
+            {freelancers.map((f) => (
+              <label key={f.id} className="flex items-center justify-between gap-3 rounded-lg border border-dashed p-2.5 text-sm">
+                <span className="flex items-center gap-2">
+                  <input
+                    type="radio"
+                    name="assignee"
+                    checked={freelanceSessionId === f.id}
+                    onChange={() => {
+                      setFreelanceSessionId(f.id);
+                      setTherapistSessionId("");
+                    }}
+                  />
+                  Freelance: {f.name}
+                </span>
+                <span className="text-xs text-muted-foreground">Paid in cash</span>
+              </label>
+            ))}
           </CardContent>
         </Card>
       )}
 
-      <Card>
-        <CardHeader>
-          <CardTitle>3. Room (optional)</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <select
-            value={roomId}
-            onChange={(e) => setRoomId(e.target.value)}
-            className="flex h-10 w-full max-w-xs rounded-md border border-border bg-background px-3 text-sm"
-          >
-            <option value="">No room assigned</option>
-            {rooms.map((r) => (
-              <option key={r.id} value={r.id}>
-                {r.name}
-              </option>
-            ))}
-          </select>
-        </CardContent>
-      </Card>
+      {!freelanceSessionId && (
+        <Card>
+          <CardHeader>
+            <CardTitle>3. Room (optional)</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <select
+              value={roomId}
+              onChange={(e) => setRoomId(e.target.value)}
+              className="flex h-10 w-full max-w-xs rounded-md border border-border bg-background px-3 text-sm"
+            >
+              <option value="">No room assigned</option>
+              {rooms.map((r) => (
+                <option key={r.id} value={r.id}>
+                  {r.name}
+                </option>
+              ))}
+            </select>
+          </CardContent>
+        </Card>
+      )}
 
+      {!freelanceSessionId && (
       <Card>
         <CardHeader>
           <CardTitle>4. Add-ons</CardTitle>
@@ -327,6 +383,7 @@ export function SaleFlow({ branchId, services, rooms }: { branchId: string; serv
           </button>
         </CardContent>
       </Card>
+      )}
 
       <Card>
         <CardHeader>
