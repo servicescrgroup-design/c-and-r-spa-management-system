@@ -4,25 +4,31 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { requireStaffContext } from "@/lib/auth/session";
-import { getOrCreateRegister } from "@/lib/pos/session";
 
 type ActionResult = { ok: true } | { ok: false; error: string };
 
 export async function openDrawer(formData: FormData): Promise<ActionResult> {
   const ctx = await requireStaffContext();
-  const branchId = String(formData.get("branchId") ?? "");
+  const registerId = String(formData.get("registerId") ?? "");
   const openingDollars = Number(formData.get("openingAmount") || 0);
 
-  if (!branchId) return { ok: false, error: "Select a branch." };
+  if (!registerId) return { ok: false, error: "Select a register." };
   if (!Number.isFinite(openingDollars) || openingDollars < 0) {
     return { ok: false, error: "Opening amount must be zero or more." };
   }
 
-  const register = await getOrCreateRegister(branchId);
   const supabase = await createServerSupabaseClient();
 
+  const { data: alreadyOpen } = await supabase
+    .from("cash_drawer_sessions")
+    .select("id")
+    .eq("register_id", registerId)
+    .eq("status", "open")
+    .maybeSingle();
+  if (alreadyOpen) return { ok: false, error: "That register is already open by someone else." };
+
   const { error } = await supabase.from("cash_drawer_sessions").insert({
-    register_id: register.id,
+    register_id: registerId,
     opened_by_staff_id: ctx.staffId,
     opening_amount_cents: Math.round(openingDollars * 100),
   });
@@ -115,8 +121,14 @@ export async function checkoutSale(input: {
     return { ok: false, error: "Add at least one payment." };
   }
 
-  const register = await getOrCreateRegister(input.branchId);
   const supabase = await createServerSupabaseClient();
+
+  const { data: drawerSession } = await supabase
+    .from("cash_drawer_sessions")
+    .select("register_id")
+    .eq("id", input.drawerSessionId)
+    .single();
+  if (!drawerSession) return { ok: false, error: "Drawer session not found." };
 
   const { data: org } = await supabase.from("organizations").select("id").limit(1).single();
   if (!org) return { ok: false, error: "No organization found." };
@@ -137,7 +149,7 @@ export async function checkoutSale(input: {
     .insert({
       org_id: org.id,
       branch_id: input.branchId,
-      register_id: register.id,
+      register_id: drawerSession.register_id,
       drawer_session_id: input.drawerSessionId,
       customer_id: input.customerId,
       staff_id: ctx.staffId,

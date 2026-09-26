@@ -4,7 +4,7 @@ import { revalidatePath } from "next/cache";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { requireStaffContext } from "@/lib/auth/session";
 import { isOwner } from "@/lib/auth/roles";
-import { getOrCreateRegister, getOpenDrawerSession } from "@/lib/pos/session";
+import { getMyOpenDrawer } from "@/lib/pos/session";
 import type { Enums } from "@/types/database.types";
 
 type ActionResult = { ok: true } | { ok: false; error: string };
@@ -173,9 +173,8 @@ export async function sellService(input: {
     if (occupied) return { ok: false, error: "That room is already in use." };
   }
 
-  const register = await getOrCreateRegister(input.branchId);
-  const drawer = await getOpenDrawerSession(register.id);
-  if (!drawer) return { ok: false, error: "Open the cash drawer before taking a sale." };
+  const drawer = await getMyOpenDrawer(input.branchId);
+  if (!drawer) return { ok: false, error: "Open a cash drawer at this branch before taking a sale." };
 
   const { data: org } = await supabase.from("organizations").select("id").limit(1).single();
   if (!org) return { ok: false, error: "No organization found." };
@@ -194,7 +193,7 @@ export async function sellService(input: {
     .insert({
       org_id: org.id,
       branch_id: input.branchId,
-      register_id: register.id,
+      register_id: drawer.register_id,
       drawer_session_id: drawer.id,
       customer_id: input.customerId,
       staff_id: ctx.staffId,
@@ -423,9 +422,8 @@ export async function sellFreelanceService(input: {
     return { ok: false, error: "Freelancer not found at this branch." };
   }
 
-  const register = await getOrCreateRegister(input.branchId);
-  const drawer = await getOpenDrawerSession(register.id);
-  if (!drawer) return { ok: false, error: "Open the cash drawer before taking a sale." };
+  const drawer = await getMyOpenDrawer(input.branchId);
+  if (!drawer) return { ok: false, error: "Open a cash drawer at this branch before taking a sale." };
 
   const { data: org } = await supabase.from("organizations").select("id").limit(1).single();
   if (!org) return { ok: false, error: "No organization found." };
@@ -442,7 +440,7 @@ export async function sellFreelanceService(input: {
     .insert({
       org_id: org.id,
       branch_id: input.branchId,
-      register_id: register.id,
+      register_id: drawer.register_id,
       drawer_session_id: drawer.id,
       customer_id: input.customerId,
       staff_id: ctx.staffId,

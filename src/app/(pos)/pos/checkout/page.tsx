@@ -1,6 +1,6 @@
 import { redirect } from "next/navigation";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
-import { getStaffBranches, getOrCreateRegister, getOpenDrawerSession } from "@/lib/pos/session";
+import { getStaffBranches, getMyOpenDrawer } from "@/lib/pos/session";
 import { CheckoutCart } from "@/components/pos/checkout-cart";
 
 export default async function CheckoutPage({
@@ -10,15 +10,11 @@ export default async function CheckoutPage({
   const branches = await getStaffBranches();
 
   let activeBranchId = typeof branchIdParam === "string" ? branchIdParam : null;
-  let drawer = null;
+  let drawer = activeBranchId ? await getMyOpenDrawer(activeBranchId) : null;
 
-  if (activeBranchId) {
-    const register = await getOrCreateRegister(activeBranchId);
-    drawer = await getOpenDrawerSession(register.id);
-  } else {
+  if (!drawer) {
     for (const branch of branches) {
-      const register = await getOrCreateRegister(branch.id);
-      const open = await getOpenDrawerSession(register.id);
+      const open = await getMyOpenDrawer(branch.id);
       if (open) {
         activeBranchId = branch.id;
         drawer = open;

@@ -192,3 +192,44 @@ export async function setBranchServiceOffered(branchId: string, serviceId: strin
   revalidatePath("/admin/branches");
   return { ok: true };
 }
+
+function canManageRegisters(ctx: Awaited<ReturnType<typeof requireStaffContext>>) {
+  return isOwner(ctx) || ctx.roles.some((r) => r.role === "manager");
+}
+
+export async function createRegister(branchId: string, name: string): Promise<ActionResult> {
+  const ctx = await requireStaffContext();
+  if (!canManageRegisters(ctx)) return { ok: false, error: "Only an owner or manager can add registers." };
+
+  const trimmed = name.trim();
+  if (!trimmed) return { ok: false, error: "Register name is required." };
+
+  const supabase = await createServerSupabaseClient();
+  const { error } = await supabase.from("pos_registers").insert({ branch_id: branchId, name: trimmed });
+  if (error) return { ok: false, error: error.message };
+
+  revalidatePath("/admin/branches");
+  revalidatePath("/pos/register");
+  return { ok: true };
+}
+
+export async function deleteRegister(registerId: string): Promise<ActionResult> {
+  const ctx = await requireStaffContext();
+  if (!canManageRegisters(ctx)) return { ok: false, error: "Only an owner or manager can remove registers." };
+
+  const supabase = await createServerSupabaseClient();
+  const { count } = await supabase
+    .from("cash_drawer_sessions")
+    .select("id", { count: "exact", head: true })
+    .eq("register_id", registerId);
+  if (count && count > 0) {
+    return { ok: false, error: "This register has drawer history and can't be removed." };
+  }
+
+  const { error } = await supabase.from("pos_registers").delete().eq("id", registerId);
+  if (error) return { ok: false, error: error.message };
+
+  revalidatePath("/admin/branches");
+  revalidatePath("/pos/register");
+  return { ok: true };
+}

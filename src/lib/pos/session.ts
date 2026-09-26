@@ -30,6 +30,7 @@ export async function getOrCreateRegister(branchId: string) {
     .from("pos_registers")
     .select("id, name")
     .eq("branch_id", branchId)
+    .order("name")
     .limit(1)
     .maybeSingle();
 
@@ -37,7 +38,7 @@ export async function getOrCreateRegister(branchId: string) {
 
   const { data: created, error } = await supabase
     .from("pos_registers")
-    .insert({ branch_id: branchId, name: "Front Desk" })
+    .insert({ branch_id: branchId, name: "Register 1" })
     .select("id, name")
     .single();
 
@@ -45,13 +46,39 @@ export async function getOrCreateRegister(branchId: string) {
   return created;
 }
 
+/** Every register at a branch, so staff can pick one at check-in. Falls back
+ * to creating a first register if the branch somehow has none yet. */
+export async function getRegistersForBranch(branchId: string) {
+  const supabase = await createServerSupabaseClient();
+  const { data } = await supabase.from("pos_registers").select("id, name").eq("branch_id", branchId).order("name");
+  if (data && data.length > 0) return data;
+  return [await getOrCreateRegister(branchId)];
+}
+
 export async function getOpenDrawerSession(registerId: string) {
   const supabase = await createServerSupabaseClient();
   const { data } = await supabase
     .from("cash_drawer_sessions")
-    .select("id, opening_amount_cents, opened_at")
+    .select("id, opening_amount_cents, opened_at, opened_by_staff_id, staff:opened_by_staff_id(first_name, last_name)")
     .eq("register_id", registerId)
     .eq("status", "open")
     .maybeSingle();
+  return data;
+}
+
+/** The signed-in staff member's own open drawer — the register they picked
+ * when they checked in this morning — rather than "whichever drawer happens
+ * to be open at the branch," since a branch can have several registers open
+ * at once under different staff. */
+export async function getMyOpenDrawer(branchId?: string) {
+  const ctx = await requireStaffContext();
+  const supabase = await createServerSupabaseClient();
+  let query = supabase
+    .from("cash_drawer_sessions")
+    .select("id, register_id, opening_amount_cents, opened_at, pos_registers!inner(id, name, branch_id)")
+    .eq("opened_by_staff_id", ctx.staffId)
+    .eq("status", "open");
+  if (branchId) query = query.eq("pos_registers.branch_id", branchId);
+  const { data } = await query.maybeSingle();
   return data;
 }

@@ -9,7 +9,7 @@ import type { WeekHours } from "@/lib/admin/branch-actions";
 export default async function BranchesPage() {
   await requireStaffContext();
   const supabase = await createServerSupabaseClient();
-  const [{ data: branches }, { data: therapistStaff }, { data: therapistRoles }, { data: profiles }, { data: services }] =
+  const [{ data: branches }, { data: therapistStaff }, { data: therapistRoles }, { data: profiles }, { data: services }, { data: registers }] =
     await Promise.all([
       supabase
         .from("branches")
@@ -24,7 +24,15 @@ export default async function BranchesPage() {
       supabase.from("staff_branch_roles").select("staff_id, branch_id").eq("role", "therapist"),
       supabase.from("therapist_profiles").select("staff_id, nickname"),
       supabase.from("services").select("id, name").eq("is_active", true).order("name"),
+      supabase.from("pos_registers").select("id, name, branch_id").order("name"),
     ]);
+
+  const registersByBranch = new Map<string, { id: string; name: string }[]>();
+  for (const r of registers ?? []) {
+    const list = registersByBranch.get(r.branch_id) ?? [];
+    list.push({ id: r.id, name: r.name });
+    registersByBranch.set(r.branch_id, list);
+  }
 
   const nicknameByStaff = new Map((profiles ?? []).map((p) => [p.staff_id, p.nickname]));
   const therapistById = new Map<string, { id: string; name: string; nickname: string | null }>();
@@ -81,6 +89,7 @@ export default async function BranchesPage() {
                 therapists={therapists}
                 assignedTherapistIds={assignedByBranch.get(branch.id) ?? []}
                 services={services ?? []}
+                registers={registersByBranch.get(branch.id) ?? []}
               />
             </CardContent>
           </Card>

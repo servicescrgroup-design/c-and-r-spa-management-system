@@ -1,5 +1,6 @@
+import { redirect } from "next/navigation";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
-import { getOrCreateRegister, getOpenDrawerSession, getStaffBranches } from "@/lib/pos/session";
+import { getRegistersForBranch, getOpenDrawerSession, getStaffBranches } from "@/lib/pos/session";
 import { OpenDrawerForm } from "@/components/pos/open-drawer-form";
 import { CloseDrawerForm } from "@/components/pos/close-drawer-form";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -8,7 +9,7 @@ import { formatCents } from "@/lib/utils";
 export default async function DrawerPage({
   searchParams,
 }: PageProps<"/pos/drawer">) {
-  const { branchId } = await searchParams;
+  const { branchId, registerId } = await searchParams;
   const branches = await getStaffBranches();
   const branch = branches.find((b) => b.id === branchId) ?? branches[0];
 
@@ -16,7 +17,14 @@ export default async function DrawerPage({
     return <p className="text-sm text-muted-foreground">You are not assigned to any branch.</p>;
   }
 
-  const register = await getOrCreateRegister(branch.id);
+  const registers = await getRegistersForBranch(branch.id);
+  const register =
+    registers.find((r) => r.id === registerId) ?? (registers.length === 1 ? registers[0] : null);
+
+  if (!register) {
+    redirect(`/pos/register`);
+  }
+
   const drawer = await getOpenDrawerSession(register.id);
 
   if (drawer) {
@@ -33,7 +41,9 @@ export default async function DrawerPage({
       <div className="mx-auto max-w-sm space-y-6">
         <Card>
           <CardHeader>
-            <CardTitle>Close drawer &mdash; {branch.name}</CardTitle>
+            <CardTitle>
+              Close drawer &mdash; {branch.name} &middot; {register.name}
+            </CardTitle>
             <CardDescription>
               Opened with {formatCents(drawer.opening_amount_cents)}. Expected in drawer:{" "}
               {formatCents(expectedCents)}.
@@ -51,11 +61,13 @@ export default async function DrawerPage({
     <div className="mx-auto max-w-sm space-y-6">
       <Card>
         <CardHeader>
-          <CardTitle>Open drawer &mdash; {branch.name}</CardTitle>
+          <CardTitle>
+            Open drawer &mdash; {branch.name} &middot; {register.name}
+          </CardTitle>
           <CardDescription>Count the starting cash before you begin selling.</CardDescription>
         </CardHeader>
         <CardContent>
-          <OpenDrawerForm branchId={branch.id} />
+          <OpenDrawerForm registerId={register.id} />
         </CardContent>
       </Card>
     </div>

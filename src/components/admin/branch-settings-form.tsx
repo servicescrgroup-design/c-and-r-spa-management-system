@@ -8,6 +8,8 @@ import {
   setBranchTherapists,
   getBranchServiceOverrides,
   setBranchServiceOffered,
+  createRegister,
+  deleteRegister,
   type WeekHours,
 } from "@/lib/admin/branch-actions";
 import { Button } from "@/components/ui/button";
@@ -259,19 +261,83 @@ function ServicesSection({ branchId, services }: { branchId: string; services: {
   );
 }
 
+function RegistersSection({ branchId, registers }: { branchId: string; registers: { id: string; name: string }[] }) {
+  const router = useRouter();
+  const [name, setName] = useState("");
+  const [loading, setLoading] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  async function add() {
+    if (!name.trim()) return;
+    setLoading("add");
+    setError(null);
+    const result = await createRegister(branchId, name);
+    setLoading(null);
+    if (!result.ok) return setError(result.error);
+    setName("");
+    router.refresh();
+  }
+
+  async function remove(id: string) {
+    if (!confirm("Remove this register?")) return;
+    setLoading(id);
+    setError(null);
+    const result = await deleteRegister(id);
+    setLoading(null);
+    if (!result.ok) return setError(result.error);
+    router.refresh();
+  }
+
+  return (
+    <div className="space-y-3">
+      <p className="text-xs text-muted-foreground">
+        Staff pick one of these when they open the cash drawer each morning — add one per physical till or counter.
+      </p>
+      {registers.length > 0 ? (
+        <ul className="space-y-1.5">
+          {registers.map((r) => (
+            <li key={r.id} className="flex items-center justify-between gap-2 rounded-lg border border-border px-3 py-1.5 text-sm">
+              {r.name}
+              <button
+                type="button"
+                disabled={loading === r.id}
+                onClick={() => remove(r.id)}
+                className="text-xs text-muted-foreground hover:text-destructive"
+              >
+                {loading === r.id ? "Removing..." : "Remove"}
+              </button>
+            </li>
+          ))}
+        </ul>
+      ) : (
+        <p className="text-sm text-muted-foreground">No registers yet.</p>
+      )}
+      <div className="flex items-center gap-2">
+        <Input value={name} onChange={(e) => setName(e.target.value)} placeholder="e.g. Register 2" className="h-9 max-w-xs" />
+        <Button type="button" size="sm" disabled={loading === "add"} onClick={add}>
+          {loading === "add" ? "Adding..." : "Add register"}
+        </Button>
+      </div>
+      {error && <p className="text-sm text-destructive">{error}</p>}
+    </div>
+  );
+}
+
 export function BranchSettingsForm({
   branch,
   therapists,
   assignedTherapistIds,
   services,
+  registers,
 }: {
   branch: Branch;
   therapists: Therapist[];
   assignedTherapistIds: string[];
   services: { id: string; name: string }[];
+  registers: { id: string; name: string }[];
 }) {
   const [open, setOpen] = useState(false);
-  const [tab, setTab] = useState<"settings" | "hours" | "therapists" | "services">("settings");
+  const [tab, setTab] = useState<"settings" | "hours" | "therapists" | "services" | "registers">("settings");
 
   if (!open) {
     return (
@@ -289,6 +355,7 @@ export function BranchSettingsForm({
           ["hours", "Opening hours"],
           ["therapists", "Therapists"],
           ["services", "Services"],
+          ["registers", "Registers"],
         ] as const).map(([key, label]) => (
           <button
             key={key}
@@ -305,6 +372,7 @@ export function BranchSettingsForm({
       {tab === "hours" && <HoursSection branchId={branch.id} hours={branch.hours} />}
       {tab === "therapists" && <TherapistsSection branchId={branch.id} therapists={therapists} assignedIds={assignedTherapistIds} />}
       {tab === "services" && <ServicesSection branchId={branch.id} services={services} />}
+      {tab === "registers" && <RegistersSection branchId={branch.id} registers={registers} />}
 
       <button type="button" onClick={() => setOpen(false)} className="text-xs text-muted-foreground hover:underline">
         Close

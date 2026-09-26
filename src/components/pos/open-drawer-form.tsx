@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 
-export function OpenDrawerForm({ branchId }: { branchId: string }) {
+export function OpenDrawerForm({ registerId }: { registerId: string }) {
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
@@ -15,7 +15,7 @@ export function OpenDrawerForm({ branchId }: { branchId: string }) {
     setLoading(true);
     setError(null);
     const formData = new FormData(event.currentTarget);
-    formData.set("branchId", branchId);
+    formData.set("registerId", registerId);
     const result = await openDrawer(formData);
     // openDrawer redirects on success, so any return means an error.
     setLoading(false);
