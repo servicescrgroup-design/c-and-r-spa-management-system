@@ -50,7 +50,7 @@ export default async function InventoryPage() {
             <CardTitle>Add a product</CardTitle>
           </CardHeader>
           <CardContent>
-            <NewProductForm />
+            <NewProductForm branches={branches ?? []} />
           </CardContent>
         </Card>
         <Card>

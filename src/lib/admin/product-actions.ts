@@ -34,14 +34,17 @@ export async function createProduct(formData: FormData): Promise<ActionResult> {
   const costDollars = Number(formData.get("cost") || 0);
   const priceDollars = Number(formData.get("price"));
   const unitLabel = String(formData.get("unitLabel") ?? "piece").trim() || "piece";
-  const unitAmountRaw = formData.get("unitAmount");
-  const unitAmount = unitAmountRaw ? Number(unitAmountRaw) : null;
   const image = formData.get("image");
+  const startingBranchId = String(formData.get("startingBranchId") ?? "").trim();
+  const startingQuantity = Number(formData.get("startingQuantity") || 0);
 
   if (!name) return { ok: false, error: "Product name is required." };
   if (!sku) return { ok: false, error: "SKU is required." };
   if (!Number.isFinite(priceDollars) || priceDollars < 0) {
     return { ok: false, error: "Retail price must be a non-negative number." };
+  }
+  if (startingBranchId && (!Number.isFinite(startingQuantity) || startingQuantity <= 0)) {
+    return { ok: false, error: "Starting stock quantity must be a positive number." };
   }
 
   const supabase = await createServerSupabaseClient();
@@ -59,7 +62,6 @@ export async function createProduct(formData: FormData): Promise<ActionResult> {
       cost_cents: Math.round(costDollars * 100),
       retail_price_cents: Math.round(priceDollars * 100),
       unit_label: unitLabel,
-      unit_amount: unitAmount !== null && Number.isFinite(unitAmount) ? unitAmount : null,
       sort_order: count ?? 0,
     })
     .select("id")
@@ -74,6 +76,17 @@ export async function createProduct(formData: FormData): Promise<ActionResult> {
     } catch (e) {
       return { ok: false, error: e instanceof Error ? e.message : "Image upload failed." };
     }
+  }
+
+  if (startingBranchId && startingQuantity > 0) {
+    const { error: stockError } = await supabase.from("inventory_adjustments").insert({
+      branch_id: startingBranchId,
+      product_id: product.id,
+      staff_id: ctx.staffId,
+      quantity_delta: Math.round(startingQuantity),
+      reason: "receiving",
+    });
+    if (stockError) return { ok: false, error: `Product created, but starting stock failed: ${stockError.message}` };
   }
 
   revalidatePath("/admin/inventory");

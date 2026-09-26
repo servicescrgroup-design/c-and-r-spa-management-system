@@ -7,10 +7,14 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 
-export function NewProductForm() {
+const PRESET_UNITS = ["piece", "ml", "l", "g", "kg", "bottle", "box", "pair"];
+
+export function NewProductForm({ branches }: { branches: { id: string; name: string }[] }) {
   const router = useRouter();
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  const [unitChoice, setUnitChoice] = useState("piece");
+  const [customUnit, setCustomUnit] = useState("");
 
   async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -18,7 +22,9 @@ export function NewProductForm() {
     setError(null);
 
     const form = event.currentTarget;
-    const result = await createProduct(new FormData(form));
+    const formData = new FormData(form);
+    formData.set("unitLabel", unitChoice === "custom" ? customUnit : unitChoice);
+    const result = await createProduct(formData);
 
     setLoading(false);
     if (!result.ok) {
@@ -26,6 +32,8 @@ export function NewProductForm() {
       return;
     }
     form.reset();
+    setUnitChoice("piece");
+    setCustomUnit("");
     router.refresh();
   }
 
@@ -49,29 +57,57 @@ export function NewProductForm() {
           <Input id="price" name="price" type="number" min="0" step="0.01" required />
         </div>
       </div>
-      <div className="grid grid-cols-2 gap-3">
-        <div className="space-y-2">
-          <Label htmlFor="unitAmount">Package size (optional)</Label>
-          <Input id="unitAmount" name="unitAmount" type="number" min="0" step="0.01" placeholder="e.g. 500" />
+      <div className="space-y-2">
+        <Label htmlFor="unitChoice">Unit</Label>
+        <select
+          id="unitChoice"
+          value={unitChoice}
+          onChange={(e) => setUnitChoice(e.target.value)}
+          className="flex h-10 w-full rounded-md border border-border bg-background px-3 py-2 text-sm"
+        >
+          {PRESET_UNITS.map((u) => (
+            <option key={u} value={u}>
+              {u}
+            </option>
+          ))}
+          <option value="custom">Custom...</option>
+        </select>
+        {unitChoice === "custom" && (
+          <Input
+            value={customUnit}
+            onChange={(e) => setCustomUnit(e.target.value)}
+            placeholder="e.g. jar, sachet, tube"
+            required
+            className="mt-2"
+          />
+        )}
+      </div>
+
+      <div className="grid grid-cols-2 gap-3 rounded-lg border border-border p-3">
+        <div className="col-span-2">
+          <Label className="text-xs text-muted-foreground">Starting stock (optional)</Label>
         </div>
         <div className="space-y-2">
-          <Label htmlFor="unitLabel">Unit</Label>
-          <select id="unitLabel" name="unitLabel" defaultValue="piece" className="flex h-10 w-full rounded-md border border-border bg-background px-3 py-2 text-sm">
-            <option value="piece">piece</option>
-            <option value="ml">ml</option>
-            <option value="l">liter</option>
-            <option value="g">gram</option>
-            <option value="kg">kg</option>
-            <option value="bottle">bottle</option>
-            <option value="box">box</option>
-            <option value="pair">pair</option>
+          <Label htmlFor="startingBranchId">Branch</Label>
+          <select
+            id="startingBranchId"
+            name="startingBranchId"
+            className="flex h-10 w-full rounded-md border border-border bg-background px-3 py-2 text-sm"
+          >
+            <option value="">No starting stock</option>
+            {branches.map((b) => (
+              <option key={b.id} value={b.id}>
+                {b.name}
+              </option>
+            ))}
           </select>
         </div>
+        <div className="space-y-2">
+          <Label htmlFor="startingQuantity">Quantity</Label>
+          <Input id="startingQuantity" name="startingQuantity" type="number" min="0" step="1" placeholder="e.g. 20" />
+        </div>
       </div>
-      <p className="-mt-2 text-xs text-muted-foreground">
-        This describes the container (e.g. a 500ml bottle) — it doesn&apos;t set stock. Use &quot;Receive
-        stock&quot; below to add how many you have at each branch.
-      </p>
+
       <div className="space-y-2">
         <Label htmlFor="image">Photo (optional)</Label>
         <input id="image" name="image" type="file" accept="image/*" className="text-sm" />
