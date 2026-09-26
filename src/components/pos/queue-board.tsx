@@ -1,232 +1,343 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import {
   clockIn,
   clockOut,
   reorderQueue,
   setTherapistStatus,
-  type QueueEntry,
+  getTherapistSkillIds,
+  type CombinedQueueEntry,
+  type ClockInCandidate,
 } from "@/lib/pos/queue-actions";
 import { completeJob, addFreelancer, removeFreelancer, type FreelanceSession } from "@/lib/pos/sale-actions";
+import { setTherapistSkills } from "@/lib/admin/staff-hr-actions";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
 
-const STATUS_LABEL: Record<QueueEntry["status"], string> = {
+type Status = CombinedQueueEntry["status"];
+type Branch = { id: string; name: string };
+
+const STATUS_LABEL: Record<Status, string> = {
   available: "Available",
   in_service: "In service",
   on_break: "On break",
   off_duty: "Off duty",
 };
 
-const STATUS_STYLE: Record<QueueEntry["status"], string> = {
+const STATUS_STYLE: Record<Status, string> = {
   available: "bg-primary/10 text-primary",
   in_service: "bg-highlight/15 text-highlight",
   on_break: "bg-secondary text-secondary-foreground",
   off_duty: "bg-muted text-muted-foreground",
 };
 
-function initials(name: string) {
-  return name
-    .split(" ")
-    .map((p) => p[0])
-    .join("")
-    .slice(0, 2)
-    .toUpperCase();
+const STORE_COLORS = ["#1f7a35", "#0071e3", "#bf4800", "#8944ab"];
+
+function clock(iso: string) {
+  return new Date(iso).toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit", timeZone: "Asia/Bangkok" });
 }
 
-function idleSince(clockInAt: string) {
-  const minutes = Math.max(0, Math.round((Date.now() - new Date(clockInAt).getTime()) / 60000));
-  if (minutes < 60) return `${minutes}m`;
-  return `${Math.floor(minutes / 60)}h ${minutes % 60}m`;
-}
-
-export function QueueBoard({
-  branchId,
-  initialQueue,
-  offDutyTherapists,
-  freelancers,
+function SkillsEditor({
+  entry,
+  services,
+  onClose,
 }: {
-  branchId: string;
-  initialQueue: QueueEntry[];
-  offDutyTherapists: { staffId: string; name: string }[];
-  freelancers: FreelanceSession[];
+  entry: { staffId: string; name: string };
+  services: { id: string; name: string }[];
+  onClose: () => void;
 }) {
-  const router = useRouter();
-  const [queue, setQueue] = useState(initialQueue);
-  const [dragIndex, setDragIndex] = useState<number | null>(null);
-  const [busy, setBusy] = useState<string | null>(null);
+  const [selected, setSelected] = useState<Set<string> | null>(null);
+  const [filter, setFilter] = useState("");
+  const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [freelancerName, setFreelancerName] = useState("");
-  const [freelancerLoading, setFreelancerLoading] = useState(false);
 
-  async function handleAddFreelancer() {
-    if (!freelancerName.trim()) return;
-    setFreelancerLoading(true);
-    await addFreelancer(branchId, freelancerName);
-    setFreelancerLoading(false);
-    setFreelancerName("");
-    await refresh();
-  }
+  useEffect(() => {
+    getTherapistSkillIds(entry.staffId)
+      .then((ids) => setSelected(new Set(ids)))
+      .catch(() => setError("Couldn't load this therapist's services."));
+  }, [entry.staffId]);
 
-  async function handleRemoveFreelancer(sessionId: string) {
-    setBusy(sessionId);
-    await removeFreelancer(sessionId);
-    setBusy(null);
-    await refresh();
-  }
+  const visible = services.filter((s) => s.name.toLowerCase().includes(filter.trim().toLowerCase()));
 
-  async function refresh() {
-    router.refresh();
-  }
-
-  async function handleClockIn(staffId: string) {
-    setBusy(staffId);
-    setError(null);
-    const result = await clockIn(branchId, staffId);
-    if (!result.ok) setError(result.error);
-    setBusy(null);
-    await refresh();
-  }
-
-  async function handleClockOut(sessionId: string) {
-    setBusy(sessionId);
-    await clockOut(branchId, sessionId);
-    setBusy(null);
-    await refresh();
-  }
-
-  async function handleStatus(sessionId: string, status: QueueEntry["status"]) {
-    setQueue((prev) => prev.map((q) => (q.sessionId === sessionId ? { ...q, status } : q)));
-    await setTherapistStatus(branchId, sessionId, status);
-    await refresh();
-  }
-
-  async function handleCompleteJob(sessionId: string) {
-    setBusy(sessionId);
-    await completeJob(branchId, sessionId);
-    setBusy(null);
-    await refresh();
-  }
-
-  function handleDrop(dropIndex: number) {
-    if (dragIndex === null || dragIndex === dropIndex) return;
-    setQueue((prev) => {
-      const next = [...prev];
-      const [moved] = next.splice(dragIndex, 1);
-      next.splice(dropIndex, 0, moved);
-      void reorderQueue(
-        branchId,
-        next.map((q) => q.sessionId),
-      );
+  function toggle(id: string) {
+    setSelected((prev) => {
+      const next = new Set(prev ?? []);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
       return next;
     });
-    setDragIndex(null);
+  }
+
+  async function save() {
+    if (!selected) return;
+    setSaving(true);
+    setError(null);
+    const result = await setTherapistSkills(entry.staffId, Array.from(selected)).catch(() => ({
+      ok: false as const,
+      error: "Couldn't save. Try again.",
+    }));
+    setSaving(false);
+    if (!result.ok) return setError(result.error);
+    onClose();
   }
 
   return (
-    <div className="grid gap-6 lg:grid-cols-[2fr_1fr]">
-      <div className="space-y-2">
-        <p className="text-sm text-muted-foreground">
-          Ordered by clock-in time — drag a card to reorder. #1 is next for auto-assign.
-        </p>
-        {queue.length === 0 && (
-          <p className="rounded-2xl border border-dashed border-border p-8 text-center text-sm text-muted-foreground">
-            No one is clocked in yet. Clock in a therapist from the panel on the right.
+    <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/30 backdrop-blur-sm sm:items-center sm:p-4" onClick={onClose}>
+      <div
+        role="dialog"
+        aria-modal="true"
+        onClick={(e) => e.stopPropagation()}
+        className="flex max-h-[85svh] w-full max-w-md flex-col rounded-t-[22px] bg-card p-6 shadow-2xl sm:rounded-[22px]"
+      >
+        <p className="text-xs font-medium text-muted-foreground">Services this therapist can perform</p>
+        <h2 className="font-display text-2xl" data-no-translate>
+          {entry.name}
+        </h2>
+        <Input value={filter} onChange={(e) => setFilter(e.target.value)} placeholder="Search services..." className="mt-4 h-10" />
+        <div className="mt-3 flex-1 space-y-0.5 overflow-y-auto">
+          {selected === null && !error && <p className="py-4 text-sm text-muted-foreground">Loading...</p>}
+          {selected &&
+            visible.map((s) => (
+              <label key={s.id} className="flex cursor-pointer items-center gap-3 rounded-lg px-2 py-2 text-sm hover:bg-muted">
+                <input type="checkbox" checked={selected.has(s.id)} onChange={() => toggle(s.id)} className="size-4 accent-[var(--primary)]" />
+                <span data-no-translate>{s.name}</span>
+              </label>
+            ))}
+        </div>
+        {error && <p className="mt-2 text-sm text-destructive">{error}</p>}
+        <div className="mt-4 flex items-center justify-between gap-2">
+          <span className="text-xs text-muted-foreground">{selected ? `${selected.size} selected` : ""}</span>
+          <div className="flex gap-2">
+            <Button type="button" variant="ghost" onClick={onClose}>
+              Cancel
+            </Button>
+            <Button type="button" disabled={saving || !selected} onClick={save}>
+              {saving ? "Saving..." : "Save"}
+            </Button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+export function QueueBoard({
+  branches,
+  queue,
+  candidates,
+  freelancers,
+  services,
+}: {
+  branches: Branch[];
+  queue: CombinedQueueEntry[];
+  candidates: ClockInCandidate[];
+  freelancers: (FreelanceSession & { branchId: string })[];
+  services: { id: string; name: string }[];
+}) {
+  const router = useRouter();
+  const [busy, setBusy] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [editing, setEditing] = useState<{ staffId: string; name: string } | null>(null);
+  const [freelancerName, setFreelancerName] = useState("");
+  const [freelancerBranch, setFreelancerBranch] = useState(branches[0]?.id ?? "");
+  const [filter, setFilter] = useState<string>("all");
+
+  const branchName = useMemo(() => new Map(branches.map((b) => [b.id, b.name])), [branches]);
+  const branchColor = useMemo(
+    () => new Map(branches.map((b, i) => [b.id, STORE_COLORS[i % STORE_COLORS.length]])),
+    [branches],
+  );
+
+  async function run(key: string, fn: () => Promise<{ ok: boolean; error?: string } | void>) {
+    setBusy(key);
+    setError(null);
+    try {
+      const result = await fn();
+      if (result && !result.ok) setError(result.error ?? "Something went wrong.");
+    } catch {
+      setError("Something went wrong. Try again.");
+    }
+    setBusy(null);
+    router.refresh();
+  }
+
+  function move(entry: CombinedQueueEntry, direction: -1 | 1) {
+    const store = queue
+      .filter((q) => q.branchId === entry.branchId)
+      .sort((a, b) => a.storePosition - b.storePosition);
+    const index = store.findIndex((q) => q.sessionId === entry.sessionId);
+    const target = index + direction;
+    if (target < 0 || target >= store.length) return;
+    const next = [...store];
+    [next[index], next[target]] = [next[target], next[index]];
+    void run(entry.sessionId, () => reorderQueue(entry.branchId, next.map((q) => q.sessionId)));
+  }
+
+  const shown = filter === "all" ? queue : queue.filter((q) => q.branchId === filter);
+  const storeSize = (branchId: string) => queue.filter((q) => q.branchId === branchId).length;
+
+  return (
+    <div className="grid gap-6 xl:grid-cols-[1fr_320px]">
+      <div className="min-w-0 space-y-4">
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <p className="text-sm text-muted-foreground">
+            Both stores, sorted by check-in time. # is each person&apos;s place in their own store&apos;s queue (#1 is next).
           </p>
-        )}
-        <ol className="space-y-2">
-          {queue.map((entry, index) => (
-            <li
-              key={entry.sessionId}
-              draggable
-              onDragStart={() => setDragIndex(index)}
-              onDragOver={(e) => e.preventDefault()}
-              onDrop={() => handleDrop(index)}
-              className={cn(
-                "flex cursor-grab items-center gap-4 rounded-[18px] bg-card p-4 shadow-[0_2px_12px_rgba(0,0,0,0.06)] ring-1 ring-black/[0.04] dark:ring-white/[0.06] active:cursor-grabbing",
-                dragIndex === index && "opacity-50",
-              )}
-            >
-              <span className="font-display w-6 shrink-0 text-center text-lg text-muted-foreground">
-                {index + 1}
-              </span>
-
-              {entry.photoUrl ? (
-                <img
-                  src={entry.photoUrl}
-                  alt=""
-                  className="h-12 w-12 shrink-0 rounded-full object-cover"
-                />
-              ) : (
-                <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-secondary font-medium">
-                  {initials(entry.name)}
-                </div>
-              )}
-
-              <div className="min-w-0 flex-1">
-                <p className="font-medium">
-                  {entry.name}
-                  {entry.nickname && <span className="ml-1.5 text-muted-foreground">&quot;{entry.nickname}&quot;</span>}
-                </p>
-                <p className="text-xs text-muted-foreground">
-                  Idle {idleSince(entry.clockInAt)} &middot; {entry.jobsToday} job{entry.jobsToday === 1 ? "" : "s"} today
-                  {entry.skills.length > 0 && <> &middot; {entry.skills.join(", ")}</>}
-                </p>
-              </div>
-
-              <div className="flex shrink-0 items-center gap-2">
-                <span className={cn("rounded-full px-2.5 py-1 text-xs font-medium", STATUS_STYLE[entry.status])}>
-                  {STATUS_LABEL[entry.status]}
-                </span>
-                <select
-                  value={entry.status}
-                  onChange={(e) => handleStatus(entry.sessionId, e.target.value as QueueEntry["status"])}
-                  className="h-9 rounded-lg border border-border bg-background px-2 text-sm"
-                >
-                  <option value="available">Available</option>
-                  <option value="in_service">In service</option>
-                  <option value="on_break">On break</option>
-                  <option value="off_duty">Off duty</option>
-                </select>
-                {entry.status === "in_service" && (
-                  <Button
-                    type="button"
-                    size="sm"
-                    disabled={busy === entry.sessionId}
-                    onClick={() => handleCompleteJob(entry.sessionId)}
-                  >
-                    Complete job
-                  </Button>
-                )}
-                <Button
+          {branches.length > 1 && (
+            <div className="flex rounded-full bg-muted p-0.5 text-[13px]">
+              {[{ id: "all", name: "Both stores" }, ...branches].map((b) => (
+                <button
+                  key={b.id}
                   type="button"
-                  variant="outline"
-                  size="sm"
-                  disabled={busy === entry.sessionId}
-                  onClick={() => handleClockOut(entry.sessionId)}
+                  onClick={() => setFilter(b.id)}
+                  className={cn("rounded-full px-3 py-1", filter === b.id ? "bg-card font-medium shadow-sm" : "text-foreground/70")}
                 >
-                  Clock out
-                </Button>
-              </div>
-            </li>
-          ))}
-        </ol>
+                  <span data-no-translate={b.id !== "all" ? true : undefined}>{b.name}</span>
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+
+        {error && <p className="rounded-xl bg-destructive/10 p-3 text-sm text-destructive">{error}</p>}
+
+        <div className="overflow-x-auto rounded-[18px] bg-card ring-1 ring-black/[0.05] dark:ring-white/[0.08]">
+          <table className="w-full min-w-[760px] text-sm">
+            <thead>
+              <tr className="border-b border-border text-left text-xs text-muted-foreground">
+                <th className="px-4 py-3 font-medium">Store</th>
+                <th className="px-2 py-3 font-medium">#</th>
+                <th className="px-2 py-3 font-medium">Therapist</th>
+                <th className="px-2 py-3 font-medium">Checked in</th>
+                <th className="px-2 py-3 font-medium">Status</th>
+                <th className="px-2 py-3 text-center font-medium">Jobs</th>
+                <th className="px-4 py-3 text-right font-medium">Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              {shown.map((q) => {
+                const color = branchColor.get(q.branchId) ?? "#8e8e93";
+                return (
+                  <tr key={q.sessionId} className="border-b border-border last:border-0">
+                    <td className="px-4 py-3">
+                      <span className="flex items-center gap-2 whitespace-nowrap">
+                        <span className="size-2.5 rounded-full" style={{ background: color }} />
+                        <span data-no-translate>{branchName.get(q.branchId)}</span>
+                      </span>
+                    </td>
+                    <td className="px-2 py-3">
+                      <span className="flex items-center gap-1">
+                        <span className="w-5 text-center font-semibold tabular-nums">{q.storePosition}</span>
+                        <span className="flex flex-col">
+                          <button
+                            type="button"
+                            aria-label="Move up in queue"
+                            disabled={busy === q.sessionId || q.storePosition === 1}
+                            onClick={() => move(q, -1)}
+                            className="text-[10px] leading-none text-muted-foreground hover:text-foreground disabled:opacity-30"
+                          >
+                            ▲
+                          </button>
+                          <button
+                            type="button"
+                            aria-label="Move down in queue"
+                            disabled={busy === q.sessionId || q.storePosition === storeSize(q.branchId)}
+                            onClick={() => move(q, 1)}
+                            className="text-[10px] leading-none text-muted-foreground hover:text-foreground disabled:opacity-30"
+                          >
+                            ▼
+                          </button>
+                        </span>
+                      </span>
+                    </td>
+                    <td className="px-2 py-3">
+                      <button
+                        type="button"
+                        onClick={() => setEditing({ staffId: q.staffId, name: q.nickname ? `${q.nickname} (${q.name})` : q.name })}
+                        className="text-left hover:underline"
+                        title="Edit the services this therapist can do"
+                      >
+                        <span className="font-medium" data-no-translate>
+                          {q.nickname ?? q.name}
+                        </span>
+                        {q.nickname && (
+                          <span className="block text-xs text-muted-foreground" data-no-translate>
+                            {q.name}
+                          </span>
+                        )}
+                      </button>
+                    </td>
+                    <td className="px-2 py-3 tabular-nums">{clock(q.clockInAt)}</td>
+                    <td className="px-2 py-3">
+                      <select
+                        aria-label="Status"
+                        value={q.status}
+                        onChange={(e) => run(q.sessionId, () => setTherapistStatus(q.branchId, q.sessionId, e.target.value as Status))}
+                        className={cn("h-8 rounded-full border-0 px-3 text-xs font-medium", STATUS_STYLE[q.status])}
+                      >
+                        {(Object.keys(STATUS_LABEL) as Status[]).map((s) => (
+                          <option key={s} value={s}>
+                            {STATUS_LABEL[s]}
+                          </option>
+                        ))}
+                      </select>
+                    </td>
+                    <td className="px-2 py-3 text-center tabular-nums">{q.jobsToday}</td>
+                    <td className="px-4 py-3">
+                      <div className="flex justify-end gap-2">
+                        {q.status === "in_service" && (
+                          <Button
+                            type="button"
+                            size="sm"
+                            disabled={busy === q.sessionId}
+                            onClick={() => run(q.sessionId, () => completeJob(q.branchId, q.sessionId))}
+                          >
+                            Complete job
+                          </Button>
+                        )}
+                        <Button
+                          type="button"
+                          size="sm"
+                          variant="secondary"
+                          disabled={busy === q.sessionId}
+                          onClick={() => run(q.sessionId, () => clockOut(q.branchId, q.sessionId))}
+                        >
+                          Clock out
+                        </Button>
+                      </div>
+                    </td>
+                  </tr>
+                );
+              })}
+              {shown.length === 0 && (
+                <tr>
+                  <td colSpan={7} className="px-4 py-10 text-center text-muted-foreground">
+                    No one is checked in yet. Check therapists in from the panel on the right.
+                  </td>
+                </tr>
+              )}
+            </tbody>
+          </table>
+        </div>
 
         {freelancers.length > 0 && (
-          <div className="space-y-2 pt-2">
+          <div className="space-y-2">
             <p className="text-sm text-muted-foreground">Freelance (paid in cash per job)</p>
             {freelancers.map((f) => (
-              <div key={f.id} className="flex items-center justify-between gap-4 rounded-2xl border border-dashed border-border bg-card p-3">
+              <div key={f.id} className="flex items-center justify-between gap-4 rounded-2xl bg-card p-3 ring-1 ring-border">
                 <div>
-                  <p className="font-medium">{f.name}</p>
+                  <p className="font-medium" data-no-translate>
+                    {f.name}
+                  </p>
                   <p className="text-xs text-muted-foreground">
-                    Freelance &middot; {f.jobsToday} job{f.jobsToday === 1 ? "" : "s"} today
+                    <span data-no-translate>{branchName.get(f.branchId)}</span> &middot; {f.jobsToday} job
+                    {f.jobsToday === 1 ? "" : "s"} today
                   </p>
                 </div>
-                <Button type="button" variant="outline" size="sm" disabled={busy === f.id} onClick={() => handleRemoveFreelancer(f.id)}>
+                <Button type="button" variant="secondary" size="sm" disabled={busy === f.id} onClick={() => run(f.id, () => removeFreelancer(f.id))}>
                   Remove
                 </Button>
               </div>
@@ -235,46 +346,88 @@ export function QueueBoard({
         )}
       </div>
 
-      <div className="space-y-2 rounded-[18px] bg-card ring-1 ring-black/[0.06] dark:ring-white/[0.08] p-4">
-        <p className="font-medium">Clock in</p>
-        {error && <p className="text-sm text-destructive">{error}</p>}
-        {offDutyTherapists.length === 0 ? (
-          <p className="text-sm text-muted-foreground">Everyone assigned here is already clocked in.</p>
-        ) : (
-          <ul className="space-y-1.5">
-            {offDutyTherapists.map((t) => (
-              <li key={t.staffId} className="flex items-center justify-between gap-2 text-sm">
-                <span>{t.name}</span>
-                <Button
-                  type="button"
-                  size="sm"
-                  variant="outline"
-                  disabled={busy === t.staffId}
-                  onClick={() => handleClockIn(t.staffId)}
-                >
-                  Clock in
-                </Button>
-              </li>
-            ))}
-          </ul>
-        )}
-      </div>
+      <div className="space-y-4">
+        <div className="space-y-3 rounded-[18px] bg-card p-4 ring-1 ring-black/[0.06] dark:ring-white/[0.08]">
+          <p className="font-medium">Check in</p>
+          <p className="text-xs text-muted-foreground">A therapist can only work at one store per day.</p>
+          {candidates.length === 0 ? (
+            <p className="text-sm text-muted-foreground">Everyone is already checked in.</p>
+          ) : (
+            <ul className="divide-y divide-border">
+              {candidates.map((c) => {
+                const stores = c.todayBranchId ? [c.todayBranchId] : c.branchIds;
+                return (
+                  <li key={c.staffId} className="space-y-2 py-2.5">
+                    <div>
+                      <p className="text-sm font-medium" data-no-translate>
+                        {c.nickname ?? c.name}
+                      </p>
+                      {c.todayBranchId && (
+                        <p className="text-xs text-muted-foreground">
+                          Worked at <span data-no-translate>{branchName.get(c.todayBranchId)}</span> today
+                          {c.clockedOutAt ? ` · out ${clock(c.clockedOutAt)}` : ""}
+                        </p>
+                      )}
+                    </div>
+                    <div className="flex flex-wrap gap-1.5">
+                      {stores.map((b) => (
+                        <button
+                          key={b}
+                          type="button"
+                          disabled={busy === c.staffId}
+                          onClick={() => run(c.staffId, () => clockIn(b, c.staffId))}
+                          className="flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-medium ring-1 ring-border transition-colors hover:bg-muted disabled:opacity-50"
+                        >
+                          <span className="size-2 rounded-full" style={{ background: branchColor.get(b) }} />
+                          <span data-no-translate>{branchName.get(b) ?? "Store"}</span>
+                        </button>
+                      ))}
+                    </div>
+                  </li>
+                );
+              })}
+            </ul>
+          )}
+        </div>
 
-      <div className="space-y-2 rounded-[18px] bg-card ring-1 ring-black/[0.06] dark:ring-white/[0.08] p-4">
-        <p className="font-medium">Add freelance masseur</p>
-        <p className="text-xs text-muted-foreground">Not a staff account — paid in cash right after each job.</p>
-        <div className="flex items-center gap-2">
-          <Input
-            value={freelancerName}
-            onChange={(e) => setFreelancerName(e.target.value)}
-            placeholder="Name"
-            className="h-9"
-          />
-          <Button type="button" size="sm" disabled={freelancerLoading} onClick={handleAddFreelancer}>
-            {freelancerLoading ? "Adding..." : "Add"}
-          </Button>
+        <div className="space-y-2 rounded-[18px] bg-card p-4 ring-1 ring-black/[0.06] dark:ring-white/[0.08]">
+          <p className="font-medium">Add freelance masseur</p>
+          <p className="text-xs text-muted-foreground">Not a staff account — paid in cash right after each job.</p>
+          <Input value={freelancerName} onChange={(e) => setFreelancerName(e.target.value)} placeholder="Name" className="h-9" />
+          <div className="flex items-center gap-2">
+            {branches.length > 1 && (
+              <select
+                aria-label="Store"
+                value={freelancerBranch}
+                onChange={(e) => setFreelancerBranch(e.target.value)}
+                className="h-9 min-w-0 flex-1 rounded-lg border border-border bg-card px-2 text-sm"
+              >
+                {branches.map((b) => (
+                  <option key={b.id} value={b.id}>
+                    {b.name}
+                  </option>
+                ))}
+              </select>
+            )}
+            <Button
+              type="button"
+              size="sm"
+              disabled={busy === "freelancer" || !freelancerName.trim()}
+              onClick={() =>
+                run("freelancer", async () => {
+                  const result = await addFreelancer(freelancerBranch, freelancerName);
+                  if (result.ok) setFreelancerName("");
+                  return result;
+                })
+              }
+            >
+              Add
+            </Button>
+          </div>
         </div>
       </div>
+
+      {editing && <SkillsEditor entry={editing} services={services} onClose={() => setEditing(null)} />}
     </div>
   );
 }

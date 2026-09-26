@@ -5,6 +5,12 @@ import { OpenDrawerForm } from "@/components/pos/open-drawer-form";
 import { CloseDrawerForm } from "@/components/pos/close-drawer-form";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { formatCents } from "@/lib/utils";
+import { LiveClock } from "@/components/pos/live-clock";
+
+function stamp(iso: string) {
+  const d = new Date(iso);
+  return `${d.toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric", year: "numeric", timeZone: "Asia/Bangkok" })} ${d.toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit", timeZone: "Asia/Bangkok" })}`;
+}
 
 export default async function DrawerPage({
   searchParams,
@@ -48,6 +54,23 @@ export default async function DrawerPage({
               Opened with {formatCents(drawer.opening_amount_cents)}. Expected in drawer:{" "}
               {formatCents(expectedCents)}.
             </CardDescription>
+            <div className="mt-2 space-y-1 rounded-xl bg-muted p-3 text-sm">
+              <p>
+                <span className="text-muted-foreground">Opened:</span>{" "}
+                <span className="font-medium tabular-nums">{stamp(drawer.opened_at)}</span>
+                {drawer.staff && (
+                  <span className="text-muted-foreground" data-no-translate>
+                    {" "}
+                    · {drawer.staff.first_name} {drawer.staff.last_name}
+                  </span>
+                )}
+              </p>
+              <div className="text-muted-foreground">
+                <span>Now: </span>
+                <LiveClock />
+              </div>
+              <p className="text-xs text-muted-foreground">The closing time is saved when you close the drawer.</p>
+            </div>
           </CardHeader>
           <CardContent>
             <CloseDrawerForm drawerSessionId={drawer.id} />
@@ -65,6 +88,10 @@ export default async function DrawerPage({
             Open drawer &mdash; {branch.name} &middot; {register.name}
           </CardTitle>
           <CardDescription>Count the starting cash before you begin selling.</CardDescription>
+          <div className="mt-2 rounded-xl bg-muted p-3 text-sm text-muted-foreground">
+            <LiveClock />
+            <p className="mt-1 text-xs">This date and time is saved as the opening time when you open the drawer.</p>
+          </div>
         </CardHeader>
         <CardContent>
           <OpenDrawerForm registerId={register.id} />

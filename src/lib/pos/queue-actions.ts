@@ -104,6 +104,119 @@ export async function getQueueData(branchId: string) {
   return { workDate, queue, offDutyTherapists };
 }
 
+export type CombinedQueueEntry = {
+  sessionId: string;
+  staffId: string;
+  branchId: string;
+  name: string;
+  nickname: string | null;
+  photoUrl: string | null;
+  status: ClockStatus;
+  clockInAt: string;
+  jobsToday: number;
+  /** 1-based position in that store's own queue. */
+  storePosition: number;
+};
+
+export type ClockInCandidate = {
+  staffId: string;
+  name: string;
+  nickname: string | null;
+  /** Stores this therapist is assigned to. */
+  branchIds: string[];
+  /** Set when they already worked today: they may only check back in here. */
+  todayBranchId: string | null;
+  clockedOutAt: string | null;
+};
+
+/** Both stores' queues in one list, plus who can still check in and where. */
+export async function getCombinedQueueData(branchIds: string[]) {
+  await requireStaffContext();
+  const supabase = await createServerSupabaseClient();
+  const workDate = workDateFor("Asia/Bangkok");
+  if (branchIds.length === 0) return { workDate, queue: [] as CombinedQueueEntry[], candidates: [] as ClockInCandidate[] };
+
+  const [{ data: sessions }, { data: roles }, { data: profiles }] = await Promise.all([
+    supabase
+      .from("therapist_clock_sessions")
+      .select("id, staff_id, branch_id, status, clock_in_at, clock_out_at, queue_position, jobs_today, staff:staff_id(first_name, last_name)")
+      .eq("work_date", workDate)
+      .in("branch_id", branchIds)
+      .order("queue_position"),
+    supabase
+      .from("staff_branch_roles")
+      .select("staff_id, branch_id, staff:staff_id(first_name, last_name)")
+      .eq("role", "therapist")
+      .in("branch_id", branchIds),
+    supabase.from("therapist_profiles").select("staff_id, nickname, photo_url"),
+  ]);
+  const profileById = new Map((profiles ?? []).map((p) => [p.staff_id, p]));
+
+  const open = (sessions ?? []).filter((s) => !s.clock_out_at);
+  const positionInStore = new Map<string, number>();
+  for (const branchId of branchIds) {
+    open
+      .filter((s) => s.branch_id === branchId)
+      .forEach((s, i) => positionInStore.set(s.id, i + 1));
+  }
+
+  const queue: CombinedQueueEntry[] = open
+    .map((s) => ({
+      sessionId: s.id,
+      staffId: s.staff_id,
+      branchId: s.branch_id,
+      name: s.staff ? `${s.staff.first_name} ${s.staff.last_name}`.trim() : "Unknown",
+      nickname: profileById.get(s.staff_id)?.nickname ?? null,
+      photoUrl: profileById.get(s.staff_id)?.photo_url ?? null,
+      status: s.status,
+      clockInAt: s.clock_in_at,
+      jobsToday: s.jobs_today,
+      storePosition: positionInStore.get(s.id) ?? 0,
+    }))
+    .sort((a, b) => a.clockInAt.localeCompare(b.clockInAt));
+
+  const openStaff = new Set(open.map((s) => s.staff_id));
+  const workedToday = new Map<string, { branchId: string; clockOutAt: string | null }>();
+  for (const s of sessions ?? []) {
+    const prev = workedToday.get(s.staff_id);
+    if (!prev || (s.clock_out_at ?? "") > (prev.clockOutAt ?? "")) {
+      workedToday.set(s.staff_id, { branchId: s.branch_id, clockOutAt: s.clock_out_at });
+    }
+  }
+
+  const byStaff = new Map<string, ClockInCandidate>();
+  for (const r of roles ?? []) {
+    if (!r.branch_id || openStaff.has(r.staff_id)) continue;
+    const existing = byStaff.get(r.staff_id);
+    if (existing) {
+      existing.branchIds.push(r.branch_id);
+      continue;
+    }
+    const today = workedToday.get(r.staff_id);
+    byStaff.set(r.staff_id, {
+      staffId: r.staff_id,
+      name: r.staff ? `${r.staff.first_name} ${r.staff.last_name}`.trim() : "Therapist",
+      nickname: profileById.get(r.staff_id)?.nickname ?? null,
+      branchIds: [r.branch_id],
+      todayBranchId: today?.branchId ?? null,
+      clockedOutAt: today?.clockOutAt ?? null,
+    });
+  }
+  const candidates = Array.from(byStaff.values()).sort((a, b) =>
+    (a.nickname ?? a.name).localeCompare(b.nickname ?? b.name),
+  );
+
+  return { workDate, queue, candidates };
+}
+
+/** Services a therapist can perform, for the edit panel on the queue page. */
+export async function getTherapistSkillIds(staffId: string): Promise<string[]> {
+  await requireStaffContext();
+  const supabase = await createServerSupabaseClient();
+  const { data } = await supabase.from("staff_services").select("service_id").eq("staff_id", staffId);
+  return (data ?? []).map((r) => r.service_id);
+}
+
 export async function clockIn(branchId: string, staffId: string): Promise<ActionResult> {
   const ctx = await requireStaffContext();
   if (!canOperateQueue(ctx, branchId)) return { ok: false, error: "Not authorized to manage the queue here." };
@@ -121,6 +234,22 @@ export async function clockIn(branchId: string, staffId: string): Promise<Action
     if (!complete) {
       return { ok: false, error: "This therapist has a missing or expired required document. Clock-in blocked." };
     }
+  }
+
+  // One store per day (also enforced by the database).
+  const { data: elsewhere } = await supabase
+    .from("therapist_clock_sessions")
+    .select("branch:branch_id(name)")
+    .eq("staff_id", staffId)
+    .eq("work_date", workDate)
+    .neq("branch_id", branchId)
+    .limit(1)
+    .maybeSingle();
+  if (elsewhere) {
+    return {
+      ok: false,
+      error: `Already checked in at ${elsewhere.branch?.name ?? "the other store"} today. A therapist can only work at one store per day.`,
+    };
   }
 
   const { data: maxRow } = await supabase

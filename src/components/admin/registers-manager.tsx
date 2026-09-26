@@ -63,7 +63,14 @@ function RegisterRow({ register, openSession }: { register: Register; openSessio
         {openSession ? (
           <p className="text-xs text-muted-foreground">
             Open &middot; {openSession.staff ? `${openSession.staff.first_name} ${openSession.staff.last_name}` : "Unknown"} &middot;
-            started with {formatCents(openSession.opening_amount_cents)}
+            started with {formatCents(openSession.opening_amount_cents)} &middot; opened{" "}
+            {new Date(openSession.opened_at).toLocaleString("en-GB", {
+              day: "numeric",
+              month: "short",
+              hour: "2-digit",
+              minute: "2-digit",
+              timeZone: "Asia/Bangkok",
+            })}
           </p>
         ) : (
           <p className="text-xs text-muted-foreground">Available</p>

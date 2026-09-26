@@ -73,6 +73,8 @@ const PATTERNS: [RegExp, string][] = [
   [/^Signed in as (.+)$/, "เข้าสู่ระบบในชื่อ $1"],
   [/^(\d+) min left$/, "เหลือ $1 นาที"],
   [/^(\d+) more$/, "อีก $1 รายการ"],
+  [/^(\d+) selected$/, "เลือกแล้ว $1"],
+  [/^Already checked in at (.+) today\. A therapist can only work at one store per day\.$/, "เช็คอินที่ $1 แล้ววันนี้ หมอนวดทำงานได้วันละหนึ่งสาขาเท่านั้น"],
   [/^Starts in (\d+) min$/, "เริ่มในอีก $1 นาที"],
   [/^\(?Booked (\d{2}:\d{2}–\d{2}:\d{2})\)?$/, "จองแล้ว $1"],
   [/^\(?In service until about (\d{2}:\d{2})\)?$/, "ให้บริการถึงประมาณ $1"],
