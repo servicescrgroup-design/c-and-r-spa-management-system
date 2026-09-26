@@ -2,13 +2,16 @@ import { requireStaffContext } from "@/lib/auth/session";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { NewBranchForm } from "@/components/admin/new-branch-form";
+import { BranchSettingsForm } from "@/components/admin/branch-settings-form";
 
 export default async function BranchesPage() {
   await requireStaffContext();
   const supabase = await createServerSupabaseClient();
   const { data: branches } = await supabase
     .from("branches")
-    .select("id, name, slug, is_active, booking_enabled, deposit_required")
+    .select(
+      "id, name, slug, is_active, booking_enabled, deposit_required, payroll_min_hours, payroll_guarantee_cents, queue_send_to_back, require_documents_for_clockin",
+    )
     .order("created_at");
 
   return (
@@ -29,16 +32,19 @@ export default async function BranchesPage() {
               <CardTitle>{branch.name}</CardTitle>
               <CardDescription>/book/{branch.slug}</CardDescription>
             </CardHeader>
-            <CardContent className="flex gap-2 text-xs text-muted-foreground">
-              <span>{branch.is_active ? "Active" : "Inactive"}</span>
-              <span>&middot;</span>
-              <span>{branch.booking_enabled ? "Bookable online" : "Booking disabled"}</span>
-              {branch.deposit_required && (
-                <>
-                  <span>&middot;</span>
-                  <span>Deposit required</span>
-                </>
-              )}
+            <CardContent className="space-y-3">
+              <div className="flex flex-wrap gap-2 text-xs text-muted-foreground">
+                <span>{branch.is_active ? "Active" : "Inactive"}</span>
+                <span>&middot;</span>
+                <span>{branch.booking_enabled ? "Bookable online" : "Booking disabled"}</span>
+                {branch.deposit_required && (
+                  <>
+                    <span>&middot;</span>
+                    <span>Deposit required</span>
+                  </>
+                )}
+              </div>
+              <BranchSettingsForm branch={branch} />
             </CardContent>
           </Card>
         ))}

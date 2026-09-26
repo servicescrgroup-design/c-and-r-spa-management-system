@@ -39,3 +39,35 @@ export async function createBranch(formData: FormData): Promise<ActionResult> {
   revalidatePath("/admin/branches");
   return { ok: true };
 }
+
+export async function updateBranchSettings(branchId: string, formData: FormData): Promise<ActionResult> {
+  const ctx = await requireStaffContext();
+  if (!isOwner(ctx)) return { ok: false, error: "Only an owner can change branch settings." };
+
+  const payrollMinHours = Number(formData.get("payrollMinHours"));
+  const payrollGuaranteeDollars = Number(formData.get("payrollGuaranteeDollars"));
+  const queueSendToBack = formData.get("queueSendToBack") === "on";
+  const requireDocumentsForClockin = formData.get("requireDocumentsForClockin") === "on";
+
+  if (!Number.isFinite(payrollMinHours) || payrollMinHours <= 0) {
+    return { ok: false, error: "Minimum hours must be greater than zero." };
+  }
+  if (!Number.isFinite(payrollGuaranteeDollars) || payrollGuaranteeDollars < 0) {
+    return { ok: false, error: "Guarantee must be zero or more." };
+  }
+
+  const supabase = await createServerSupabaseClient();
+  const { error } = await supabase
+    .from("branches")
+    .update({
+      payroll_min_hours: payrollMinHours,
+      payroll_guarantee_cents: Math.round(payrollGuaranteeDollars * 100),
+      queue_send_to_back: queueSendToBack,
+      require_documents_for_clockin: requireDocumentsForClockin,
+    })
+    .eq("id", branchId);
+  if (error) return { ok: false, error: error.message };
+
+  revalidatePath("/admin/branches");
+  return { ok: true };
+}

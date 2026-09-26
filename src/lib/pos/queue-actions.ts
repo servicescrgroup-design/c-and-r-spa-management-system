@@ -109,8 +109,19 @@ export async function clockIn(branchId: string, staffId: string): Promise<Action
   if (!canOperateQueue(ctx, branchId)) return { ok: false, error: "Not authorized to manage the queue here." };
 
   const supabase = await createServerSupabaseClient();
-  const { data: branch } = await supabase.from("branches").select("timezone").eq("id", branchId).single();
+  const { data: branch } = await supabase
+    .from("branches")
+    .select("timezone, require_documents_for_clockin")
+    .eq("id", branchId)
+    .single();
   const workDate = workDateFor(branch?.timezone ?? "Asia/Bangkok");
+
+  if (branch?.require_documents_for_clockin) {
+    const { data: complete } = await supabase.rpc("therapist_documents_complete", { p_staff_id: staffId });
+    if (!complete) {
+      return { ok: false, error: "This therapist has a missing or expired required document. Clock-in blocked." };
+    }
+  }
 
   const { data: maxRow } = await supabase
     .from("therapist_clock_sessions")

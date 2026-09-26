@@ -423,6 +423,7 @@ export type Database = {
           payroll_min_hours: number
           phone: string | null
           queue_send_to_back: boolean
+          require_documents_for_clockin: boolean
           slug: string
           stripe_location_id: string | null
           tax_id: string | null
@@ -445,6 +446,7 @@ export type Database = {
           payroll_min_hours?: number
           phone?: string | null
           queue_send_to_back?: boolean
+          require_documents_for_clockin?: boolean
           slug: string
           stripe_location_id?: string | null
           tax_id?: string | null
@@ -467,6 +469,7 @@ export type Database = {
           payroll_min_hours?: number
           phone?: string | null
           queue_send_to_back?: boolean
+          require_documents_for_clockin?: boolean
           slug?: string
           stripe_location_id?: string | null
           tax_id?: string | null
@@ -3059,6 +3062,10 @@ export type Database = {
       set_payroll_day_lock: {
         Args: { p_branch_id: string; p_locked: boolean; p_work_date: string }
         Returns: undefined
+      }
+      therapist_documents_complete: {
+        Args: { p_staff_id: string }
+        Returns: boolean
       }
     }
     Enums: {

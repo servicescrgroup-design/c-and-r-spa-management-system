@@ -119,6 +119,13 @@ export default async function PayrollPage({ searchParams }: PageProps<"/admin/pa
             </button>
           </form>
         )}
+
+        <a
+          href={`/admin/payroll/export?branchId=${branchId}&start=${start}&end=${end}`}
+          className="text-sm text-primary hover:underline"
+        >
+          Export CSV
+        </a>
       </div>
 
       <PayrollBoard

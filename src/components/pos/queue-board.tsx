@@ -55,6 +55,7 @@ export function QueueBoard({
   const [queue, setQueue] = useState(initialQueue);
   const [dragIndex, setDragIndex] = useState<number | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
 
   async function refresh() {
     router.refresh();
@@ -62,7 +63,9 @@ export function QueueBoard({
 
   async function handleClockIn(staffId: string) {
     setBusy(staffId);
-    await clockIn(branchId, staffId);
+    setError(null);
+    const result = await clockIn(branchId, staffId);
+    if (!result.ok) setError(result.error);
     setBusy(null);
     await refresh();
   }
@@ -194,6 +197,7 @@ export function QueueBoard({
 
       <div className="space-y-2 rounded-2xl border border-border bg-card p-4">
         <p className="font-medium">Clock in</p>
+        {error && <p className="text-sm text-destructive">{error}</p>}
         {offDutyTherapists.length === 0 ? (
           <p className="text-sm text-muted-foreground">Everyone assigned here is already clocked in.</p>
         ) : (
