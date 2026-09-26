@@ -11,7 +11,7 @@ import { RoomsBedsManager } from "@/components/admin/rooms-beds-manager";
 import { BranchOrderTabs } from "@/components/admin/branch-order-tabs";
 import { DAY_NAMES } from "@/lib/admin/schedule-constants";
 import { ScheduleCalendar } from "@/components/admin/schedule-calendar";
-import { bangkokToday, getCalendarDay } from "@/lib/admin/calendar-data";
+import { bangkokToday, getCalendarDay, type CalendarView } from "@/lib/admin/calendar-data";
 
 export default async function SchedulingPage({ searchParams }: PageProps<"/admin/scheduling">) {
   const ctx = await requireStaffContext();
@@ -25,12 +25,13 @@ export default async function SchedulingPage({ searchParams }: PageProps<"/admin
 
   const today = bangkokToday();
   const date = typeof sp.date === "string" && /^\d{4}-\d{2}-\d{2}$/.test(sp.date) ? sp.date : today;
-  const dateQuery = date === today ? "" : `&date=${date}`;
+  const view: CalendarView = sp.view === "week" || sp.view === "month" ? sp.view : "day";
+  const dateQuery = `&view=${view}${date === today ? "" : `&date=${date}`}`;
 
   const supabase = await createServerSupabaseClient();
   const [calendar, { data: staff }, { data: schedules }, { data: appointments }, { data: services }, { data: categories }, rooms] =
     await Promise.all([
-      getCalendarDay(date),
+      getCalendarDay(date, view),
       supabase.from("staff").select("id, first_name, last_name").order("first_name"),
       supabase
         .from("staff_schedules")
@@ -63,7 +64,7 @@ export default async function SchedulingPage({ searchParams }: PageProps<"/admin
         <NewAppointmentModal branchId={branchId} services={services ?? []} categories={categories ?? []} />
       </div>
 
-      <ScheduleCalendar day={calendar} today={today} />
+      <ScheduleCalendar day={calendar} view={view} today={today} services={services ?? []} />
 
       <div className="flex flex-wrap items-center justify-between gap-3 border-t border-border pt-6">
         <div>

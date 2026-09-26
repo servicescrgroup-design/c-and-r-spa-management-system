@@ -163,10 +163,14 @@ export type Database = {
           deposit_amount_cents: number | null
           deposit_payment_ref: string | null
           deposit_status: Database["public"]["Enums"]["deposit_status"]
+          discount_cents: number
           end_at: string
           id: string
           notes: string | null
           org_id: string
+          payment_method:
+            | Database["public"]["Enums"]["pos_payment_method"]
+            | null
           source: Database["public"]["Enums"]["appointment_source"]
           start_at: string
           status: Database["public"]["Enums"]["appointment_status"]
@@ -180,10 +184,14 @@ export type Database = {
           deposit_amount_cents?: number | null
           deposit_payment_ref?: string | null
           deposit_status?: Database["public"]["Enums"]["deposit_status"]
+          discount_cents?: number
           end_at: string
           id?: string
           notes?: string | null
           org_id: string
+          payment_method?:
+            | Database["public"]["Enums"]["pos_payment_method"]
+            | null
           source?: Database["public"]["Enums"]["appointment_source"]
           start_at: string
           status?: Database["public"]["Enums"]["appointment_status"]
@@ -197,10 +205,14 @@ export type Database = {
           deposit_amount_cents?: number | null
           deposit_payment_ref?: string | null
           deposit_status?: Database["public"]["Enums"]["deposit_status"]
+          discount_cents?: number
           end_at?: string
           id?: string
           notes?: string | null
           org_id?: string
+          payment_method?:
+            | Database["public"]["Enums"]["pos_payment_method"]
+            | null
           source?: Database["public"]["Enums"]["appointment_source"]
           start_at?: string
           status?: Database["public"]["Enums"]["appointment_status"]
@@ -1840,6 +1852,58 @@ export type Database = {
           },
         ]
       }
+      pos_sale_edits: {
+        Row: {
+          after: Json
+          before: Json
+          edited_at: string
+          edited_by_staff_id: string | null
+          id: string
+          item_id: string | null
+          transaction_id: string
+        }
+        Insert: {
+          after: Json
+          before: Json
+          edited_at?: string
+          edited_by_staff_id?: string | null
+          id?: string
+          item_id?: string | null
+          transaction_id: string
+        }
+        Update: {
+          after?: Json
+          before?: Json
+          edited_at?: string
+          edited_by_staff_id?: string | null
+          id?: string
+          item_id?: string | null
+          transaction_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "pos_sale_edits_edited_by_staff_id_fkey"
+            columns: ["edited_by_staff_id"]
+            isOneToOne: false
+            referencedRelation: "staff"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "pos_sale_edits_item_id_fkey"
+            columns: ["item_id"]
+            isOneToOne: false
+            referencedRelation: "pos_transaction_items"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "pos_sale_edits_transaction_id_fkey"
+            columns: ["transaction_id"]
+            isOneToOne: false
+            referencedRelation: "pos_transactions"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       pos_transaction_items: {
         Row: {
           cogs_cents: number | null
@@ -3415,6 +3479,20 @@ export type Database = {
           p_start_at: string
         }
         Returns: string
+      }
+      edit_pos_sale: {
+        Args: {
+          p_discount_cents: number
+          p_duration_minutes: number
+          p_item_id: string
+          p_payment_method: Database["public"]["Enums"]["pos_payment_method"]
+          p_payout_cents: number
+          p_price_cents: number
+          p_service_id: string
+          p_staff_id: string
+          p_transaction_id: string
+        }
+        Returns: undefined
       }
       find_combo_options: {
         Args: { p_branch_id: string; p_service_ids: string[] }

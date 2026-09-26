@@ -20,19 +20,51 @@ export type CalendarEvent = {
   endAt: string;
   /** Appointment status, or "in_service" / "completed" for walk-ins. */
   status: string;
+  /** Editing details. */
+  appointmentId: string | null;
+  transactionId: string | null;
+  itemId: string | null;
+  serviceId: string | null;
+  staffId: string | null;
+  durationMinutes: number;
+  priceCents: number;
+  discountCents: number;
+  paymentMethod: string | null;
+  splitPayment: boolean;
 };
 
 export type CalendarBranch = { id: string; name: string; rooms: { id: string; name: string }[] };
 
 export type CalendarDay = { date: string; branches: CalendarBranch[]; events: CalendarEvent[] };
 
+export type CalendarView = "day" | "week" | "month";
+
+function shiftDate(date: string, days: number) {
+  const d = new Date(`${date}T12:00:00${TZ_OFFSET}`);
+  d.setUTCDate(d.getUTCDate() + days);
+  return d.toISOString().slice(0, 10);
+}
+
+function weekday(date: string) {
+  return new Date(`${date}T12:00:00${TZ_OFFSET}`).getUTCDay();
+}
+
+/** First day and number of days the view covers. Weeks start on Sunday,
+ * like Apple Calendar; month view shows six full weeks. */
+export function viewRange(view: CalendarView, date: string): { from: string; days: number } {
+  if (view === "day") return { from: date, days: 1 };
+  if (view === "week") return { from: shiftDate(date, -weekday(date)), days: 7 };
+  const first = `${date.slice(0, 8)}01`;
+  return { from: shiftDate(first, -weekday(first)), days: 42 };
+}
+
 export function bangkokToday(): string {
   return new Date(Date.now() + 7 * 3600_000).toISOString().slice(0, 10);
 }
 
-function dayRange(date: string) {
+function dayRange(date: string, days = 1) {
   const start = new Date(`${date}T00:00:00${TZ_OFFSET}`);
-  const end = new Date(start.getTime() + 24 * 3600_000);
+  const end = new Date(start.getTime() + days * 24 * 3600_000);
   return { start: start.toISOString(), end: end.toISOString() };
 }
 
@@ -42,11 +74,12 @@ function personName(p: { first_name: string; last_name: string } | null | undefi
 }
 
 /** Every booked appointment and every walk-in massage at the branches the
- * signed-in staff member can see, for one day. */
-export async function getCalendarDay(date: string): Promise<CalendarDay> {
+ * signed-in staff member can see, for the days a calendar view covers. */
+export async function getCalendarDay(date: string, view: CalendarView = "day"): Promise<CalendarDay> {
   await requireStaffContext();
   const safeDate = /^\d{4}-\d{2}-\d{2}$/.test(date) ? date : bangkokToday();
-  const { start, end } = dayRange(safeDate);
+  const range = viewRange(view, safeDate);
+  const { start, end } = dayRange(range.from, range.days);
   const supabase = await createServerSupabaseClient();
   const branches = await getStaffBranches();
   const branchIds = branches.map((b) => b.id);
@@ -59,7 +92,7 @@ export async function getCalendarDay(date: string): Promise<CalendarDay> {
       supabase
         .from("appointments")
         .select(
-          "id, branch_id, status, start_at, end_at, bed_id, customer:customer_id(first_name, last_name), appointment_services(service_id, staff_id, sort_order, service:service_id(name), staff:staff_id(first_name, last_name))",
+          "id, branch_id, status, start_at, end_at, bed_id, discount_cents, payment_method, customer:customer_id(first_name, last_name), appointment_services(service_id, staff_id, sort_order, price_cents, duration_minutes, service:service_id(name), staff:staff_id(first_name, last_name))",
         )
         .in("branch_id", branchIds)
         .not("status", "in", "(cancelled,no_show)")
@@ -69,7 +102,7 @@ export async function getCalendarDay(date: string): Promise<CalendarDay> {
       supabase
         .from("pos_transactions")
         .select(
-          "id, branch_id, room_id, created_at, status, customer:customer_id(first_name, last_name), pos_transaction_items(id, item_type, reference_id, description, staff_id, duration_minutes, completed_at, staff:staff_id(first_name, last_name))",
+          "id, branch_id, room_id, created_at, status, customer:customer_id(first_name, last_name), pos_payments(method), pos_transaction_items(id, item_type, reference_id, description, staff_id, duration_minutes, completed_at, unit_price_cents, discount_cents, staff:staff_id(first_name, last_name))",
         )
         .in("branch_id", branchIds)
         .is("original_transaction_id", null)
@@ -106,6 +139,16 @@ export async function getCalendarDay(date: string): Promise<CalendarDay> {
       startAt: a.start_at,
       endAt: a.end_at,
       status: a.status,
+      appointmentId: a.id,
+      transactionId: null,
+      itemId: null,
+      serviceId: lines[0]?.service_id ?? null,
+      staffId: withStaff?.staff_id ?? null,
+      durationMinutes: Math.round((new Date(a.end_at).getTime() - new Date(a.start_at).getTime()) / 60_000),
+      priceCents: lines.reduce((sum, l) => sum + l.price_cents, 0),
+      discountCents: a.discount_cents,
+      paymentMethod: a.payment_method,
+      splitPayment: false,
     });
   }
 
@@ -139,6 +182,16 @@ export async function getCalendarDay(date: string): Promise<CalendarDay> {
         startAt: new Date(startMs).toISOString(),
         endAt: new Date(endMs).toISOString(),
         status: main.completed_at ? "completed" : "in_service",
+        appointmentId: null,
+        transactionId: t.id,
+        itemId: main.id,
+        serviceId: main.reference_id,
+        staffId: main.staff_id,
+        durationMinutes: main.duration_minutes ?? minutes,
+        priceCents: main.unit_price_cents,
+        discountCents: main.discount_cents,
+        paymentMethod: t.pos_payments?.[0]?.method ?? null,
+        splitPayment: (t.pos_payments?.length ?? 0) > 1,
       });
     }
   }
@@ -169,6 +222,7 @@ export async function getStaffConflicts(
   startAt: string,
   endAt: string,
   excludeAppointmentId?: string,
+  excludeItemId?: string,
 ): Promise<Map<string, string>> {
   const conflicts = new Map<string, string>();
   if (staffIds.length === 0) return conflicts;
@@ -194,7 +248,9 @@ export async function getStaffConflicts(
     if (!conflicts.has(row.staff_id)) conflicts.set(row.staff_id, `Booked ${hhmm(row.start_at)}–${hhmm(row.end_at)}`);
   }
 
-  const activeItemIds = (busySessions ?? []).map((s) => s.active_item_id).filter((id): id is string => Boolean(id));
+  const activeItemIds = (busySessions ?? [])
+    .map((s) => s.active_item_id)
+    .filter((id): id is string => Boolean(id) && id !== excludeItemId);
   if (activeItemIds.length > 0) {
     const { data: items } = await supabase
       .from("pos_transaction_items")
