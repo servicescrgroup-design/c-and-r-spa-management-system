@@ -4,24 +4,30 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { NewServiceForm } from "@/components/admin/new-service-form";
 import { NewPackageForm } from "@/components/admin/new-package-form";
 import { ServicesExplorer } from "@/components/admin/services-explorer";
+import { ComboManager } from "@/components/admin/combo-manager";
 import { formatCents } from "@/lib/utils";
 
 export default async function ServicesPage() {
   await requireStaffContext();
   const supabase = await createServerSupabaseClient();
-  const [{ data: services }, { data: categories }, { data: packages }] = await Promise.all([
-    supabase
-      .from("services")
-      .select(
-        "id, name, name_th, is_active, category_id, duration_minutes, default_price_cents, service_price_options(duration_minutes, price_cents)",
-      )
-      .order("name"),
-    supabase.from("service_categories").select("id, name").order("sort_order"),
-    supabase
-      .from("packages")
-      .select("id, name, price_cents, validity_days, package_items(quantity, service:service_id(name))")
-      .order("id"),
-  ]);
+  const [{ data: services }, { data: categories }, { data: packages }, { data: combos }, { data: branches }] =
+    await Promise.all([
+      supabase
+        .from("services")
+        .select(
+          "id, name, name_th, is_active, category_id, duration_minutes, default_price_cents, service_price_options(duration_minutes, price_cents)",
+        )
+        .order("name"),
+      supabase.from("service_categories").select("id, name").order("sort_order"),
+      supabase
+        .from("packages")
+        .select("id, name, price_cents, validity_days, package_items(quantity, service:service_id(name))")
+        .order("id"),
+      supabase
+        .from("service_combos")
+        .select("id, name, service_combo_members(service_id), service_combo_prices(id, branch_id, duration_minutes, price_cents, payout_cents)"),
+      supabase.from("branches").select("id, name").order("name"),
+    ]);
 
   return (
     <div className="space-y-6">
@@ -80,6 +86,16 @@ export default async function ServicesPage() {
           <NewPackageForm services={services ?? []} />
         </CardContent>
       </Card>
+
+      <div>
+        <h2 className="font-display text-2xl font-medium tracking-tight">Combo pricing</h2>
+        <p className="text-muted-foreground">
+          Price multi-service sessions (e.g. Thai + Foot) by total duration. The sale screen looks up prices
+          here instead of guessing.
+        </p>
+      </div>
+
+      <ComboManager combos={combos ?? []} services={services ?? []} branches={branches ?? []} />
     </div>
   );
 }
