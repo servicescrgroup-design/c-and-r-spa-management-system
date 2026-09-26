@@ -1,6 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { MENU_LANGUAGES, parseServiceTranslations } from "@/lib/i18n/languages";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { requireStaffContext } from "@/lib/auth/session";
 import { isOwner } from "@/lib/auth/roles";
@@ -112,11 +113,29 @@ export async function updateService(serviceId: string, formData: FormData): Prom
     imageUrl = publicUrl.publicUrl;
   }
 
+  // Merge translated names/descriptions sent by the form (tr_name_<code>,
+  // tr_desc_<code>) into the stored jsonb, keeping languages not in the form.
+  const { data: current } = await supabase.from("services").select("translations").eq("id", serviceId).maybeSingle();
+  const translations = parseServiceTranslations(current?.translations);
+  for (const { code } of MENU_LANGUAGES) {
+    const nameKey = `tr_name_${code}`;
+    const descKey = `tr_desc_${code}`;
+    if (!formData.has(nameKey) && !formData.has(descKey)) continue;
+    const trName = String(formData.get(nameKey) ?? "").trim();
+    const trDesc = String(formData.get(descKey) ?? "").trim();
+    if (trName || trDesc) {
+      translations[code] = { ...(trName ? { name: trName } : {}), ...(trDesc ? { description: trDesc } : {}) };
+    } else {
+      delete translations[code];
+    }
+  }
+
   const { error: updateError } = await supabase
     .from("services")
     .update({
       name,
       name_th: nameTh,
+      translations,
       description,
       description_th: descriptionTh,
       category_id: categoryId,

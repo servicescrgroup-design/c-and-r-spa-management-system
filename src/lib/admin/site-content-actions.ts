@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { requireStaffContext } from "@/lib/auth/session";
 import type { Database } from "@/types/database.types";
+import { MENU_LANGUAGE_BY_CODE } from "@/lib/i18n/languages";
 
 type SiteContentUpdate = Database["public"]["Tables"]["site_content"]["Update"];
 
@@ -18,13 +19,24 @@ const COLUMN: Record<SiteImageSlot, "hero_image_url" | "branches_image_url"> = {
 
 const MAX_BYTES = 4 * 1024 * 1024;
 
-export type SiteContent = { hero_image_url: string | null; branches_image_url: string | null };
+export type SiteContent = {
+  hero_image_url: string | null;
+  branches_image_url: string | null;
+  service_languages: string[];
+};
 
 /** Public read: used by the homepage (anon) and the settings page. */
 export async function getSiteContent(): Promise<SiteContent> {
   const supabase = await createServerSupabaseClient();
-  const { data } = await supabase.from("site_content").select("hero_image_url, branches_image_url").maybeSingle();
-  return data ?? { hero_image_url: null, branches_image_url: null };
+  const { data } = await supabase
+    .from("site_content")
+    .select("hero_image_url, branches_image_url, service_languages")
+    .maybeSingle();
+  return {
+    hero_image_url: data?.hero_image_url ?? null,
+    branches_image_url: data?.branches_image_url ?? null,
+    service_languages: (data?.service_languages ?? []).filter((c) => MENU_LANGUAGE_BY_CODE.has(c)),
+  };
 }
 
 function slotUpdate(slot: SiteImageSlot, url: string | null): SiteContentUpdate {
@@ -84,4 +96,34 @@ export async function removeSiteImage(slot: SiteImageSlot): Promise<ActionResult
   revalidatePath("/");
   revalidatePath("/admin/settings");
   return { ok: true };
+}
+
+async function setServiceLanguages(update: (current: string[]) => string[]): Promise<ActionResult> {
+  const ctx = await requireStaffContext();
+  if (!canEditSite(ctx)) return { ok: false, error: "Only an owner or manager can change menu languages." };
+
+  const supabase = await createServerSupabaseClient();
+  const { data } = await supabase.from("site_content").select("service_languages").maybeSingle();
+  const next = update(data?.service_languages ?? []);
+  const { error } = await supabase
+    .from("site_content")
+    .update({ service_languages: next, updated_at: new Date().toISOString() })
+    .eq("id", true);
+  if (error) return { ok: false, error: error.message };
+
+  revalidatePath("/admin/services", "layout");
+  revalidatePath("/book", "layout");
+  return { ok: true };
+}
+
+/** Adds a menu language to every service at once. */
+export async function addServiceLanguage(code: string): Promise<ActionResult> {
+  if (!MENU_LANGUAGE_BY_CODE.has(code)) return { ok: false, error: "That language isn't supported." };
+  return setServiceLanguages((current) => (current.includes(code) ? current : [...current, code]));
+}
+
+/** Hides a language from the editor and booking page. Saved translations
+ * stay in the database, so adding the language back restores them. */
+export async function removeServiceLanguage(code: string): Promise<ActionResult> {
+  return setServiceLanguages((current) => current.filter((c) => c !== code));
 }

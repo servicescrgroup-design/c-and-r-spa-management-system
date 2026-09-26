@@ -5,6 +5,8 @@ import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { getServiceEditHistory } from "@/lib/admin/service-actions";
 import { ServiceEditForm } from "@/components/admin/service-edit-form";
 import { ServiceBedTypesForm } from "@/components/admin/service-bed-types-form";
+import { getSiteContent } from "@/lib/admin/site-content-actions";
+import { parseServiceTranslations } from "@/lib/i18n/languages";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 
 export default async function ServiceDetailPage({
@@ -14,17 +16,18 @@ export default async function ServiceDetailPage({
   const { serviceId } = await params;
   const supabase = await createServerSupabaseClient();
 
-  const [{ data: service }, { data: categories }, history, { data: bedTypeRows }] = await Promise.all([
+  const [{ data: service }, { data: categories }, history, { data: bedTypeRows }, site] = await Promise.all([
     supabase
       .from("services")
       .select(
-        "id, name, name_th, description, description_th, category_id, is_active, image_url, background_color, duration_minutes, default_price_cents, service_price_options(duration_minutes, price_cents, payout_cents)",
+        "id, name, name_th, description, description_th, translations, category_id, is_active, image_url, background_color, duration_minutes, default_price_cents, service_price_options(duration_minutes, price_cents, payout_cents)",
       )
       .eq("id", serviceId)
       .maybeSingle(),
     supabase.from("service_categories").select("id, name").order("sort_order"),
     getServiceEditHistory(serviceId),
     supabase.from("bed_type_allowed_services").select("bed_type").eq("service_id", serviceId),
+    getSiteContent(),
   ]);
 
   if (!service) notFound();
@@ -63,6 +66,7 @@ export default async function ServiceDetailPage({
           <ServiceEditForm
             serviceId={service.id}
             categories={categories ?? []}
+            languages={site.service_languages}
             initial={{
               name: service.name,
               nameTh: service.name_th ?? "",
@@ -73,6 +77,7 @@ export default async function ServiceDetailPage({
               imageUrl: service.image_url,
               backgroundColor: service.background_color,
               variants,
+              translations: parseServiceTranslations(service.translations),
             }}
           />
         </CardContent>

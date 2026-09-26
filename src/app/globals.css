@@ -17,7 +17,7 @@
   --ring: #1f7a35;
   --destructive: #d70015;
   --highlight: #bf4800;
-  --nav: rgba(251, 251, 253, 0.8);
+  --nav: rgba(251, 251, 253, 0.94);
   --shadow-color: 0 0% 0%;
 }
 
@@ -62,7 +62,7 @@
     --ring: #30d158;
     --destructive: #ff453a;
     --highlight: #ff9f0a;
-    --nav: rgba(22, 22, 23, 0.8);
+    --nav: rgba(22, 22, 23, 0.94);
   }
 }
 
@@ -83,7 +83,7 @@
   --ring: #30d158;
   --destructive: #ff453a;
   --highlight: #ff9f0a;
-  --nav: rgba(22, 22, 23, 0.8);
+  --nav: rgba(22, 22, 23, 0.94);
 }
 
 body {

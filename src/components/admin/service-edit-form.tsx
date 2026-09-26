@@ -8,6 +8,9 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { ColorPicker } from "@/components/admin/color-picker";
 import { contrastTextColor } from "@/lib/color";
+import { resizeImage } from "@/lib/client/resize-image";
+import type { ServiceTranslations } from "@/lib/i18n/languages";
+import { AddLanguageMenu, ServiceLanguageFields } from "@/components/admin/service-language-fields";
 
 type Category = { id: string; name: string };
 type Variant = { durationMinutes: number; priceDollars: number; payoutDollars: number };
@@ -15,10 +18,12 @@ type Variant = { durationMinutes: number; priceDollars: number; payoutDollars: n
 export function ServiceEditForm({
   serviceId,
   categories,
+  languages,
   initial,
 }: {
   serviceId: string;
   categories: Category[];
+  languages: string[];
   initial: {
     name: string;
     nameTh: string;
@@ -29,6 +34,7 @@ export function ServiceEditForm({
     imageUrl: string | null;
     backgroundColor: string | null;
     variants: Variant[];
+    translations: ServiceTranslations;
   };
 }) {
   const router = useRouter();
@@ -57,6 +63,8 @@ export function ServiceEditForm({
     setSaved(false);
 
     const formData = new FormData(event.currentTarget);
+    const image = formData.get("image");
+    if (image instanceof File && image.size > 0) formData.set("image", await resizeImage(image));
     variants.forEach((v, i) => {
       formData.set(`duration${i}`, String(v.durationMinutes));
       formData.set(`price${i}`, String(v.priceDollars));
@@ -75,6 +83,10 @@ export function ServiceEditForm({
 
   return (
     <form onSubmit={handleSubmit} className="space-y-5">
+      <div className="flex items-center justify-between gap-3">
+        <p className="text-sm font-medium">Names &amp; languages</p>
+        <AddLanguageMenu enabled={languages} />
+      </div>
       <div className="grid grid-cols-2 gap-3">
         <div className="space-y-2">
           <Label htmlFor="name">Name (English)</Label>
@@ -85,6 +97,8 @@ export function ServiceEditForm({
           <Input id="nameTh" name="nameTh" defaultValue={initial.nameTh} />
         </div>
       </div>
+
+      <ServiceLanguageFields enabled={languages} translations={initial.translations} />
 
       <div className="space-y-2">
         <Label>Image or color</Label>

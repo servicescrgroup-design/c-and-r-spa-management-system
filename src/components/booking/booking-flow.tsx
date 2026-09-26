@@ -9,12 +9,16 @@ import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { formatCents, cn } from "@/lib/utils";
 import { contrastTextColor } from "@/lib/color";
+import { MENU_LANGUAGE_BY_CODE, type ServiceTranslations } from "@/lib/i18n/languages";
 
 type PriceOption = { duration_minutes: number; price_cents: number };
 type Service = {
   id: string;
   name: string;
   name_th: string | null;
+  description: string | null;
+  description_th: string | null;
+  translations: ServiceTranslations;
   category_id: string | null;
   image_url: string | null;
   background_color: string | null;
@@ -36,9 +40,12 @@ type Category = {
 
 type Selection = { serviceId: string; duration: number; priceCents: number };
 
-type Lang = "en" | "th" | "zh" | "ko" | "ja";
+type BaseLang = "en" | "th" | "zh" | "ko" | "ja";
+// Any language code the owner enabled for the menu; interface text falls
+// back to English for codes without a dictionary below.
+type Lang = string;
 
-const LANG_OPTIONS: { code: Lang; label: string }[] = [
+const BASE_LANG_OPTIONS: { code: BaseLang; label: string }[] = [
   { code: "en", label: "English" },
   { code: "th", label: "ไทย" },
   { code: "zh", label: "中文" },
@@ -50,7 +57,7 @@ const LANG_OPTIONS: { code: Lang; label: string }[] = [
 // on services/categories). Chinese/Korean/Japanese translate the surrounding
 // interface below; service and category names fall back to English for those
 // three until translated names are added to the catalogue.
-const DICT: Record<Lang, Record<string, string>> = {
+const DICT: Record<BaseLang, Record<string, string>> = {
   en: {
     chooseCategory: "Choose a category",
     allCategories: "All",
@@ -178,11 +185,14 @@ export function BookingFlow({
   services,
   categories,
   depositRequired,
+  extraLanguages = [],
 }: {
   branchId: string;
   services: Service[];
   categories: Category[];
   depositRequired: boolean;
+  /** Menu languages the owner added in the back office. */
+  extraLanguages?: string[];
 }) {
   const [lang, setLang] = useState<Lang>("en");
   const [categoryId, setCategoryId] = useState<string | "all" | null>(categories.length > 0 ? null : "all");
@@ -202,7 +212,17 @@ export function BookingFlow({
   const [email, setEmail] = useState("");
   const [phone, setPhone] = useState("");
 
-  const t = DICT[lang];
+  const t = DICT[lang as BaseLang] ?? DICT.en;
+
+  const langOptions = [
+    ...BASE_LANG_OPTIONS,
+    ...extraLanguages
+      .filter((code) => !BASE_LANG_OPTIONS.some((o) => o.code === code))
+      .flatMap((code) => {
+        const l = MENU_LANGUAGE_BY_CODE.get(code);
+        return l ? [{ code, label: `${l.flag} ${l.native}` }] : [];
+      }),
+  ];
 
   function categoryName(c: Category) {
     if (lang === "th" && c.name_th) return c.name_th;
@@ -213,7 +233,13 @@ export function BookingFlow({
   }
 
   function serviceName(s: Service) {
-    return lang === "th" && s.name_th ? s.name_th : s.name;
+    if (lang === "th") return s.name_th || s.name;
+    return s.translations[lang]?.name || s.name;
+  }
+
+  function serviceDescription(s: Service) {
+    if (lang === "th") return s.description_th || s.description;
+    return s.translations[lang]?.description || s.description;
   }
 
   const visibleServices = useMemo(
@@ -312,7 +338,7 @@ export function BookingFlow({
   const langToggle = (
     <div className="flex flex-wrap justify-end gap-1">
       <div className="inline-flex flex-wrap items-center gap-0.5 rounded-full border border-border bg-secondary/50 p-0.5 text-sm">
-        {LANG_OPTIONS.map((opt) => (
+        {langOptions.map((opt) => (
           <button
             key={opt.code}
             type="button"
@@ -498,7 +524,14 @@ export function BookingFlow({
                             aria-hidden
                           />
                         ) : null}
-                        <span className="font-medium">{serviceName(service)}</span>
+                        <span className="min-w-0">
+                          <span className="block font-medium">{serviceName(service)}</span>
+                          {serviceDescription(service) && (
+                            <span className="mt-0.5 block text-xs text-muted-foreground">
+                              {serviceDescription(service)}
+                            </span>
+                          )}
+                        </span>
                       </span>
                       {selection && (
                         <span className="whitespace-nowrap font-display text-base">

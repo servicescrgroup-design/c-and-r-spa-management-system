@@ -2423,6 +2423,7 @@ export type Database = {
           name: string
           name_th: string | null
           org_id: string
+          translations: Json
         }
         Insert: {
           background_color?: string | null
@@ -2438,6 +2439,7 @@ export type Database = {
           name: string
           name_th?: string | null
           org_id: string
+          translations?: Json
         }
         Update: {
           background_color?: string | null
@@ -2453,6 +2455,7 @@ export type Database = {
           name?: string
           name_th?: string | null
           org_id?: string
+          translations?: Json
         }
         Relationships: [
           {
@@ -2476,18 +2479,21 @@ export type Database = {
           branches_image_url: string | null
           hero_image_url: string | null
           id: boolean
+          service_languages: string[]
           updated_at: string
         }
         Insert: {
           branches_image_url?: string | null
           hero_image_url?: string | null
           id?: boolean
+          service_languages?: string[]
           updated_at?: string
         }
         Update: {
           branches_image_url?: string | null
           hero_image_url?: string | null
           id?: boolean
+          service_languages?: string[]
           updated_at?: string
         }
         Relationships: []
