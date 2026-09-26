@@ -123,6 +123,9 @@ export type CartItem = {
   staffId: string | null;
   quantity: number;
   unitPriceCents: number;
+  /** Services only: chosen duration and the therapist's payout (ค่ามือ) for it. */
+  durationMinutes?: number | null;
+  payoutCents?: number | null;
 };
 
 export type PaymentMethod = "cash" | "bank_transfer" | "card_manual";
@@ -138,7 +141,9 @@ export async function checkoutSale(input: {
   cardFeeCents: number;
   payments: PaymentSplit[];
   customerId: string | null;
-}): Promise<ActionResult & { transactionId?: string }> {
+  /** Optional quick name for a walk-in; the sale always gets a reference like CR1-27-09-26-01. */
+  customerName?: string | null;
+}): Promise<ActionResult & { transactionId?: string; customerRef?: string | null }> {
   const ctx = await requireStaffContext();
   if (input.items.length === 0) {
     return { ok: false, error: "Add at least one item to the sale." };
@@ -182,6 +187,7 @@ export async function checkoutSale(input: {
       register_id: drawerSession.register_id,
       drawer_session_id: input.drawerSessionId,
       customer_id: input.customerId,
+      customer_name: input.customerName?.trim() || null,
       staff_id: ctx.staffId,
       subtotal_cents: subtotalCents,
       tax_cents: input.taxCents,
@@ -189,7 +195,7 @@ export async function checkoutSale(input: {
       card_fee_cents: input.cardFeeCents,
       total_cents: totalCents,
     })
-    .select("id")
+    .select("id, customer_ref")
     .single();
 
   if (txnError || !txn) return { ok: false, error: txnError?.message ?? "Could not create sale." };
@@ -204,6 +210,8 @@ export async function checkoutSale(input: {
       quantity: item.quantity,
       unit_price_cents: item.unitPriceCents,
       total_cents: item.unitPriceCents * item.quantity,
+      duration_minutes: item.itemType === "service" ? (item.durationMinutes ?? null) : null,
+      payout_cents: item.itemType === "service" && item.staffId ? (item.payoutCents ?? 0) : 0,
     })),
   );
   if (itemsError) return { ok: false, error: itemsError.message };
@@ -231,7 +239,8 @@ export async function checkoutSale(input: {
   if (postError) return { ok: false, error: `Sale saved but posting failed: ${postError.message}` };
 
   revalidatePath("/pos/checkout");
-  return { ok: true, transactionId: txn.id };
+  revalidatePath("/pos/sales");
+  return { ok: true, transactionId: txn.id, customerRef: txn.customer_ref };
 }
 
 /** Creates the customer_packages row and its per-service unit balances from the package definition. */

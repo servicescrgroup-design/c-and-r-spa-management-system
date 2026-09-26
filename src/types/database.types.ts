@@ -487,6 +487,7 @@ export type Database = {
           address: string | null
           allowed_embed_origins: string[]
           booking_enabled: boolean
+          code: string
           created_at: string
           deposit_amount_cents: number | null
           deposit_percent: number | null
@@ -513,6 +514,7 @@ export type Database = {
           address?: string | null
           allowed_embed_origins?: string[]
           booking_enabled?: boolean
+          code: string
           created_at?: string
           deposit_amount_cents?: number | null
           deposit_percent?: number | null
@@ -539,6 +541,7 @@ export type Database = {
           address?: string | null
           allowed_embed_origins?: string[]
           booking_enabled?: boolean
+          code?: string
           created_at?: string
           deposit_amount_cents?: number | null
           deposit_percent?: number | null
@@ -1994,6 +1997,8 @@ export type Database = {
           combo_id: string | null
           created_at: string
           customer_id: string | null
+          customer_name: string | null
+          customer_ref: string | null
           discount_cents: number
           drawer_session_id: string
           id: string
@@ -2015,6 +2020,8 @@ export type Database = {
           combo_id?: string | null
           created_at?: string
           customer_id?: string | null
+          customer_name?: string | null
+          customer_ref?: string | null
           discount_cents?: number
           drawer_session_id: string
           id?: string
@@ -2036,6 +2043,8 @@ export type Database = {
           combo_id?: string | null
           created_at?: string
           customer_id?: string | null
+          customer_name?: string | null
+          customer_ref?: string | null
           discount_cents?: number
           drawer_session_id?: string
           id?: string
@@ -2246,6 +2255,32 @@ export type Database = {
             columns: ["room_id"]
             isOneToOne: false
             referencedRelation: "branch_rooms"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      sale_daily_counters: {
+        Row: {
+          branch_id: string
+          last_seq: number
+          sale_date: string
+        }
+        Insert: {
+          branch_id: string
+          last_seq?: number
+          sale_date: string
+        }
+        Update: {
+          branch_id?: string
+          last_seq?: number
+          sale_date?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "sale_daily_counters_branch_id_fkey"
+            columns: ["branch_id"]
+            isOneToOne: false
+            referencedRelation: "branches"
             referencedColumns: ["id"]
           },
         ]
@@ -3555,6 +3590,14 @@ export type Database = {
       }
       set_payroll_day_lock: {
         Args: { p_branch_id: string; p_locked: boolean; p_work_date: string }
+        Returns: undefined
+      }
+      set_sale_customer: {
+        Args: {
+          p_customer_id: string
+          p_customer_name: string
+          p_transaction_id: string
+        }
         Returns: undefined
       }
       staff_booking_conflicts: {

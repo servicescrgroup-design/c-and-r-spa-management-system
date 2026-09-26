@@ -23,6 +23,11 @@ const TABS = [
     icon: <path d="M10 4v12M4 10h12" />,
   },
   {
+    href: "/pos/sales",
+    label: "Sales",
+    icon: <path d="M5 3.5h10v13l-2-1.2-1.5 1.2-1.5-1.2-1.5 1.2L7 15.3l-2 1.2v-13ZM8 7.5h4M8 10.5h4" />,
+  },
+  {
     href: "/pos/refunds",
     label: "Refunds",
     icon: <path d="M7 6 4 9l3 3M4 9h8a4 4 0 0 1 0 8H9" />,

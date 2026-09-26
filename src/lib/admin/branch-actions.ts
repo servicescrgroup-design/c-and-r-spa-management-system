@@ -32,6 +32,8 @@ export async function createBranch(formData: FormData): Promise<ActionResult> {
     org_id: org.id,
     name,
     slug: slugify(name),
+    // Empty = the database assigns the next store code (CR3, CR4...).
+    code: "",
   });
 
   if (error) return { ok: false, error: error.message };

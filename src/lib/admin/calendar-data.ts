@@ -16,6 +16,10 @@ export type CalendarEvent = {
   therapist: string | null;
   service: string;
   customer: string | null;
+  /** Walk-ins: the sale code (e.g. CR1-27-09-26-01) and the typed name, if any. */
+  saleRef: string | null;
+  saleName: string | null;
+  saleCustomerId: string | null;
   startAt: string;
   endAt: string;
   /** Appointment status, or "in_service" / "completed" for walk-ins. */
@@ -102,7 +106,7 @@ export async function getCalendarDay(date: string, view: CalendarView = "day"): 
       supabase
         .from("pos_transactions")
         .select(
-          "id, branch_id, room_id, created_at, status, customer:customer_id(first_name, last_name), pos_payments(method), pos_transaction_items(id, item_type, reference_id, description, staff_id, duration_minutes, completed_at, unit_price_cents, discount_cents, staff:staff_id(first_name, last_name))",
+          "id, branch_id, room_id, created_at, status, customer_ref, customer_name, customer:customer_id(id, first_name, last_name), pos_payments(method), pos_transaction_items(id, item_type, reference_id, description, staff_id, duration_minutes, completed_at, unit_price_cents, discount_cents, staff:staff_id(first_name, last_name))",
         )
         .in("branch_id", branchIds)
         .is("original_transaction_id", null)
@@ -136,6 +140,9 @@ export async function getCalendarDay(date: string, view: CalendarView = "day"): 
       therapist: withStaff ? therapistLabel(withStaff.staff_id, withStaff.staff) : null,
       service: lines.map((l) => l.service?.name).filter(Boolean).join(" + ") || "Appointment",
       customer: personName(a.customer),
+      saleRef: null,
+      saleName: null,
+      saleCustomerId: null,
       startAt: a.start_at,
       endAt: a.end_at,
       status: a.status,
@@ -178,7 +185,10 @@ export async function getCalendarDay(date: string, view: CalendarView = "day"): 
         bedName: null,
         therapist: freelancer ? `${freelancer} (freelance)` : therapistLabel(main.staff_id, main.staff),
         service: (main.description ?? "").startsWith("Combo") ? `${baseName} combo` : baseName,
-        customer: personName(t.customer),
+        customer: personName(t.customer) ?? t.customer_name ?? t.customer_ref,
+        saleRef: t.customer_ref,
+        saleName: t.customer_name,
+        saleCustomerId: t.customer?.id ?? null,
         startAt: new Date(startMs).toISOString(),
         endAt: new Date(endMs).toISOString(),
         status: main.completed_at ? "completed" : "in_service",

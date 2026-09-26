@@ -10,6 +10,7 @@ import {
   type TherapistAvailability,
 } from "@/lib/admin/calendar-actions";
 import { getDurationOptions, type PricedDuration } from "@/lib/pos/sale-actions";
+import { setSaleCustomer } from "@/lib/pos/sales-list-actions";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -56,6 +57,7 @@ export function BookingEditor({
   const [payment, setPayment] = useState<PaymentValue | "">(knownMethod ? (event.paymentMethod as PaymentValue) : "");
   const [staffId, setStaffId] = useState(event.staffId ?? "");
   const [start, setStart] = useState(toLocalInput(event.startAt));
+  const [saleName, setSaleName] = useState(event.saleName ?? "");
 
   const [durations, setDurations] = useState<PricedDuration[]>([]);
   const [therapists, setTherapists] = useState<TherapistAvailability[]>([]);
@@ -163,6 +165,10 @@ export function BookingEditor({
           )
         : await updateAppointmentFromCalendar(event.appointmentId!, edit);
       if (!result.ok) return setError(result.error);
+      if (isWalkIn && saleName.trim() !== (event.saleName ?? "")) {
+        const named = await setSaleCustomer(event.transactionId!, { customerName: saleName, customerId: event.saleCustomerId });
+        if (!named.ok) return setError(named.error);
+      }
       router.refresh();
       onClose();
     } catch {
@@ -219,6 +225,19 @@ export function BookingEditor({
           </p>
         ) : (
           <div className="mt-5 space-y-4">
+            {isWalkIn && (
+              <div className="space-y-1.5">
+                <Label htmlFor="be-name">
+                  Customer name <span className="font-normal">({event.saleRef ?? "no code"})</span>
+                </Label>
+                <Input
+                  id="be-name"
+                  value={saleName}
+                  onChange={(e) => setSaleName(e.target.value)}
+                  placeholder="Optional, e.g. Anna"
+                />
+              </div>
+            )}
             <div className="space-y-1.5">
               <Label htmlFor="be-service">Service</Label>
               <select

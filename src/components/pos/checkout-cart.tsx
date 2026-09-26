@@ -10,6 +10,17 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { formatCents, cn } from "@/lib/utils";
 
 type CatalogItem = { id: string; name: string; default_price_cents?: number; retail_price_cents?: number; price_cents?: number };
+type ServiceDuration = { minutes: number; priceCents: number; payoutCents: number };
+type ServiceItem = { id: string; name: string; category_id: string | null; default_price_cents: number; durations: ServiceDuration[] };
+type Category = { id: string; name: string; background_color: string | null };
+type Therapist = { id: string; name: string; status: string | null };
+
+const STATUS_TEXT: Record<string, string> = {
+  available: "Available",
+  in_service: "In service",
+  on_break: "On break",
+  off_duty: "Off duty",
+};
 type Customer = { id: string; first_name: string; last_name: string; email: string | null };
 type PaymentRow = { method: PaymentMethod; amount: string };
 
@@ -101,6 +112,8 @@ export function CheckoutCart({
   branchName,
   drawerSessionId,
   services,
+  categories,
+  therapists,
   products,
   packages,
   customers,
@@ -108,7 +121,9 @@ export function CheckoutCart({
   branchId: string;
   branchName: string;
   drawerSessionId: string;
-  services: CatalogItem[];
+  services: ServiceItem[];
+  categories: Category[];
+  therapists: Therapist[];
   products: CatalogItem[];
   packages: CatalogItem[];
   customers: Customer[];
@@ -120,15 +135,45 @@ export function CheckoutCart({
   const [cardFeePercent, setCardFeePercent] = useState("0");
   const [cardFeeDollars, setCardFeeDollars] = useState("0");
   const [customerId, setCustomerId] = useState("");
+  const [customerName, setCustomerName] = useState("");
+  const [categoryIds, setCategoryIds] = useState<string[]>([]);
   const [payments, setPayments] = useState<PaymentRow[]>([{ method: "cash", amount: "0" }]);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
-  const [receipt, setReceipt] = useState<{ total: number } | null>(null);
+  const [receipt, setReceipt] = useState<{ total: number; ref: string | null } | null>(null);
   const [showGiftCard, setShowGiftCard] = useState(false);
 
-  function addItem(item: CatalogItem, itemType: "service" | "product" | "package") {
-    const price =
-      itemType === "service" ? item.default_price_cents! : itemType === "product" ? item.retail_price_cents! : item.price_cents!;
+  const categoryColor = useMemo(() => new Map(categories.map((c) => [c.id, c.background_color])), [categories]);
+  const visibleServices =
+    categoryIds.length === 0 ? services : services.filter((s) => s.category_id && categoryIds.includes(s.category_id));
+
+  function toggleCategory(id: string) {
+    setCategoryIds((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]));
+  }
+
+  // Each tap on a duration adds its own line so every massage can have its own therapist.
+  function addService(service: ServiceItem, d: ServiceDuration) {
+    setCart((prev) => [
+      ...prev,
+      {
+        itemType: "service",
+        referenceId: service.id,
+        description: `${service.name} · ${d.minutes} min`,
+        staffId: null,
+        quantity: 1,
+        unitPriceCents: d.priceCents,
+        durationMinutes: d.minutes,
+        payoutCents: d.payoutCents,
+      },
+    ]);
+  }
+
+  function setLineTherapist(index: number, staffId: string) {
+    setCart((prev) => prev.map((c, i) => (i === index ? { ...c, staffId: staffId || null } : c)));
+  }
+
+  function addItem(item: CatalogItem, itemType: "product" | "package") {
+    const price = itemType === "product" ? item.retail_price_cents! : item.price_cents!;
     setCart((prev) => {
       const existing = prev.find((c) => c.referenceId === item.id && c.itemType === itemType);
       if (itemType !== "package" && existing) {
@@ -179,14 +224,17 @@ export function CheckoutCart({
           ? [{ method: payments[0].method, amountCents: totalCents }]
           : payments.map((p) => ({ method: p.method, amountCents: Math.round((Number(p.amount) || 0) * 100) })),
       customerId: customerId || null,
+      customerName: customerId ? null : customerName.trim() || null,
     });
     setLoading(false);
     if (!result.ok) {
       setError(result.error);
       return;
     }
-    setReceipt({ total: totalCents });
+    setReceipt({ total: totalCents, ref: result.customerRef ?? null });
     setCart([]);
+    setCustomerId("");
+    setCustomerName("");
     setPayments([{ method: "cash", amount: "0" }]);
     setCardFeeDollars("0");
     router.refresh();
@@ -201,6 +249,12 @@ export function CheckoutCart({
           </CardHeader>
           <CardContent className="space-y-4">
             <p className="text-3xl font-semibold">{formatCents(receipt.total)}</p>
+            {receipt.ref && (
+              <p className="text-sm text-muted-foreground">
+                Saved as <span className="font-medium text-foreground tabular-nums">{receipt.ref}</span>. Add a name
+                or link a customer later from the Sales tab.
+              </p>
+            )}
             <Button onClick={() => setReceipt(null)} className="w-full">
               New sale
             </Button>
@@ -243,20 +297,75 @@ export function CheckoutCart({
           </Button>
         </div>
 
-        <div>
-          <h2 className="mb-2 text-sm font-semibold uppercase text-muted-foreground">Services</h2>
-          <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
-            {services.map((s) => (
+        {categories.length > 0 && (
+          <div className="space-y-2">
+            <h2 className="text-sm font-semibold text-muted-foreground">Categories</h2>
+            <div className="flex flex-wrap gap-2">
               <button
-                key={s.id}
-                onClick={() => addItem(s, "service")}
-                className="rounded-md border border-border bg-card p-3 text-left text-sm hover:border-primary"
+                type="button"
+                onClick={() => setCategoryIds([])}
+                className={cn(
+                  "rounded-full px-3.5 py-1.5 text-sm ring-1 transition-colors",
+                  categoryIds.length === 0 ? "bg-foreground text-background ring-foreground" : "bg-card ring-border",
+                )}
               >
-                <div className="font-medium">{s.name}</div>
-                <div className="text-muted-foreground">{formatCents(s.default_price_cents!)}</div>
+                All
               </button>
-            ))}
-            {services.length === 0 && <p className="text-sm text-muted-foreground">No services yet.</p>}
+              {categories.map((c) => {
+                const on = categoryIds.includes(c.id);
+                const color = c.background_color ?? "#8e8e93";
+                return (
+                  <button
+                    key={c.id}
+                    type="button"
+                    aria-pressed={on}
+                    onClick={() => toggleCategory(c.id)}
+                    className="flex items-center gap-2 rounded-full px-3.5 py-1.5 text-sm ring-1 transition-colors"
+                    style={{
+                      background: on ? `${color}33` : undefined,
+                      boxShadow: on ? `inset 0 0 0 2px ${color}` : undefined,
+                    }}
+                  >
+                    <span className="size-3 rounded-full" style={{ background: color }} />
+                    <span data-no-translate>{c.name}</span>
+                  </button>
+                );
+              })}
+            </div>
+            <p className="text-xs text-muted-foreground">Tap several categories to see them together.</p>
+          </div>
+        )}
+
+        <div>
+          <h2 className="mb-2 text-sm font-semibold text-muted-foreground">Services</h2>
+          <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 xl:grid-cols-3">
+            {visibleServices.map((s) => {
+              const color = (s.category_id && categoryColor.get(s.category_id)) || null;
+              return (
+                <div
+                  key={s.id}
+                  className="rounded-2xl bg-card p-3 ring-1 ring-black/[0.06] dark:ring-white/[0.08]"
+                  style={color ? { background: `linear-gradient(90deg, ${color}26 0%, ${color}0d 60%, transparent 100%)` } : undefined}
+                >
+                  <p className="text-sm font-medium" data-no-translate>
+                    {s.name}
+                  </p>
+                  <div className="mt-2 flex flex-wrap gap-1.5">
+                    {s.durations.map((d) => (
+                      <button
+                        key={d.minutes}
+                        type="button"
+                        onClick={() => addService(s, d)}
+                        className="rounded-full bg-card px-2.5 py-1 text-xs ring-1 ring-border transition-colors hover:bg-primary hover:text-primary-foreground hover:ring-primary"
+                      >
+                        {d.minutes} min · {formatCents(d.priceCents)}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              );
+            })}
+            {visibleServices.length === 0 && <p className="text-sm text-muted-foreground">No services yet.</p>}
           </div>
         </div>
 
@@ -303,19 +412,56 @@ export function CheckoutCart({
         <CardContent className="space-y-4">
           <div className="space-y-2">
             {cart.map((item, i) => (
-              <div key={i} className="flex items-center justify-between text-sm">
-                <span>
-                  {item.quantity}&times; {item.description}
-                </span>
-                <div className="flex items-center gap-2">
-                  <span>{formatCents(item.unitPriceCents * item.quantity)}</span>
-                  <button
-                    onClick={() => removeItem(i)}
-                    className="text-xs text-muted-foreground hover:text-destructive"
-                  >
-                    Remove
-                  </button>
+              <div key={i} className="space-y-1.5 border-b border-border pb-2 text-sm last:border-0">
+                <div className="flex items-center justify-between gap-2">
+                  <span>
+                    {item.quantity}&times; <span data-no-translate>{item.description}</span>
+                  </span>
+                  <div className="flex shrink-0 items-center gap-2">
+                    <span>{formatCents(item.unitPriceCents * item.quantity)}</span>
+                    <button
+                      onClick={() => removeItem(i)}
+                      className="text-xs text-muted-foreground hover:text-destructive"
+                    >
+                      Remove
+                    </button>
+                  </div>
                 </div>
+                {item.itemType === "service" && (
+                  <select
+                    aria-label="Therapist"
+                    value={item.staffId ?? ""}
+                    onChange={(e) => setLineTherapist(i, e.target.value)}
+                    className={cn(
+                      "h-9 w-full rounded-lg border bg-card px-2 text-sm",
+                      item.staffId ? "border-border" : "border-highlight/60 text-muted-foreground",
+                    )}
+                  >
+                    <option value="">Choose therapist...</option>
+                    {therapists.some((t) => t.status) && (
+                      <optgroup label="Clocked in">
+                        {therapists
+                          .filter((t) => t.status)
+                          .map((t) => (
+                            <option key={t.id} value={t.id}>
+                              {t.name} · {STATUS_TEXT[t.status!] ?? t.status}
+                            </option>
+                          ))}
+                      </optgroup>
+                    )}
+                    {therapists.some((t) => !t.status) && (
+                      <optgroup label="Not checked in yet">
+                        {therapists
+                          .filter((t) => !t.status)
+                          .map((t) => (
+                            <option key={t.id} value={t.id}>
+                              {t.name}
+                            </option>
+                          ))}
+                      </optgroup>
+                    )}
+                  </select>
+                )}
               </div>
             ))}
             {cart.length === 0 && <p className="text-sm text-muted-foreground">Cart is empty.</p>}
@@ -338,6 +484,18 @@ export function CheckoutCart({
                 </option>
               ))}
             </select>
+            {!customerId && (
+              <Input
+                aria-label="Customer name (optional)"
+                value={customerName}
+                onChange={(e) => setCustomerName(e.target.value)}
+                placeholder="Name (optional), can be added later"
+                className="mt-2 h-10"
+              />
+            )}
+            <p className="text-xs text-muted-foreground">
+              Leave blank if you&apos;re in a hurry. The sale gets a code like CR1-27-09-26-01.
+            </p>
           </div>
 
           <div className="grid grid-cols-2 gap-3">

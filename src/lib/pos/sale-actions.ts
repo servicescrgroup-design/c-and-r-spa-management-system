@@ -132,6 +132,7 @@ export type SalePayment = { method: PaymentMethod; amountCents: number };
 export async function sellService(input: {
   branchId: string;
   customerId: string | null;
+  customerName?: string | null;
   serviceIds: string[];
   durationMinutes: number;
   priceCents: number;
@@ -143,7 +144,7 @@ export async function sellService(input: {
   discountReason: string;
   tipCents: number;
   payments: SalePayment[];
-}): Promise<ActionResult & { transactionId?: string }> {
+}): Promise<ActionResult & { transactionId?: string; customerRef?: string | null }> {
   const ctx = await requireStaffContext();
   if (!canSell(ctx, input.branchId)) return { ok: false, error: "Not authorized to sell here." };
   if (input.serviceIds.length === 0) return { ok: false, error: "Select at least one service." };
@@ -208,6 +209,7 @@ export async function sellService(input: {
       register_id: drawer.register_id,
       drawer_session_id: drawer.id,
       customer_id: input.customerId,
+      customer_name: input.customerName?.trim() || null,
       staff_id: ctx.staffId,
       room_id: input.roomId,
       subtotal_cents: subtotalCents,
@@ -216,7 +218,7 @@ export async function sellService(input: {
       card_fee_cents: 0,
       total_cents: totalCents,
     })
-    .select("id")
+    .select("id, customer_ref")
     .single();
   if (txnError || !txn) return { ok: false, error: txnError?.message ?? "Could not create sale." };
 
@@ -285,7 +287,8 @@ export async function sellService(input: {
 
   revalidatePath("/pos/queue");
   revalidatePath("/pos/sale");
-  return { ok: true, transactionId: txn.id };
+  revalidatePath("/pos/sales");
+  return { ok: true, transactionId: txn.id, customerRef: txn.customer_ref };
 }
 
 /** Marks the therapist's in-progress job done: frees their room, counts the job's minutes
@@ -409,6 +412,7 @@ export async function removeFreelancer(sessionId: string): Promise<ActionResult>
 export async function sellFreelanceService(input: {
   branchId: string;
   customerId: string | null;
+  customerName?: string | null;
   freelanceSessionId: string;
   serviceIds: string[];
   durationMinutes: number;
@@ -418,7 +422,7 @@ export async function sellFreelanceService(input: {
   discountReason: string;
   tipCents: number;
   payments: SalePayment[];
-}): Promise<ActionResult & { transactionId?: string }> {
+}): Promise<ActionResult & { transactionId?: string; customerRef?: string | null }> {
   const ctx = await requireStaffContext();
   if (!canSell(ctx, input.branchId)) return { ok: false, error: "Not authorized to sell here." };
   if (input.serviceIds.length === 0) return { ok: false, error: "Select at least one service." };
@@ -455,6 +459,7 @@ export async function sellFreelanceService(input: {
       register_id: drawer.register_id,
       drawer_session_id: drawer.id,
       customer_id: input.customerId,
+      customer_name: input.customerName?.trim() || null,
       staff_id: ctx.staffId,
       subtotal_cents: input.priceCents,
       tax_cents: 0,
@@ -462,7 +467,7 @@ export async function sellFreelanceService(input: {
       card_fee_cents: 0,
       total_cents: totalCents,
     })
-    .select("id")
+    .select("id, customer_ref")
     .single();
   if (txnError || !txn) return { ok: false, error: txnError?.message ?? "Could not create sale." };
 
@@ -506,7 +511,8 @@ export async function sellFreelanceService(input: {
 
   revalidatePath("/pos/queue");
   revalidatePath("/pos/sale");
-  return { ok: true, transactionId: txn.id };
+  revalidatePath("/pos/sales");
+  return { ok: true, transactionId: txn.id, customerRef: txn.customer_ref };
 }
 
 export async function findOrCreateCustomer(input: {

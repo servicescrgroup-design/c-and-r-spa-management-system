@@ -181,8 +181,10 @@ export function SaleFlow({
     if (balanceCents !== 0) return setError(`Payments must equal the total. Remaining: ${formatCents(balanceCents)}.`);
 
     setLoading(true);
+    // A name alone is just a label on the sale; a phone number makes (or finds)
+    // a real customer record. Neither is required.
     let customerId: string | null = null;
-    if (customerName.trim() || customerPhone.trim()) {
+    if (customerPhone.trim()) {
       const result = await findOrCreateCustomer({ name: customerName, phone: customerPhone });
       if (!result.ok) {
         setLoading(false);
@@ -195,6 +197,7 @@ export function SaleFlow({
       ? await sellFreelanceService({
           branchId,
           customerId,
+          customerName: customerName.trim() || null,
           freelanceSessionId,
           serviceIds: selectedServiceIds,
           durationMinutes: active.durationMinutes,
@@ -208,6 +211,7 @@ export function SaleFlow({
       : await sellService({
           branchId,
           customerId,
+          customerName: customerName.trim() || null,
           serviceIds: selectedServiceIds,
           durationMinutes: active.durationMinutes,
           priceCents: active.priceCents,
@@ -224,9 +228,10 @@ export function SaleFlow({
     if (!result.ok) return setError(result.error);
 
     setSuccess(
-      freelanceSessionId
+      (freelanceSessionId
         ? `Sale complete — paid ${selectedTherapistName} (freelance) in cash.`
-        : `Sale complete — ${selectedTherapistName} is now in service.`,
+        : `Sale complete — ${selectedTherapistName} is now in service.`) +
+        (result.customerRef ? ` Saved as ${result.customerRef}.` : ""),
     );
     setSelectedServiceIds([]);
     setDurationMinutes(null);
@@ -487,7 +492,7 @@ export function SaleFlow({
         </CardHeader>
         <CardContent className="grid grid-cols-2 gap-3">
           <div className="space-y-2">
-            <Label htmlFor="customerName">Name (leave blank for walk-in)</Label>
+            <Label htmlFor="customerName">Name (optional, can be added later)</Label>
             <Input id="customerName" value={customerName} onChange={(e) => setCustomerName(e.target.value)} />
           </div>
           <div className="space-y-2">
