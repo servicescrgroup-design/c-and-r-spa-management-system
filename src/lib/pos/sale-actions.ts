@@ -533,3 +533,40 @@ export async function findOrCreateCustomer(input: {
   if (error || !created) return { ok: false, error: error?.message ?? "Could not create customer." };
   return { ok: true, customerId: created.id };
 }
+
+/**
+ * A transportation fee for a therapist working away from their home branch,
+ * entered by the receptionist at the time of the sale rather than applied
+ * automatically at clock-in — it's a bonus the business pays the therapist,
+ * not a charge added to the customer's total.
+ */
+export async function addTransportationFee(input: {
+  staffId: string;
+  branchId: string;
+  amountDollars: number;
+}): Promise<ActionResult> {
+  const ctx = await requireStaffContext();
+  if (!canSell(ctx, input.branchId)) return { ok: false, error: "Not authorized to add fees at this branch." };
+  if (!Number.isFinite(input.amountDollars) || input.amountDollars <= 0) {
+    return { ok: false, error: "Enter an amount greater than zero." };
+  }
+
+  const supabase = await createServerSupabaseClient();
+  const { data: branch } = await supabase.from("branches").select("timezone").eq("id", input.branchId).single();
+  const workDate = workDateFor(branch?.timezone ?? "Asia/Bangkok");
+
+  const { error } = await supabase.from("payroll_adjustments").insert({
+    staff_id: input.staffId,
+    branch_id: input.branchId,
+    work_date: workDate,
+    type: "bonus",
+    amount_cents: Math.round(input.amountDollars * 100),
+    reason: "Transportation fee",
+    created_by_staff_id: ctx.staffId,
+  });
+  if (error) return { ok: false, error: error.message };
+
+  revalidatePath("/pos/sale");
+  revalidatePath("/admin/payroll");
+  return { ok: true };
+}

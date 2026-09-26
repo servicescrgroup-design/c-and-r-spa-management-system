@@ -9,6 +9,7 @@ import {
   sellFreelanceService,
   getFreelanceSessions,
   findOrCreateCustomer,
+  addTransportationFee,
   type PricedDuration,
   type TherapistCandidate,
   type FreelanceSession,
@@ -36,11 +37,13 @@ export function SaleFlow({
   services,
   rooms,
   occupiedRoomIds,
+  suggestedTransportationFeeCents,
 }: {
   branchId: string;
   services: Service[];
   rooms: Room[];
   occupiedRoomIds: string[];
+  suggestedTransportationFeeCents: number;
 }) {
   const router = useRouter();
 
@@ -68,6 +71,25 @@ export function SaleFlow({
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+
+  const [transportFeeDollars, setTransportFeeDollars] = useState(suggestedTransportationFeeCents / 100);
+  const [transportFeeLoading, setTransportFeeLoading] = useState(false);
+  const [transportFeeMessage, setTransportFeeMessage] = useState<string | null>(null);
+
+  async function handleAddTransportFee() {
+    if (!therapistSessionId) return;
+    const candidate = candidates.find((c) => c.sessionId === therapistSessionId);
+    if (!candidate) return;
+    setTransportFeeLoading(true);
+    setTransportFeeMessage(null);
+    const result = await addTransportationFee({
+      staffId: candidate.staffId,
+      branchId,
+      amountDollars: transportFeeDollars,
+    });
+    setTransportFeeLoading(false);
+    setTransportFeeMessage(result.ok ? "Transportation fee added to their payroll." : result.error);
+  }
 
   function toggleService(id: string) {
     setSelectedServiceIds((prev) => {
@@ -326,6 +348,35 @@ export function SaleFlow({
                 <span className="text-xs text-muted-foreground">Paid in cash</span>
               </label>
             ))}
+
+            {therapistSessionId && !freelanceSessionId && (
+              <div className="flex flex-wrap items-end gap-2 rounded-lg border border-dashed border-border p-2.5">
+                <div className="space-y-1">
+                  <Label htmlFor="transportFee" className="text-xs">
+                    Transportation fee (฿, optional)
+                  </Label>
+                  <Input
+                    id="transportFee"
+                    type="number"
+                    min="0"
+                    step="1"
+                    value={transportFeeDollars}
+                    onChange={(e) => setTransportFeeDollars(Number(e.target.value))}
+                    className="h-9 w-32"
+                  />
+                </div>
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="outline"
+                  disabled={transportFeeLoading || transportFeeDollars <= 0}
+                  onClick={handleAddTransportFee}
+                >
+                  {transportFeeLoading ? "Adding..." : "Add fee to their payroll"}
+                </Button>
+                {transportFeeMessage && <p className="w-full text-xs text-muted-foreground">{transportFeeMessage}</p>}
+              </div>
+            )}
           </CardContent>
         </Card>
       )}

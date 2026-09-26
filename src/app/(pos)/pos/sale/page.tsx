@@ -14,7 +14,7 @@ export default async function SalePage({ searchParams }: PageProps<"/pos/sale">)
   }
 
   const supabase = await createServerSupabaseClient();
-  const [{ data: services }, { data: rooms }, { data: occupiedSessions }] = await Promise.all([
+  const [{ data: services }, { data: rooms }, { data: occupiedSessions }, { data: branch }] = await Promise.all([
     supabase
       .from("services")
       .select("id, name, name_th, category_id")
@@ -27,6 +27,7 @@ export default async function SalePage({ searchParams }: PageProps<"/pos/sale">)
       .eq("branch_id", activeBranchId)
       .is("clock_out_at", null)
       .not("current_room_id", "is", null),
+    supabase.from("branches").select("transportation_fee_cents").eq("id", activeBranchId).single(),
   ]);
 
   const occupiedRoomIds = (occupiedSessions ?? [])
@@ -62,6 +63,7 @@ export default async function SalePage({ searchParams }: PageProps<"/pos/sale">)
         services={services ?? []}
         rooms={rooms ?? []}
         occupiedRoomIds={occupiedRoomIds}
+        suggestedTransportationFeeCents={branch?.transportation_fee_cents ?? 0}
       />
     </div>
   );

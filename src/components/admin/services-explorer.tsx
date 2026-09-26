@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { formatCents, cn } from "@/lib/utils";
 
 type PriceOption = { duration_minutes: number; price_cents: number };
-type Category = { id: string; name: string };
+type Category = { id: string; name: string; background_color?: string | null };
 type Service = {
   id: string;
   name: string;
@@ -39,6 +39,10 @@ export function ServicesExplorer({
   const [selectedDuration, setSelectedDuration] = useState<Record<string, number>>({});
 
   const categoryById = useMemo(() => new Map(categories.map((c) => [c.id, c.name])), [categories]);
+  const categoryColorById = useMemo(
+    () => new Map(categories.map((c) => [c.id, c.background_color ?? null])),
+    [categories],
+  );
 
   const rows = useMemo(() => {
     const query = search.trim().toLowerCase();
@@ -118,7 +122,9 @@ export function ServicesExplorer({
       </div>
 
       <div className="divide-y divide-border overflow-hidden rounded-2xl border border-border bg-card">
-        {rows.map(({ service, options, active }) => (
+        {rows.map(({ service, options, active }) => {
+          const categoryColor = service.category_id ? categoryColorById.get(service.category_id) : null;
+          return (
           <div
             key={service.id}
             role="button"
@@ -127,7 +133,12 @@ export function ServicesExplorer({
             onKeyDown={(e) => {
               if (e.key === "Enter") router.push(`/admin/services/${service.id}`);
             }}
-            className="flex cursor-pointer flex-col gap-2 p-4 transition-colors hover:bg-muted/60 sm:flex-row sm:items-center sm:justify-between"
+            style={
+              categoryColor
+                ? { background: `linear-gradient(90deg, ${categoryColor}26 0%, ${categoryColor}0d 60%, transparent 100%)` }
+                : undefined
+            }
+            className="flex cursor-pointer flex-col gap-2 p-4 text-foreground transition-colors hover:brightness-95 sm:flex-row sm:items-center sm:justify-between"
           >
             <div className="min-w-0">
               <div className="flex items-center gap-2">
@@ -174,7 +185,8 @@ export function ServicesExplorer({
               </span>
             </div>
           </div>
-        ))}
+          );
+        })}
         {rows.length === 0 && (
           <p className="p-6 text-center text-sm text-muted-foreground">
             No services match your search.
