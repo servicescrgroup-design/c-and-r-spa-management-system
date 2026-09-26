@@ -114,6 +114,55 @@ function SettingsSection({ branch }: { branch: Branch }) {
   );
 }
 
+function BulkTimeApply({
+  label,
+  field,
+  days,
+  onApply,
+}: {
+  label: string;
+  field: "open" | "close";
+  days: { key: keyof WeekHours; label: string }[];
+  onApply: (time: string, days: (keyof WeekHours)[]) => void;
+}) {
+  const [time, setTime] = useState(field === "open" ? "10:00" : "21:00");
+  const [selectedDays, setSelectedDays] = useState<(keyof WeekHours)[]>(days.map((d) => d.key));
+
+  function toggleDay(day: keyof WeekHours) {
+    setSelectedDays((prev) => (prev.includes(day) ? prev.filter((d) => d !== day) : [...prev, day]));
+  }
+
+  return (
+    <div className="flex flex-wrap items-center gap-2 rounded-lg border border-dashed border-border p-2.5">
+      <span className="text-xs font-medium text-muted-foreground">{label}</span>
+      <Input type="time" value={time} onChange={(e) => setTime(e.target.value)} className="h-8 w-32" />
+      <div className="flex flex-wrap gap-1">
+        {days.map((d) => (
+          <button
+            key={d.key}
+            type="button"
+            onClick={() => toggleDay(d.key)}
+            className={cn(
+              "rounded-full border px-2 py-0.5 text-xs transition-colors",
+              selectedDays.includes(d.key) ? "border-primary bg-primary text-primary-foreground" : "border-border text-foreground/80",
+            )}
+          >
+            {d.label}
+          </button>
+        ))}
+      </div>
+      <button
+        type="button"
+        onClick={() => onApply(time, selectedDays)}
+        disabled={selectedDays.length === 0}
+        className="text-xs text-primary hover:underline disabled:opacity-40"
+      >
+        Apply to selected days
+      </button>
+    </div>
+  );
+}
+
 function HoursSection({ branchId, hours }: { branchId: string; hours: Partial<WeekHours> | null }) {
   const router = useRouter();
   const [week, setWeek] = useState<WeekHours>(normalizeHours(hours));
@@ -122,6 +171,14 @@ function HoursSection({ branchId, hours }: { branchId: string; hours: Partial<We
 
   function update(day: keyof WeekHours, patch: Partial<WeekHours[keyof WeekHours]>) {
     setWeek((prev) => ({ ...prev, [day]: { ...prev[day], ...patch } }));
+  }
+
+  function applyToDays(field: "open" | "close", time: string, days: (keyof WeekHours)[]) {
+    setWeek((prev) => {
+      const next = { ...prev };
+      for (const day of days) next[day] = { ...next[day], [field]: time };
+      return next;
+    });
   }
 
   async function save() {
@@ -135,6 +192,9 @@ function HoursSection({ branchId, hours }: { branchId: string; hours: Partial<We
 
   return (
     <div className="space-y-2">
+      <BulkTimeApply label="Set opening time for:" field="open" days={DAYS} onApply={(time, days) => applyToDays("open", time, days)} />
+      <BulkTimeApply label="Set closing time for:" field="close" days={DAYS} onApply={(time, days) => applyToDays("close", time, days)} />
+
       {DAYS.map(({ key, label }) => (
         <div key={key} className="grid grid-cols-[3rem_1fr_1fr_auto] items-center gap-2 text-sm">
           <span className="text-muted-foreground">{label}</span>

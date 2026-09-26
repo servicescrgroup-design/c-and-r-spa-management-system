@@ -561,11 +561,13 @@ export type Database = {
           closed_at: string | null
           closed_by_staff_id: string | null
           counted_amount_cents: number | null
+          counted_breakdown: Json | null
           expected_amount_cents: number | null
           id: string
           opened_at: string
           opened_by_staff_id: string
           opening_amount_cents: number
+          opening_breakdown: Json | null
           register_id: string
           status: Database["public"]["Enums"]["drawer_session_status"]
           variance_cents: number | null
@@ -574,11 +576,13 @@ export type Database = {
           closed_at?: string | null
           closed_by_staff_id?: string | null
           counted_amount_cents?: number | null
+          counted_breakdown?: Json | null
           expected_amount_cents?: number | null
           id?: string
           opened_at?: string
           opened_by_staff_id: string
           opening_amount_cents: number
+          opening_breakdown?: Json | null
           register_id: string
           status?: Database["public"]["Enums"]["drawer_session_status"]
           variance_cents?: number | null
@@ -587,11 +591,13 @@ export type Database = {
           closed_at?: string | null
           closed_by_staff_id?: string | null
           counted_amount_cents?: number | null
+          counted_breakdown?: Json | null
           expected_amount_cents?: number | null
           id?: string
           opened_at?: string
           opened_by_staff_id?: string
           opening_amount_cents?: number
+          opening_breakdown?: Json | null
           register_id?: string
           status?: Database["public"]["Enums"]["drawer_session_status"]
           variance_cents?: number | null
@@ -2777,6 +2783,36 @@ export type Database = {
             columns: ["org_id"]
             isOneToOne: false
             referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      staff_register_access: {
+        Row: {
+          register_id: string
+          staff_id: string
+        }
+        Insert: {
+          register_id: string
+          staff_id: string
+        }
+        Update: {
+          register_id?: string
+          staff_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "staff_register_access_register_id_fkey"
+            columns: ["register_id"]
+            isOneToOne: false
+            referencedRelation: "pos_registers"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "staff_register_access_staff_id_fkey"
+            columns: ["staff_id"]
+            isOneToOne: false
+            referencedRelation: "staff"
             referencedColumns: ["id"]
           },
         ]

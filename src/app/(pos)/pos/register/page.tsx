@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { getStaffBranches, getRegistersForBranch, getOpenDrawerSession } from "@/lib/pos/session";
+import { getStaffBranches, getAllowedRegistersForBranch, getOpenDrawerSession } from "@/lib/pos/session";
 import { requireStaffContext } from "@/lib/auth/session";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { buttonVariants } from "@/components/ui/button";
@@ -10,7 +10,7 @@ export default async function RegisterPage() {
 
   const branchStatus = await Promise.all(
     branches.map(async (branch) => {
-      const registers = await getRegistersForBranch(branch.id);
+      const registers = await getAllowedRegistersForBranch(branch.id);
       const registersWithStatus = await Promise.all(
         registers.map(async (register) => ({
           register,

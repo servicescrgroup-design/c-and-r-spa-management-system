@@ -3,8 +3,8 @@
 import { useState } from "react";
 import { closeDrawer } from "@/lib/pos/actions";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { DenominationCounter } from "@/components/pos/denomination-counter";
 
 export function CloseDrawerForm({ drawerSessionId }: { drawerSessionId: string }) {
   const [error, setError] = useState<string | null>(null);
@@ -24,8 +24,8 @@ export function CloseDrawerForm({ drawerSessionId }: { drawerSessionId: string }
   return (
     <form onSubmit={handleSubmit} className="space-y-4">
       <div className="space-y-2">
-        <Label htmlFor="countedAmount">Counted cash (฿)</Label>
-        <Input id="countedAmount" name="countedAmount" type="number" min="0" step="0.01" required />
+        <Label>Count the cash in the drawer by bill and coin</Label>
+        <DenominationCounter name="countedBreakdown" totalName="countedAmount" />
       </div>
       {error && <p className="text-sm text-destructive">{error}</p>}
       <Button type="submit" className="w-full" disabled={loading}>

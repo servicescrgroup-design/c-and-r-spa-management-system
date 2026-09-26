@@ -3,6 +3,7 @@ import { redirect } from "next/navigation";
 import { requireStaffContext } from "@/lib/auth/session";
 import { isOwner } from "@/lib/auth/roles";
 import { signOutStaff } from "@/lib/auth/actions";
+import { AdminSearch } from "@/components/admin/admin-search";
 
 const NAV = [
   { href: "/admin", label: "Dashboard" },
@@ -11,6 +12,7 @@ const NAV = [
   { href: "/admin/services", label: "Services" },
   { href: "/admin/inventory", label: "Inventory" },
   { href: "/admin/scheduling", label: "Scheduling" },
+  { href: "/admin/registers", label: "Registers" },
   { href: "/admin/payroll", label: "Payroll" },
   { href: "/admin/accounting", label: "Accounting" },
   { href: "/admin/reports", label: "Reports" },
@@ -43,6 +45,9 @@ export default async function AdminLayout({ children }: LayoutProps<"/admin">) {
           </form>
         </div>
       </header>
+      <div className="border-b border-border bg-card px-4 py-2 sm:hidden">
+        <AdminSearch />
+      </div>
       <nav className="flex gap-1 overflow-x-auto border-b border-border bg-card px-3 py-2 sm:hidden">
         {NAV.map((item) => (
           <Link
@@ -79,10 +84,11 @@ export default async function AdminLayout({ children }: LayoutProps<"/admin">) {
         </form>
       </aside>
       <div className="flex min-w-0 flex-1 flex-col">
-        <div className="hidden justify-end border-b border-border bg-card px-6 py-2.5 sm:flex">
+        <div className="hidden items-center justify-between gap-4 border-b border-border bg-card px-6 py-2.5 sm:flex">
+          <AdminSearch />
           <Link
             href="/"
-            className="rounded-full border border-border px-3.5 py-1.5 text-sm text-muted-foreground transition-colors hover:border-foreground hover:text-foreground"
+            className="shrink-0 rounded-full border border-border px-3.5 py-1.5 text-sm text-muted-foreground transition-colors hover:border-foreground hover:text-foreground"
           >
             &larr; Back to homepage
           </Link>

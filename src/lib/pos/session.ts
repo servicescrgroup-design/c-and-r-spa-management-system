@@ -55,6 +55,22 @@ export async function getRegistersForBranch(branchId: string) {
   return [await getOrCreateRegister(branchId)];
 }
 
+/** Registers at a branch the signed-in staff member is allowed to open — an
+ * owner/manager can narrow a receptionist to specific registers; no rows
+ * for them means unrestricted (every register at the branch). */
+export async function getAllowedRegistersForBranch(branchId: string) {
+  const ctx = await requireStaffContext();
+  const all = await getRegistersForBranch(branchId);
+  if (isOwner(ctx)) return all;
+
+  const supabase = await createServerSupabaseClient();
+  const { data: access } = await supabase.from("staff_register_access").select("register_id").eq("staff_id", ctx.staffId);
+  if (!access || access.length === 0) return all;
+
+  const allowedIds = new Set(access.map((a) => a.register_id));
+  return all.filter((r) => allowedIds.has(r.id));
+}
+
 export async function getOpenDrawerSession(registerId: string) {
   const supabase = await createServerSupabaseClient();
   const { data } = await supabase

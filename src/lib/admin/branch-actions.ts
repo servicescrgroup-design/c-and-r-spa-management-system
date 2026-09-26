@@ -209,6 +209,24 @@ export async function createRegister(branchId: string, name: string): Promise<Ac
   if (error) return { ok: false, error: error.message };
 
   revalidatePath("/admin/branches");
+  revalidatePath("/admin/registers");
+  revalidatePath("/pos/register");
+  return { ok: true };
+}
+
+export async function renameRegister(registerId: string, name: string): Promise<ActionResult> {
+  const ctx = await requireStaffContext();
+  if (!canManageRegisters(ctx)) return { ok: false, error: "Only an owner or manager can rename registers." };
+
+  const trimmed = name.trim();
+  if (!trimmed) return { ok: false, error: "Register name is required." };
+
+  const supabase = await createServerSupabaseClient();
+  const { error } = await supabase.from("pos_registers").update({ name: trimmed }).eq("id", registerId);
+  if (error) return { ok: false, error: error.message };
+
+  revalidatePath("/admin/branches");
+  revalidatePath("/admin/registers");
   revalidatePath("/pos/register");
   return { ok: true };
 }
@@ -230,6 +248,47 @@ export async function deleteRegister(registerId: string): Promise<ActionResult> 
   if (error) return { ok: false, error: error.message };
 
   revalidatePath("/admin/branches");
+  revalidatePath("/admin/registers");
+  revalidatePath("/pos/register");
+  return { ok: true };
+}
+
+/** Registers a given staff member is allowed to open. An empty result means
+ * unrestricted — they can open any register at their assigned branch(es). */
+export async function getRegisterAccessForStaff(staffId: string): Promise<string[]> {
+  await requireStaffContext();
+  const supabase = await createServerSupabaseClient();
+  const { data } = await supabase.from("staff_register_access").select("register_id").eq("staff_id", staffId);
+  return (data ?? []).map((r) => r.register_id);
+}
+
+export async function getRegisterAccessByStaff(staffIds: string[]): Promise<Record<string, string[]>> {
+  await requireStaffContext();
+  if (staffIds.length === 0) return {};
+  const supabase = await createServerSupabaseClient();
+  const { data } = await supabase.from("staff_register_access").select("staff_id, register_id").in("staff_id", staffIds);
+
+  const result: Record<string, string[]> = {};
+  for (const row of data ?? []) (result[row.staff_id] ??= []).push(row.register_id);
+  return result;
+}
+
+export async function setRegisterAccessForStaff(staffId: string, registerIds: string[]): Promise<ActionResult> {
+  const ctx = await requireStaffContext();
+  if (!canManageRegisters(ctx)) return { ok: false, error: "Only an owner or manager can set register access." };
+
+  const supabase = await createServerSupabaseClient();
+  const { error: deleteError } = await supabase.from("staff_register_access").delete().eq("staff_id", staffId);
+  if (deleteError) return { ok: false, error: deleteError.message };
+
+  if (registerIds.length > 0) {
+    const { error } = await supabase
+      .from("staff_register_access")
+      .insert(registerIds.map((registerId) => ({ staff_id: staffId, register_id: registerId })));
+    if (error) return { ok: false, error: error.message };
+  }
+
+  revalidatePath("/admin/staff");
   revalidatePath("/pos/register");
   return { ok: true };
 }

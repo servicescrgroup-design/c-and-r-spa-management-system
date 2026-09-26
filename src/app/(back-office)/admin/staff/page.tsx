@@ -9,6 +9,8 @@ import { RoleCapabilitiesCard } from "@/components/admin/role-capabilities-card"
 import { TherapistList } from "@/components/admin/therapist-list";
 import { getApprovedCertificationsByStaff } from "@/lib/admin/certification-actions";
 import { getTherapistsOverview } from "@/lib/admin/staff-hr-actions";
+import { getRegisterAccessByStaff } from "@/lib/admin/branch-actions";
+import { StaffRegisterAccess } from "@/components/admin/staff-register-access";
 import { roleLabel } from "@/lib/role-labels";
 
 type RoleRow = { role: "owner" | "manager" | "front_desk" | "therapist"; branch_id: string | null };
@@ -35,10 +37,14 @@ function StaffCard({
   staff,
   branches,
   branchName,
+  registers,
+  registerAccess,
 }: {
   staff: StaffRow;
   branches: { id: string; name: string }[];
   branchName: (id: string | null) => string;
+  registers?: { id: string; name: string; branchName: string }[];
+  registerAccess?: string[];
 }) {
   const admin = primaryAdminRole(staff.staff_branch_roles);
   const isTherapist = staff.staff_branch_roles.some((r) => r.role === "therapist");
@@ -81,6 +87,9 @@ function StaffCard({
             lastName={staff.last_name}
             email={staff.email}
           />
+          {admin?.role === "front_desk" && registers && (
+            <StaffRegisterAccess staffId={staff.id} registers={registers} initialAllowedIds={registerAccess ?? []} />
+          )}
         </div>
       </CardContent>
     </Card>
@@ -91,7 +100,7 @@ export default async function StaffPage() {
   await requireStaffContext();
   const supabase = await createServerSupabaseClient();
 
-  const [{ data: staff }, { data: branches }, { data: invites }] = await Promise.all([
+  const [{ data: staff }, { data: branches }, { data: invites }, { data: registerRows }] = await Promise.all([
     supabase
       .from("staff")
       .select("id, first_name, last_name, email, employment_status, staff_branch_roles(role, branch_id)")
@@ -102,6 +111,7 @@ export default async function StaffPage() {
       .select("id, email, role, token, expires_at, accepted_at")
       .is("accepted_at", null)
       .order("created_at", { ascending: false }),
+    supabase.from("pos_registers").select("id, name, branch_id").order("name"),
   ]);
 
   const branchById = new Map((branches ?? []).map((b) => [b.id, b.name]));
@@ -115,6 +125,8 @@ export default async function StaffPage() {
 
   const certificationsByStaff = await getApprovedCertificationsByStaff(therapists.map((s) => s.id));
   const overviewByStaff = await getTherapistsOverview(therapists.map((s) => s.id));
+  const registerAccessByStaff = await getRegisterAccessByStaff(frontDesk.map((s) => s.id));
+  const allRegisters = (registerRows ?? []).map((r) => ({ id: r.id, name: r.name, branchName: branchName(r.branch_id) }));
 
   const siteUrl = process.env.NEXT_PUBLIC_SITE_URL ?? "";
 
@@ -139,7 +151,14 @@ export default async function StaffPage() {
         <h2 className="font-display text-xl font-medium tracking-tight">Front desk (receptionists)</h2>
         <div className="grid gap-3 sm:grid-cols-2">
           {frontDesk.map((s) => (
-            <StaffCard key={s.id} staff={s} branches={branches ?? []} branchName={branchName} />
+            <StaffCard
+              key={s.id}
+              staff={s}
+              branches={branches ?? []}
+              branchName={branchName}
+              registers={allRegisters}
+              registerAccess={registerAccessByStaff[s.id] ?? []}
+            />
           ))}
           {frontDesk.length === 0 && <p className="text-sm text-muted-foreground">No receptionists yet.</p>}
         </div>

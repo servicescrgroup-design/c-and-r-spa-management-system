@@ -3,8 +3,8 @@
 import { useState } from "react";
 import { openDrawer } from "@/lib/pos/actions";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { DenominationCounter } from "@/components/pos/denomination-counter";
 
 export function OpenDrawerForm({ registerId }: { registerId: string }) {
   const [error, setError] = useState<string | null>(null);
@@ -25,8 +25,8 @@ export function OpenDrawerForm({ registerId }: { registerId: string }) {
   return (
     <form onSubmit={handleSubmit} className="space-y-4">
       <div className="space-y-2">
-        <Label htmlFor="openingAmount">Opening cash (฿)</Label>
-        <Input id="openingAmount" name="openingAmount" type="number" min="0" step="0.01" defaultValue="0" required />
+        <Label>Count the starting cash by bill and coin</Label>
+        <DenominationCounter name="openingBreakdown" totalName="openingAmount" />
       </div>
       {error && <p className="text-sm text-destructive">{error}</p>}
       <Button type="submit" className="w-full" disabled={loading}>

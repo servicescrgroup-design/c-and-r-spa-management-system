@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { requireStaffContext } from "@/lib/auth/session";
+import { isOwner } from "@/lib/auth/roles";
 
 type ActionResult = { ok: true } | { ok: false; error: string };
 
@@ -11,13 +12,30 @@ export async function openDrawer(formData: FormData): Promise<ActionResult> {
   const ctx = await requireStaffContext();
   const registerId = String(formData.get("registerId") ?? "");
   const openingDollars = Number(formData.get("openingAmount") || 0);
+  const openingBreakdownRaw = String(formData.get("openingBreakdown") ?? "");
 
   if (!registerId) return { ok: false, error: "Select a register." };
   if (!Number.isFinite(openingDollars) || openingDollars < 0) {
     return { ok: false, error: "Opening amount must be zero or more." };
   }
 
+  let openingBreakdown: Record<string, number> | null = null;
+  if (openingBreakdownRaw) {
+    try {
+      openingBreakdown = JSON.parse(openingBreakdownRaw);
+    } catch {
+      openingBreakdown = null;
+    }
+  }
+
   const supabase = await createServerSupabaseClient();
+
+  if (!isOwner(ctx)) {
+    const { data: access } = await supabase.from("staff_register_access").select("register_id").eq("staff_id", ctx.staffId);
+    if (access && access.length > 0 && !access.some((a) => a.register_id === registerId)) {
+      return { ok: false, error: "You're not allowed to open this register." };
+    }
+  }
 
   const { data: alreadyOpen } = await supabase
     .from("cash_drawer_sessions")
@@ -31,6 +49,7 @@ export async function openDrawer(formData: FormData): Promise<ActionResult> {
     register_id: registerId,
     opened_by_staff_id: ctx.staffId,
     opening_amount_cents: Math.round(openingDollars * 100),
+    opening_breakdown: openingBreakdown,
   });
 
   if (error) return { ok: false, error: error.message };
@@ -43,10 +62,20 @@ export async function closeDrawer(formData: FormData): Promise<ActionResult> {
   const ctx = await requireStaffContext();
   const drawerSessionId = String(formData.get("drawerSessionId") ?? "");
   const countedDollars = Number(formData.get("countedAmount"));
+  const countedBreakdownRaw = String(formData.get("countedBreakdown") ?? "");
 
   if (!drawerSessionId) return { ok: false, error: "No drawer session selected." };
   if (!Number.isFinite(countedDollars) || countedDollars < 0) {
     return { ok: false, error: "Counted amount must be zero or more." };
+  }
+
+  let countedBreakdown: Record<string, number> | null = null;
+  if (countedBreakdownRaw) {
+    try {
+      countedBreakdown = JSON.parse(countedBreakdownRaw);
+    } catch {
+      countedBreakdown = null;
+    }
   }
 
   const supabase = await createServerSupabaseClient();
@@ -75,6 +104,7 @@ export async function closeDrawer(formData: FormData): Promise<ActionResult> {
       closed_at: new Date().toISOString(),
       expected_amount_cents: expectedCents,
       counted_amount_cents: countedCents,
+      counted_breakdown: countedBreakdown,
       variance_cents: countedCents - expectedCents,
       status: "closed",
     })
