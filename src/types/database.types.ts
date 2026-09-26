@@ -234,6 +234,64 @@ export type Database = {
           },
         ]
       }
+      audit_log: {
+        Row: {
+          action: string
+          branch_id: string | null
+          created_at: string
+          detail: Json
+          entity_id: string | null
+          entity_type: string | null
+          id: string
+          org_id: string
+          staff_id: string | null
+        }
+        Insert: {
+          action: string
+          branch_id?: string | null
+          created_at?: string
+          detail?: Json
+          entity_id?: string | null
+          entity_type?: string | null
+          id?: string
+          org_id: string
+          staff_id?: string | null
+        }
+        Update: {
+          action?: string
+          branch_id?: string | null
+          created_at?: string
+          detail?: Json
+          entity_id?: string | null
+          entity_type?: string | null
+          id?: string
+          org_id?: string
+          staff_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "audit_log_branch_id_fkey"
+            columns: ["branch_id"]
+            isOneToOne: false
+            referencedRelation: "branches"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "audit_log_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "audit_log_staff_id_fkey"
+            columns: ["staff_id"]
+            isOneToOne: false
+            referencedRelation: "staff"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       branch_inventory: {
         Row: {
           branch_id: string
@@ -275,6 +333,35 @@ export type Database = {
             columns: ["product_id"]
             isOneToOne: false
             referencedRelation: "products"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      branch_rooms: {
+        Row: {
+          branch_id: string
+          id: string
+          is_active: boolean
+          name: string
+        }
+        Insert: {
+          branch_id: string
+          id?: string
+          is_active?: boolean
+          name: string
+        }
+        Update: {
+          branch_id?: string
+          id?: string
+          is_active?: boolean
+          name?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "branch_rooms_branch_id_fkey"
+            columns: ["branch_id"]
+            isOneToOne: false
+            referencedRelation: "branches"
             referencedColumns: ["id"]
           },
         ]
@@ -327,13 +414,18 @@ export type Database = {
           deposit_amount_cents: number | null
           deposit_percent: number | null
           deposit_required: boolean
+          hours: Json
           id: string
           is_active: boolean
           name: string
           org_id: string
+          payroll_guarantee_cents: number
+          payroll_min_hours: number
           phone: string | null
+          queue_send_to_back: boolean
           slug: string
           stripe_location_id: string | null
+          tax_id: string | null
           timezone: string
         }
         Insert: {
@@ -344,13 +436,18 @@ export type Database = {
           deposit_amount_cents?: number | null
           deposit_percent?: number | null
           deposit_required?: boolean
+          hours?: Json
           id?: string
           is_active?: boolean
           name: string
           org_id: string
+          payroll_guarantee_cents?: number
+          payroll_min_hours?: number
           phone?: string | null
+          queue_send_to_back?: boolean
           slug: string
           stripe_location_id?: string | null
+          tax_id?: string | null
           timezone?: string
         }
         Update: {
@@ -361,13 +458,18 @@ export type Database = {
           deposit_amount_cents?: number | null
           deposit_percent?: number | null
           deposit_required?: boolean
+          hours?: Json
           id?: string
           is_active?: boolean
           name?: string
           org_id?: string
+          payroll_guarantee_cents?: number
+          payroll_min_hours?: number
           phone?: string | null
+          queue_send_to_back?: boolean
           slug?: string
           stripe_location_id?: string | null
+          tax_id?: string | null
           timezone?: string
         }
         Relationships: [
@@ -1250,6 +1352,100 @@ export type Database = {
           },
         ]
       }
+      payroll_adjustments: {
+        Row: {
+          amount_cents: number
+          branch_id: string
+          created_at: string
+          created_by_staff_id: string | null
+          id: string
+          reason: string | null
+          staff_id: string
+          type: Database["public"]["Enums"]["payroll_adjustment_type"]
+          work_date: string
+        }
+        Insert: {
+          amount_cents: number
+          branch_id: string
+          created_at?: string
+          created_by_staff_id?: string | null
+          id?: string
+          reason?: string | null
+          staff_id: string
+          type: Database["public"]["Enums"]["payroll_adjustment_type"]
+          work_date: string
+        }
+        Update: {
+          amount_cents?: number
+          branch_id?: string
+          created_at?: string
+          created_by_staff_id?: string | null
+          id?: string
+          reason?: string | null
+          staff_id?: string
+          type?: Database["public"]["Enums"]["payroll_adjustment_type"]
+          work_date?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "payroll_adjustments_branch_id_fkey"
+            columns: ["branch_id"]
+            isOneToOne: false
+            referencedRelation: "branches"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "payroll_adjustments_created_by_staff_id_fkey"
+            columns: ["created_by_staff_id"]
+            isOneToOne: false
+            referencedRelation: "staff"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "payroll_adjustments_staff_id_fkey"
+            columns: ["staff_id"]
+            isOneToOne: false
+            referencedRelation: "staff"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      payroll_day_locks: {
+        Row: {
+          branch_id: string
+          locked_at: string
+          locked_by_staff_id: string | null
+          work_date: string
+        }
+        Insert: {
+          branch_id: string
+          locked_at?: string
+          locked_by_staff_id?: string | null
+          work_date: string
+        }
+        Update: {
+          branch_id?: string
+          locked_at?: string
+          locked_by_staff_id?: string | null
+          work_date?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "payroll_day_locks_branch_id_fkey"
+            columns: ["branch_id"]
+            isOneToOne: false
+            referencedRelation: "branches"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "payroll_day_locks_locked_by_staff_id_fkey"
+            columns: ["locked_by_staff_id"]
+            isOneToOne: false
+            referencedRelation: "staff"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       payroll_entries: {
         Row: {
           base_pay_cents: number
@@ -1482,6 +1678,7 @@ export type Database = {
           discount_cents: number
           id: string
           item_type: Database["public"]["Enums"]["pos_item_type"]
+          payout_cents: number
           quantity: number
           reference_id: string | null
           staff_id: string | null
@@ -1496,6 +1693,7 @@ export type Database = {
           discount_cents?: number
           id?: string
           item_type: Database["public"]["Enums"]["pos_item_type"]
+          payout_cents?: number
           quantity?: number
           reference_id?: string | null
           staff_id?: string | null
@@ -1510,6 +1708,7 @@ export type Database = {
           discount_cents?: number
           id?: string
           item_type?: Database["public"]["Enums"]["pos_item_type"]
+          payout_cents?: number
           quantity?: number
           reference_id?: string | null
           staff_id?: string | null
@@ -1540,6 +1739,7 @@ export type Database = {
           appointment_id: string | null
           branch_id: string
           card_fee_cents: number
+          combo_id: string | null
           created_at: string
           customer_id: string | null
           discount_cents: number
@@ -1548,6 +1748,7 @@ export type Database = {
           org_id: string
           original_transaction_id: string | null
           register_id: string
+          room_id: string | null
           staff_id: string
           status: Database["public"]["Enums"]["pos_transaction_status"]
           subtotal_cents: number
@@ -1559,6 +1760,7 @@ export type Database = {
           appointment_id?: string | null
           branch_id: string
           card_fee_cents?: number
+          combo_id?: string | null
           created_at?: string
           customer_id?: string | null
           discount_cents?: number
@@ -1567,6 +1769,7 @@ export type Database = {
           org_id: string
           original_transaction_id?: string | null
           register_id: string
+          room_id?: string | null
           staff_id: string
           status?: Database["public"]["Enums"]["pos_transaction_status"]
           subtotal_cents?: number
@@ -1578,6 +1781,7 @@ export type Database = {
           appointment_id?: string | null
           branch_id?: string
           card_fee_cents?: number
+          combo_id?: string | null
           created_at?: string
           customer_id?: string | null
           discount_cents?: number
@@ -1586,6 +1790,7 @@ export type Database = {
           org_id?: string
           original_transaction_id?: string | null
           register_id?: string
+          room_id?: string | null
           staff_id?: string
           status?: Database["public"]["Enums"]["pos_transaction_status"]
           subtotal_cents?: number
@@ -1606,6 +1811,13 @@ export type Database = {
             columns: ["branch_id"]
             isOneToOne: false
             referencedRelation: "branches"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "pos_transactions_combo_id_fkey"
+            columns: ["combo_id"]
+            isOneToOne: false
+            referencedRelation: "service_combos"
             referencedColumns: ["id"]
           },
           {
@@ -1641,6 +1853,13 @@ export type Database = {
             columns: ["register_id"]
             isOneToOne: false
             referencedRelation: "pos_registers"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "pos_transactions_room_id_fkey"
+            columns: ["room_id"]
+            isOneToOne: false
+            referencedRelation: "branch_rooms"
             referencedColumns: ["id"]
           },
           {
@@ -1757,6 +1976,104 @@ export type Database = {
         Relationships: [
           {
             foreignKeyName: "service_categories_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      service_combo_members: {
+        Row: {
+          combo_id: string
+          service_id: string
+        }
+        Insert: {
+          combo_id: string
+          service_id: string
+        }
+        Update: {
+          combo_id?: string
+          service_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "service_combo_members_combo_id_fkey"
+            columns: ["combo_id"]
+            isOneToOne: false
+            referencedRelation: "service_combos"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "service_combo_members_service_id_fkey"
+            columns: ["service_id"]
+            isOneToOne: false
+            referencedRelation: "services"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      service_combo_prices: {
+        Row: {
+          branch_id: string | null
+          combo_id: string
+          duration_minutes: number
+          id: string
+          payout_cents: number
+          price_cents: number
+        }
+        Insert: {
+          branch_id?: string | null
+          combo_id: string
+          duration_minutes: number
+          id?: string
+          payout_cents: number
+          price_cents: number
+        }
+        Update: {
+          branch_id?: string | null
+          combo_id?: string
+          duration_minutes?: number
+          id?: string
+          payout_cents?: number
+          price_cents?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "service_combo_prices_branch_id_fkey"
+            columns: ["branch_id"]
+            isOneToOne: false
+            referencedRelation: "branches"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "service_combo_prices_combo_id_fkey"
+            columns: ["combo_id"]
+            isOneToOne: false
+            referencedRelation: "service_combos"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      service_combos: {
+        Row: {
+          id: string
+          name: string | null
+          org_id: string
+        }
+        Insert: {
+          id?: string
+          name?: string | null
+          org_id: string
+        }
+        Update: {
+          id?: string
+          name?: string | null
+          org_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "service_combos_org_id_fkey"
             columns: ["org_id"]
             isOneToOne: false
             referencedRelation: "organizations"
@@ -2039,6 +2356,59 @@ export type Database = {
           },
         ]
       }
+      staff_documents: {
+        Row: {
+          created_at: string
+          doc_type: Database["public"]["Enums"]["staff_document_type"]
+          expiry_date: string | null
+          file_url: string | null
+          file_url_back: string | null
+          id: string
+          is_required: boolean
+          issued_date: string | null
+          issuer: string | null
+          notes: string | null
+          number: string | null
+          staff_id: string
+        }
+        Insert: {
+          created_at?: string
+          doc_type: Database["public"]["Enums"]["staff_document_type"]
+          expiry_date?: string | null
+          file_url?: string | null
+          file_url_back?: string | null
+          id?: string
+          is_required?: boolean
+          issued_date?: string | null
+          issuer?: string | null
+          notes?: string | null
+          number?: string | null
+          staff_id: string
+        }
+        Update: {
+          created_at?: string
+          doc_type?: Database["public"]["Enums"]["staff_document_type"]
+          expiry_date?: string | null
+          file_url?: string | null
+          file_url_back?: string | null
+          id?: string
+          is_required?: boolean
+          issued_date?: string | null
+          issuer?: string | null
+          notes?: string | null
+          number?: string | null
+          staff_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "staff_documents_staff_id_fkey"
+            columns: ["staff_id"]
+            isOneToOne: false
+            referencedRelation: "staff"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       staff_invites: {
         Row: {
           accepted_at: string | null
@@ -2297,6 +2667,119 @@ export type Database = {
           },
         ]
       }
+      therapist_clock_sessions: {
+        Row: {
+          branch_id: string
+          clock_in_at: string
+          clock_out_at: string | null
+          id: string
+          jobs_today: number
+          queue_position: number
+          staff_id: string
+          status: Database["public"]["Enums"]["clock_status"]
+          work_date: string
+        }
+        Insert: {
+          branch_id: string
+          clock_in_at?: string
+          clock_out_at?: string | null
+          id?: string
+          jobs_today?: number
+          queue_position?: number
+          staff_id: string
+          status?: Database["public"]["Enums"]["clock_status"]
+          work_date: string
+        }
+        Update: {
+          branch_id?: string
+          clock_in_at?: string
+          clock_out_at?: string | null
+          id?: string
+          jobs_today?: number
+          queue_position?: number
+          staff_id?: string
+          status?: Database["public"]["Enums"]["clock_status"]
+          work_date?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "therapist_clock_sessions_branch_id_fkey"
+            columns: ["branch_id"]
+            isOneToOne: false
+            referencedRelation: "branches"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "therapist_clock_sessions_staff_id_fkey"
+            columns: ["staff_id"]
+            isOneToOne: false
+            referencedRelation: "staff"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      therapist_profiles: {
+        Row: {
+          bank_account_name: string | null
+          bank_account_number: string | null
+          bank_name: string | null
+          dob: string | null
+          end_date: string | null
+          gender: string | null
+          guarantee_override_cents: number | null
+          line_id: string | null
+          min_hours_override: number | null
+          nickname: string | null
+          notes: string | null
+          photo_url: string | null
+          staff_id: string
+          status: Database["public"]["Enums"]["therapist_status"]
+          updated_at: string
+        }
+        Insert: {
+          bank_account_name?: string | null
+          bank_account_number?: string | null
+          bank_name?: string | null
+          dob?: string | null
+          end_date?: string | null
+          gender?: string | null
+          guarantee_override_cents?: number | null
+          line_id?: string | null
+          min_hours_override?: number | null
+          nickname?: string | null
+          notes?: string | null
+          photo_url?: string | null
+          staff_id: string
+          status?: Database["public"]["Enums"]["therapist_status"]
+          updated_at?: string
+        }
+        Update: {
+          bank_account_name?: string | null
+          bank_account_number?: string | null
+          bank_name?: string | null
+          dob?: string | null
+          end_date?: string | null
+          gender?: string | null
+          guarantee_override_cents?: number | null
+          line_id?: string | null
+          min_hours_override?: number | null
+          nickname?: string | null
+          notes?: string | null
+          photo_url?: string | null
+          staff_id?: string
+          status?: Database["public"]["Enums"]["therapist_status"]
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "therapist_profiles_staff_id_fkey"
+            columns: ["staff_id"]
+            isOneToOne: true
+            referencedRelation: "staff"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       tips: {
         Row: {
           amount_cents: number
@@ -2514,6 +2997,7 @@ export type Database = {
         | "cancelled"
         | "no_show"
       billing_interval: "one_time" | "monthly" | "annual"
+      clock_status: "available" | "in_service" | "on_break" | "off_duty"
       customer_package_status: "active" | "expired" | "cancelled"
       deposit_status:
         | "not_required"
@@ -2538,6 +3022,7 @@ export type Database = {
         | "manual"
         | "adjustment"
       package_type: "prepaid_services" | "membership"
+      payroll_adjustment_type: "bonus" | "deduction" | "advance"
       pos_item_type: "service" | "product" | "package" | "membership_redemption"
       pos_payment_method:
         | "cash"
@@ -2553,8 +3038,19 @@ export type Database = {
         | "voided"
         | "refunded"
         | "partially_refunded"
+        | "open"
       role_type: "owner" | "manager" | "front_desk" | "therapist"
+      staff_document_type:
+        | "national_id"
+        | "house_registration"
+        | "certificate"
+        | "work_permit"
+        | "health_check"
+        | "contract"
+        | "bank_book"
+        | "other"
       store_credit_txn_type: "issue" | "redeem" | "adjust"
+      therapist_status: "active" | "probation" | "suspended" | "resigned"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -2693,6 +3189,7 @@ export const Constants = {
         "no_show",
       ],
       billing_interval: ["one_time", "monthly", "annual"],
+      clock_status: ["available", "in_service", "on_break", "off_duty"],
       customer_package_status: ["active", "expired", "cancelled"],
       deposit_status: ["not_required", "pending", "paid", "failed", "refunded"],
       drawer_session_status: ["open", "closed"],
@@ -2714,6 +3211,7 @@ export const Constants = {
         "adjustment",
       ],
       package_type: ["prepaid_services", "membership"],
+      payroll_adjustment_type: ["bonus", "deduction", "advance"],
       pos_item_type: ["service", "product", "package", "membership_redemption"],
       pos_payment_method: [
         "cash",
@@ -2730,9 +3228,21 @@ export const Constants = {
         "voided",
         "refunded",
         "partially_refunded",
+        "open",
       ],
       role_type: ["owner", "manager", "front_desk", "therapist"],
+      staff_document_type: [
+        "national_id",
+        "house_registration",
+        "certificate",
+        "work_permit",
+        "health_check",
+        "contract",
+        "bank_book",
+        "other",
+      ],
       store_credit_txn_type: ["issue", "redeem", "adjust"],
+      therapist_status: ["active", "probation", "suspended", "resigned"],
     },
   },
 } as const
