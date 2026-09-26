@@ -1,8 +1,11 @@
 import Link from "next/link";
 import { buttonVariants } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { checkOwnerExists } from "@/lib/auth/owner-actions";
 
-export default function HomePage() {
+export default async function HomePage() {
+  const ownerExists = await checkOwnerExists();
+
   return (
     <main className="mx-auto flex w-full max-w-4xl flex-1 flex-col items-center justify-center gap-10 px-6 py-20 text-center">
       <div className="space-y-3">
@@ -28,6 +31,14 @@ export default function HomePage() {
         >
           Staff sign in
         </Link>
+        {!ownerExists && (
+          <Link
+            href="/auth/admin-signup"
+            className={buttonVariants({ size: "lg", variant: "outline" })}
+          >
+            Set up admin account
+          </Link>
+        )}
       </div>
 
       <div className="grid w-full gap-4 sm:grid-cols-3">

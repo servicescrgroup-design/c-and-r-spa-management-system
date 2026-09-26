@@ -2406,6 +2406,10 @@ export type Database = {
       }
     }
     Functions: {
+      claim_owner_account: {
+        Args: { p_first_name: string; p_last_name: string }
+        Returns: undefined
+      }
       create_booking_request: {
         Args: {
           p_branch_id: string
@@ -2442,6 +2446,7 @@ export type Database = {
         }
         Returns: string
       }
+      owner_exists: { Args: never; Returns: boolean }
       post_pos_refund: {
         Args: { p_refund_transaction_id: string }
         Returns: undefined
