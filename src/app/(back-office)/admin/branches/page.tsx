@@ -1,8 +1,9 @@
 import { requireStaffContext } from "@/lib/auth/session";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { NewBranchForm } from "@/components/admin/new-branch-form";
 import { BranchSettingsForm } from "@/components/admin/branch-settings-form";
+import { BookingLink } from "@/components/admin/booking-link";
 import type { WeekHours } from "@/lib/admin/branch-actions";
 
 export default async function BranchesPage() {
@@ -59,9 +60,9 @@ export default async function BranchesPage() {
           <Card key={branch.id}>
             <CardHeader>
               <CardTitle>{branch.name}</CardTitle>
-              <CardDescription>/book/{branch.slug}</CardDescription>
             </CardHeader>
             <CardContent className="space-y-3">
+              <BookingLink slug={branch.slug} />
               <div className="flex flex-wrap gap-2 text-xs text-muted-foreground">
                 <span>{branch.is_active ? "Active" : "Inactive"}</span>
                 <span>&middot;</span>
