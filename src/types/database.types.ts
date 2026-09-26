@@ -1922,6 +1922,8 @@ export type Database = {
           retail_price_cents: number
           sku: string
           track_inventory: boolean
+          unit_amount: number | null
+          unit_label: string
         }
         Insert: {
           category_id?: string | null
@@ -1935,6 +1937,8 @@ export type Database = {
           retail_price_cents: number
           sku: string
           track_inventory?: boolean
+          unit_amount?: number | null
+          unit_label?: string
         }
         Update: {
           category_id?: string | null
@@ -1948,6 +1952,8 @@ export type Database = {
           retail_price_cents?: number
           sku?: string
           track_inventory?: boolean
+          unit_amount?: number | null
+          unit_label?: string
         }
         Relationships: [
           {

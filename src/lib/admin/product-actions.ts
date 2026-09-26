@@ -21,6 +21,9 @@ export async function createProduct(formData: FormData): Promise<ActionResult> {
   const sku = String(formData.get("sku") ?? "").trim();
   const costDollars = Number(formData.get("cost") || 0);
   const priceDollars = Number(formData.get("price"));
+  const unitLabel = String(formData.get("unitLabel") ?? "piece").trim() || "piece";
+  const unitAmountRaw = formData.get("unitAmount");
+  const unitAmount = unitAmountRaw ? Number(unitAmountRaw) : null;
 
   if (!name) return { ok: false, error: "Product name is required." };
   if (!sku) return { ok: false, error: "SKU is required." };
@@ -38,6 +41,8 @@ export async function createProduct(formData: FormData): Promise<ActionResult> {
     sku,
     cost_cents: Math.round(costDollars * 100),
     retail_price_cents: Math.round(priceDollars * 100),
+    unit_label: unitLabel,
+    unit_amount: unitAmount !== null && Number.isFinite(unitAmount) ? unitAmount : null,
   });
 
   if (error) return { ok: false, error: error.message };

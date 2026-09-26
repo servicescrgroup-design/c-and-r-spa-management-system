@@ -49,6 +49,25 @@ export function NewProductForm() {
           <Input id="price" name="price" type="number" min="0" step="0.01" required />
         </div>
       </div>
+      <div className="grid grid-cols-2 gap-3">
+        <div className="space-y-2">
+          <Label htmlFor="unitAmount">Amount</Label>
+          <Input id="unitAmount" name="unitAmount" type="number" min="0" step="0.01" placeholder="e.g. 500" />
+        </div>
+        <div className="space-y-2">
+          <Label htmlFor="unitLabel">Unit</Label>
+          <select id="unitLabel" name="unitLabel" defaultValue="piece" className="flex h-10 w-full rounded-md border border-border bg-background px-3 py-2 text-sm">
+            <option value="piece">piece</option>
+            <option value="ml">ml</option>
+            <option value="l">liter</option>
+            <option value="g">gram</option>
+            <option value="kg">kg</option>
+            <option value="bottle">bottle</option>
+            <option value="box">box</option>
+            <option value="pair">pair</option>
+          </select>
+        </div>
+      </div>
       {error && <p className="text-sm text-destructive">{error}</p>}
       <Button type="submit" disabled={loading}>
         {loading ? "Adding..." : "Add product"}
