@@ -97,7 +97,7 @@ export default async function AdminDashboardPage({ searchParams }: PageProps<"/a
           <CardTitle>Revenue by branch</CardTitle>
           <div className="flex flex-wrap items-center gap-3">
             <div className="flex gap-1 rounded-full border border-border bg-secondary/40 p-1">
-              {(["day", "month", "year"] as const).map((v) => (
+              {(["day", "month", "year", "custom"] as const).map((v) => (
                 <Link
                   key={v}
                   href={qs({ view: v })}
@@ -134,6 +134,25 @@ export default async function AdminDashboardPage({ searchParams }: PageProps<"/a
                   min="2020"
                   max="2100"
                   className="h-9 w-24 rounded-md border border-border bg-background px-2.5 text-sm"
+                />
+                <button type="submit" className="text-sm text-primary hover:underline">Go</button>
+              </form>
+            )}
+            {range.view === "custom" && (
+              <form className="flex items-center gap-2">
+                <input type="hidden" name="view" value="custom" />
+                <input
+                  type="date"
+                  name="start"
+                  defaultValue={spFlat.start ?? range.label.split(" to ")[0]}
+                  className="h-9 rounded-md border border-border bg-background px-2.5 text-sm"
+                />
+                <span className="text-sm text-muted-foreground">to</span>
+                <input
+                  type="date"
+                  name="end"
+                  defaultValue={spFlat.end ?? range.label.split(" to ")[1]}
+                  className="h-9 rounded-md border border-border bg-background px-2.5 text-sm"
                 />
                 <button type="submit" className="text-sm text-primary hover:underline">Go</button>
               </form>

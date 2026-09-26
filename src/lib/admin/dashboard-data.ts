@@ -72,16 +72,19 @@ export function resolveRange(sp: {
     };
   }
 
-  if (view === "custom" && sp.start && sp.end) {
-    const start = new Date(`${sp.start}T00:00:00+07:00`);
-    const endExclusive = new Date(new Date(`${sp.end}T00:00:00+07:00`).getTime() + 86_400_000);
+  if (view === "custom") {
+    const rawStart = sp.start ?? today;
+    const rawEnd = sp.end ?? rawStart;
+    const [startStr, endStr] = rawStart <= rawEnd ? [rawStart, rawEnd] : [rawEnd, rawStart];
+    const start = new Date(`${startStr}T00:00:00+07:00`);
+    const endExclusive = new Date(new Date(`${endStr}T00:00:00+07:00`).getTime() + 86_400_000);
     const spanDays = (endExclusive.getTime() - start.getTime()) / 86_400_000;
     return {
       view,
       startsAt: start,
       endsAtExclusive: endExclusive,
       granularity: spanDays > 31 ? "month" : "day",
-      label: `${sp.start} to ${sp.end}`,
+      label: `${startStr} to ${endStr}`,
     };
   }
 
