@@ -1,16 +1,23 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { requireStaffContext } from "@/lib/auth/session";
+import { isOwner } from "@/lib/auth/roles";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { StaffHRDetail } from "@/components/admin/staff-hr-detail";
 import { DepositLedgerCard } from "@/components/admin/deposit-ledger-card";
 import { StaffAccountEditor } from "@/components/admin/staff-account-editor";
-import { getDepositLedger, getTherapistJobHistory } from "@/lib/admin/staff-hr-actions";
+import {
+  getDepositLedger,
+  getTherapistJobHistory,
+  getDocumentCompleteness,
+  getTherapistLifetimeStats,
+} from "@/lib/admin/staff-hr-actions";
+import { getStaffCertifications, getCertifications } from "@/lib/admin/certification-actions";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { formatCents } from "@/lib/utils";
 
 export default async function StaffDetailPage({ params }: PageProps<"/admin/staff/[staffId]">) {
-  await requireStaffContext();
+  const ctx = await requireStaffContext();
   const { staffId } = await params;
   const supabase = await createServerSupabaseClient();
 
@@ -22,9 +29,12 @@ export default async function StaffDetailPage({ params }: PageProps<"/admin/staf
     { data: services },
     { data: branchRoles },
     { data: branches },
-    { data: complete },
     depositLedger,
     jobHistory,
+    documentCompleteness,
+    lifetimeStats,
+    staffCertifications,
+    allCertifications,
   ] = await Promise.all([
     supabase.from("staff").select("id, first_name, last_name, email, phone, employment_status").eq("id", staffId).maybeSingle(),
     supabase.from("therapist_profiles").select("*").eq("staff_id", staffId).maybeSingle(),
@@ -33,9 +43,12 @@ export default async function StaffDetailPage({ params }: PageProps<"/admin/staf
     supabase.from("services").select("id, name").eq("is_active", true).order("name"),
     supabase.from("staff_branch_roles").select("branch_id, is_home").eq("staff_id", staffId).eq("role", "therapist"),
     supabase.from("branches").select("id, name").order("name"),
-    supabase.rpc("therapist_documents_complete", { p_staff_id: staffId }),
     getDepositLedger(staffId),
     getTherapistJobHistory(staffId),
+    getDocumentCompleteness(staffId),
+    getTherapistLifetimeStats(staffId),
+    getStaffCertifications(staffId),
+    getCertifications(),
   ]);
 
   if (!staff) notFound();
@@ -66,6 +79,32 @@ export default async function StaffDetailPage({ params }: PageProps<"/admin/staf
             balanceCents={depositLedger.balanceCents}
             branches={branches ?? []}
           />
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Lifetime &amp; current pay period</CardTitle>
+          <CardDescription>Total hours massaged and money earned at C&amp;R, plus the current bi-weekly period ({lifetimeStats.currentPeriodLabel}).</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="grid gap-4 sm:grid-cols-2">
+            <div className="rounded-xl bg-muted/40 p-3">
+              <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Current pay period</p>
+              <p className="font-display mt-1 text-xl">{formatCents(lifetimeStats.currentPeriodEarningsCents)}</p>
+              <p className="text-xs text-muted-foreground">{lifetimeStats.currentPeriodHours}h massaged</p>
+            </div>
+            <div className="rounded-xl bg-muted/40 p-3">
+              <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Lifetime at C&amp;R</p>
+              <p className="font-display mt-1 text-xl">{formatCents(lifetimeStats.lifetimeEarningsCents)}</p>
+              <p className="text-xs text-muted-foreground">{lifetimeStats.lifetimeHours}h massaged</p>
+            </div>
+          </div>
+          {profile?.start_date && (
+            <p className="mt-3 text-xs text-muted-foreground">
+              Joined {new Date(profile.start_date).toLocaleDateString(undefined, { year: "numeric", month: "long", day: "numeric" })}
+            </p>
+          )}
         </CardContent>
       </Card>
 
@@ -137,7 +176,10 @@ export default async function StaffDetailPage({ params }: PageProps<"/admin/staf
         assignedBranchIds={(branchRoles ?? []).map((r) => r.branch_id).filter((id): id is string => Boolean(id))}
         homeBranchId={(branchRoles ?? []).find((r) => r.is_home)?.branch_id ?? null}
         branches={branches ?? []}
-        documentsComplete={complete ?? true}
+        documentCompleteness={documentCompleteness}
+        staffCertifications={staffCertifications}
+        allCertifications={allCertifications}
+        isOwnerViewer={isOwner(ctx)}
       />
     </div>
   );

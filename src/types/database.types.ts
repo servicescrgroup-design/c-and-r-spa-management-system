@@ -584,6 +584,35 @@ export type Database = {
           },
         ]
       }
+      certifications: {
+        Row: {
+          created_at: string
+          id: string
+          name: string
+          org_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          name: string
+          org_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          name?: string
+          org_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "certifications_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       commission_rules: {
         Row: {
           branch_id: string | null
@@ -2486,6 +2515,61 @@ export type Database = {
           },
         ]
       }
+      staff_certifications: {
+        Row: {
+          approved_at: string | null
+          approved_by_staff_id: string | null
+          certification_id: string
+          created_at: string
+          id: string
+          notes: string | null
+          staff_id: string
+          status: string
+        }
+        Insert: {
+          approved_at?: string | null
+          approved_by_staff_id?: string | null
+          certification_id: string
+          created_at?: string
+          id?: string
+          notes?: string | null
+          staff_id: string
+          status?: string
+        }
+        Update: {
+          approved_at?: string | null
+          approved_by_staff_id?: string | null
+          certification_id?: string
+          created_at?: string
+          id?: string
+          notes?: string | null
+          staff_id?: string
+          status?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "staff_certifications_approved_by_staff_id_fkey"
+            columns: ["approved_by_staff_id"]
+            isOneToOne: false
+            referencedRelation: "staff"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "staff_certifications_certification_id_fkey"
+            columns: ["certification_id"]
+            isOneToOne: false
+            referencedRelation: "certifications"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "staff_certifications_staff_id_fkey"
+            columns: ["staff_id"]
+            isOneToOne: false
+            referencedRelation: "staff"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       staff_commissions: {
         Row: {
           base_amount_cents: number
@@ -2980,6 +3064,7 @@ export type Database = {
           notes: string | null
           photo_url: string | null
           staff_id: string
+          start_date: string | null
           status: Database["public"]["Enums"]["therapist_status"]
           updated_at: string
         }
@@ -2997,6 +3082,7 @@ export type Database = {
           notes?: string | null
           photo_url?: string | null
           staff_id: string
+          start_date?: string | null
           status?: Database["public"]["Enums"]["therapist_status"]
           updated_at?: string
         }
@@ -3014,6 +3100,7 @@ export type Database = {
           notes?: string | null
           photo_url?: string | null
           staff_id?: string
+          start_date?: string | null
           status?: Database["public"]["Enums"]["therapist_status"]
           updated_at?: string
         }

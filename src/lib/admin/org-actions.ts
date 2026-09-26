@@ -4,8 +4,11 @@ import { revalidatePath } from "next/cache";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { requireStaffContext } from "@/lib/auth/session";
 import { isOwner } from "@/lib/auth/roles";
+import type { DocType } from "@/lib/staff-document-types";
 
 type ActionResult = { ok: true } | { ok: false; error: string };
+
+const DEFAULT_REQUIRED_DOC_TYPES: DocType[] = ["national_id", "work_permit", "health_check"];
 
 export type OrganizationSettings = {
   id: string;
@@ -40,6 +43,34 @@ export async function updateOrganization(formData: FormData): Promise<ActionResu
   if (error) return { ok: false, error: error.message };
 
   revalidatePath("/admin/settings");
+  return { ok: true };
+}
+
+/** Which document types every therapist must have on file, org-wide. Stored
+ * in organizations.settings (jsonb) rather than a separate table since it's
+ * a single list, not per-row data. */
+export async function getRequiredDocumentTypes(): Promise<DocType[]> {
+  await requireStaffContext();
+  const supabase = await createServerSupabaseClient();
+  const { data } = await supabase.from("organizations").select("settings").limit(1).maybeSingle();
+  const settings = data?.settings as { requiredDocumentTypes?: DocType[] } | null;
+  return Array.isArray(settings?.requiredDocumentTypes) ? settings.requiredDocumentTypes : DEFAULT_REQUIRED_DOC_TYPES;
+}
+
+export async function setRequiredDocumentTypes(types: DocType[]): Promise<ActionResult> {
+  const ctx = await requireStaffContext();
+  if (!isOwner(ctx)) return { ok: false, error: "Only an owner can change required documents." };
+
+  const supabase = await createServerSupabaseClient();
+  const { data: org } = await supabase.from("organizations").select("id, settings").limit(1).single();
+  if (!org) return { ok: false, error: "No organization found." };
+
+  const settings = { ...((org.settings as Record<string, unknown> | null) ?? {}), requiredDocumentTypes: types };
+  const { error } = await supabase.from("organizations").update({ settings }).eq("id", org.id);
+  if (error) return { ok: false, error: error.message };
+
+  revalidatePath("/admin/settings");
+  revalidatePath("/admin/staff");
   return { ok: true };
 }
 

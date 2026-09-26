@@ -7,6 +7,7 @@ import { StaffRoleEditor } from "@/components/admin/staff-role-editor";
 import { StaffAccountEditor } from "@/components/admin/staff-account-editor";
 import { RoleCapabilitiesCard } from "@/components/admin/role-capabilities-card";
 import { TherapistList } from "@/components/admin/therapist-list";
+import { getApprovedCertificationsByStaff } from "@/lib/admin/certification-actions";
 import { roleLabel } from "@/lib/role-labels";
 
 type RoleRow = { role: "owner" | "manager" | "front_desk" | "therapist"; branch_id: string | null };
@@ -111,6 +112,8 @@ export default async function StaffPage() {
   const therapists = allStaff.filter((s) => !primaryAdminRole(s.staff_branch_roles) && s.staff_branch_roles.some((r) => r.role === "therapist"));
   const unassigned = allStaff.filter((s) => !primaryAdminRole(s.staff_branch_roles) && !s.staff_branch_roles.some((r) => r.role === "therapist"));
 
+  const certificationsByStaff = await getApprovedCertificationsByStaff(therapists.map((s) => s.id));
+
   const siteUrl = process.env.NEXT_PUBLIC_SITE_URL ?? "";
 
   return (
@@ -152,6 +155,7 @@ export default async function StaffPage() {
             last_name: s.last_name,
             email: s.email,
             branchNames: s.staff_branch_roles.filter((r) => r.role === "therapist").map((r) => branchName(r.branch_id)),
+            certifications: certificationsByStaff[s.id] ?? [],
           }))}
         />
       </section>

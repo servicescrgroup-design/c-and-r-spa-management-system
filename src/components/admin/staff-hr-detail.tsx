@@ -10,7 +10,16 @@ import {
   upsertStaffDocument,
   deleteStaffDocument,
   getDocumentSignedUrl,
+  type DocCompletenessRow,
 } from "@/lib/admin/staff-hr-actions";
+import {
+  addStaffCertification,
+  approveStaffCertification,
+  removeStaffCertification,
+  type Certification,
+  type StaffCertification,
+} from "@/lib/admin/certification-actions";
+import { DOC_TYPES, docLabel } from "@/lib/staff-document-types";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -23,6 +32,7 @@ type TherapistProfile = {
   line_id: string | null;
   dob: string | null;
   gender: string | null;
+  start_date: string | null;
   end_date: string | null;
   status: "active" | "probation" | "suspended" | "resigned";
   bank_name: string | null;
@@ -46,21 +56,6 @@ type StaffDocument = {
   file_url_back: string | null;
   notes: string | null;
 };
-
-const DOC_TYPES = [
-  { value: "national_id", label: "National ID card" },
-  { value: "house_registration", label: "House registration (ทะเบียนบ้าน)" },
-  { value: "certificate", label: "Certificate" },
-  { value: "work_permit", label: "Work permit" },
-  { value: "health_check", label: "Health check" },
-  { value: "contract", label: "Contract" },
-  { value: "bank_book", label: "Bank book photo" },
-  { value: "other", label: "Other" },
-];
-
-function docLabel(type: string) {
-  return DOC_TYPES.find((d) => d.value === type)?.label ?? type;
-}
 
 function isExpired(expiryDate: string | null) {
   return Boolean(expiryDate && new Date(expiryDate) < new Date());
@@ -113,6 +108,10 @@ function ProfileForm({ staffId, profile }: { staffId: string; profile: Therapist
             <option value="suspended">Suspended</option>
             <option value="resigned">Resigned</option>
           </select>
+        </div>
+        <div className="space-y-2">
+          <Label htmlFor="startDate">Join date</Label>
+          <Input id="startDate" name="startDate" type="date" defaultValue={profile?.start_date ?? ""} />
         </div>
         <div className="space-y-2">
           <Label htmlFor="endDate">End date</Label>
@@ -428,6 +427,147 @@ function AddDocumentForm({ staffId }: { staffId: string }) {
   );
 }
 
+function CompletenessChecklist({ rows }: { rows: DocCompletenessRow[] }) {
+  if (rows.length === 0) {
+    return <p className="text-sm text-muted-foreground">No documents are configured as required yet. Set them up in Settings.</p>;
+  }
+  const allComplete = rows.every((r) => r.status === "complete");
+
+  return (
+    <div className="space-y-2">
+      {allComplete && <p className="text-sm text-primary">All required documents are on file and current.</p>}
+      <ul className="space-y-1.5">
+        {rows.map((r) => (
+          <li key={r.docType} className="flex items-center gap-2 text-sm">
+            <span
+              className={cn(
+                "flex h-5 w-5 shrink-0 items-center justify-center rounded-full text-xs font-bold",
+                r.status === "complete" ? "bg-emerald-100 text-emerald-700" : "bg-red-100 text-red-700",
+              )}
+            >
+              {r.status === "complete" ? "✓" : "✕"}
+            </span>
+            <span className={r.status === "complete" ? "" : "text-destructive"}>
+              {r.label}
+              {r.status === "expired" && " — expired"}
+              {r.status === "missing" && " — missing"}
+            </span>
+          </li>
+        ))}
+      </ul>
+    </div>
+  );
+}
+
+function CertificationsCard({
+  staffId,
+  staffCertifications,
+  allCertifications,
+  isOwnerViewer,
+}: {
+  staffId: string;
+  staffCertifications: StaffCertification[];
+  allCertifications: Certification[];
+  isOwnerViewer: boolean;
+}) {
+  const router = useRouter();
+  const [selected, setSelected] = useState("");
+  const [loading, setLoading] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  const assignedIds = new Set(staffCertifications.map((c) => c.certificationId));
+  const available = allCertifications.filter((c) => !assignedIds.has(c.id));
+
+  async function add() {
+    if (!selected) return;
+    setLoading("add");
+    setError(null);
+    const result = await addStaffCertification(staffId, selected);
+    setLoading(null);
+    if (!result.ok) return setError(result.error);
+    setSelected("");
+    router.refresh();
+  }
+
+  async function approve(id: string) {
+    setLoading(id);
+    setError(null);
+    const result = await approveStaffCertification(staffId, id);
+    setLoading(null);
+    if (!result.ok) return setError(result.error);
+    router.refresh();
+  }
+
+  async function remove(id: string) {
+    setLoading(id);
+    setError(null);
+    const result = await removeStaffCertification(staffId, id);
+    setLoading(null);
+    if (!result.ok) return setError(result.error);
+    router.refresh();
+  }
+
+  return (
+    <div className="space-y-3">
+      {staffCertifications.length === 0 ? (
+        <p className="text-sm text-muted-foreground">No specialties/certifications assigned yet.</p>
+      ) : (
+        <ul className="space-y-2">
+          {staffCertifications.map((c) => (
+            <li key={c.id} className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-border p-2.5 text-sm">
+              <span className="flex items-center gap-2">
+                <span
+                  className={cn(
+                    "rounded-full px-2.5 py-1 text-xs font-medium",
+                    c.status === "approved" ? "bg-emerald-100 text-emerald-800" : "bg-amber-100 text-amber-800",
+                  )}
+                >
+                  {c.status === "approved" ? "Approved" : "Pending"}
+                </span>
+                {c.name}
+              </span>
+              <span className="flex items-center gap-3">
+                {c.status === "pending" && isOwnerViewer && (
+                  <button type="button" disabled={loading === c.id} onClick={() => approve(c.id)} className="text-xs text-primary hover:underline">
+                    {loading === c.id ? "Approving..." : "Approve"}
+                  </button>
+                )}
+                <button type="button" disabled={loading === c.id} onClick={() => remove(c.id)} className="text-xs text-muted-foreground hover:text-destructive">
+                  Remove
+                </button>
+              </span>
+            </li>
+          ))}
+        </ul>
+      )}
+
+      {available.length > 0 && (
+        <div className="flex items-center gap-2">
+          <select
+            value={selected}
+            onChange={(e) => setSelected(e.target.value)}
+            className="flex h-9 rounded-md border border-border bg-background px-2.5 text-sm"
+          >
+            <option value="">Choose a specialty...</option>
+            {available.map((c) => (
+              <option key={c.id} value={c.id}>
+                {c.name}
+              </option>
+            ))}
+          </select>
+          <Button type="button" size="sm" disabled={!selected || loading === "add"} onClick={add}>
+            {loading === "add" ? "Adding..." : "Assign"}
+          </Button>
+        </div>
+      )}
+      {allCertifications.length === 0 && (
+        <p className="text-xs text-muted-foreground">No certifications defined yet — add some in Settings.</p>
+      )}
+      {error && <p className="text-sm text-destructive">{error}</p>}
+    </div>
+  );
+}
+
 export function StaffHRDetail({
   staffId,
   profile,
@@ -437,7 +577,10 @@ export function StaffHRDetail({
   assignedBranchIds,
   homeBranchId,
   branches,
-  documentsComplete,
+  documentCompleteness,
+  staffCertifications,
+  allCertifications,
+  isOwnerViewer,
 }: {
   staffId: string;
   profile: TherapistProfile;
@@ -447,10 +590,11 @@ export function StaffHRDetail({
   assignedBranchIds: string[];
   homeBranchId: string | null;
   branches: { id: string; name: string }[];
-  documentsComplete: boolean;
+  documentCompleteness: DocCompletenessRow[];
+  staffCertifications: StaffCertification[];
+  allCertifications: Certification[];
+  isOwnerViewer: boolean;
 }) {
-  const missing = documents.filter((d) => d.is_required && (!d.file_url || isExpired(d.expiry_date)));
-
   return (
     <div className="space-y-6">
       <Card>
@@ -458,20 +602,21 @@ export function StaffHRDetail({
           <CardTitle>Completeness</CardTitle>
         </CardHeader>
         <CardContent>
-          {documentsComplete ? (
-            <p className="text-sm text-primary">All required documents are on file and current.</p>
-          ) : (
-            <div className="space-y-1 text-sm">
-              <p className="font-medium text-destructive">Needs attention:</p>
-              <ul className="list-inside list-disc text-muted-foreground">
-                {missing.map((d) => (
-                  <li key={d.id}>
-                    {docLabel(d.doc_type)} — {!d.file_url ? "missing file" : "expired"}
-                  </li>
-                ))}
-              </ul>
-            </div>
-          )}
+          <CompletenessChecklist rows={documentCompleteness} />
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Specialties &amp; certifications</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <CertificationsCard
+            staffId={staffId}
+            staffCertifications={staffCertifications}
+            allCertifications={allCertifications}
+            isOwnerViewer={isOwnerViewer}
+          />
         </CardContent>
       </Card>
 

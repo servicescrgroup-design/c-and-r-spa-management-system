@@ -2,10 +2,13 @@ import { notFound } from "next/navigation";
 import Link from "next/link";
 import { requireStaffContext } from "@/lib/auth/session";
 import { isOwner } from "@/lib/auth/roles";
-import { getOrganization } from "@/lib/admin/org-actions";
+import { getOrganization, getRequiredDocumentTypes } from "@/lib/admin/org-actions";
+import { getCertifications } from "@/lib/admin/certification-actions";
 import { OrgSettingsForm } from "@/components/admin/org-settings-form";
 import { ChangePasswordForm } from "@/components/admin/change-password-form";
 import { RoleCapabilitiesCard } from "@/components/admin/role-capabilities-card";
+import { RequiredDocumentsForm } from "@/components/admin/required-documents-form";
+import { CertificationsManager } from "@/components/admin/certifications-manager";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 
 const QUICK_LINKS = [
@@ -21,7 +24,11 @@ const QUICK_LINKS = [
 
 export default async function SettingsPage() {
   const ctx = await requireStaffContext();
-  const org = await getOrganization();
+  const [org, requiredDocTypes, certifications] = await Promise.all([
+    getOrganization(),
+    getRequiredDocumentTypes(),
+    getCertifications(),
+  ]);
   if (!org) notFound();
 
   return (
@@ -75,6 +82,26 @@ export default async function SettingsPage() {
           </CardContent>
         </Card>
       )}
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Required documents</CardTitle>
+          <CardDescription>What every therapist&apos;s Completeness checklist checks for.</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <RequiredDocumentsForm initialTypes={requiredDocTypes} />
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Specialties &amp; certifications</CardTitle>
+          <CardDescription>The master list therapists can be assigned and approved for.</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <CertificationsManager certifications={certifications} isOwnerViewer={isOwner(ctx)} />
+        </CardContent>
+      </Card>
 
       <Card>
         <CardHeader>

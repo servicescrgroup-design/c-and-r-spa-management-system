@@ -14,6 +14,7 @@ type Therapist = {
   last_name: string;
   email: string;
   branchNames: string[];
+  certifications: string[];
 };
 
 export function TherapistList({ therapists }: { therapists: Therapist[] }) {
@@ -78,10 +79,15 @@ export function TherapistList({ therapists }: { therapists: Therapist[] }) {
                   aria-label={`Select ${name}`}
                 />
                 <div className="min-w-0 flex-1">
-                  <CardTitle>
+                  <CardTitle className="flex flex-wrap items-center gap-2">
                     <Link href={`/admin/staff/${t.id}`} className="hover:underline">
                       {name}
                     </Link>
+                    {t.certifications.map((cert) => (
+                      <span key={cert} className="rounded-full bg-emerald-100 px-2 py-0.5 text-xs font-medium text-emerald-800">
+                        {cert}
+                      </span>
+                    ))}
                   </CardTitle>
                   <CardDescription>{t.email}</CardDescription>
                 </div>

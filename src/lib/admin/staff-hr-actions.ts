@@ -5,11 +5,12 @@ import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { createAdminSupabaseClient } from "@/lib/supabase/admin";
 import { requireStaffContext } from "@/lib/auth/session";
 import { isOwner } from "@/lib/auth/roles";
+import { getRequiredDocumentTypes } from "@/lib/admin/org-actions";
+import { docLabel, type DocType } from "@/lib/staff-document-types";
 import type { Enums } from "@/types/database.types";
 
 type ActionResult = { ok: true } | { ok: false; error: string };
 type TherapistStatus = Enums<"therapist_status">;
-type DocType = Enums<"staff_document_type">;
 
 function canManageHR(ctx: Awaited<ReturnType<typeof requireStaffContext>>) {
   return isOwner(ctx) || ctx.roles.some((r) => r.role === "manager");
@@ -60,6 +61,7 @@ export async function updateTherapistProfile(staffId: string, formData: FormData
   const lineId = String(formData.get("lineId") ?? "").trim() || null;
   const dob = String(formData.get("dob") ?? "").trim() || null;
   const gender = String(formData.get("gender") ?? "").trim() || null;
+  const startDate = String(formData.get("startDate") ?? "").trim() || null;
   const endDate = String(formData.get("endDate") ?? "").trim() || null;
   const status = String(formData.get("status") ?? "active") as TherapistStatus;
   const bankName = String(formData.get("bankName") ?? "").trim() || null;
@@ -75,6 +77,7 @@ export async function updateTherapistProfile(staffId: string, formData: FormData
     line_id: lineId,
     dob,
     gender,
+    start_date: startDate,
     end_date: endDate,
     status,
     bank_name: bankName,
@@ -391,5 +394,103 @@ export async function getTherapistJobHistory(staffId: string): Promise<{ jobs: T
     jobs,
     weekTotalCents: jobs.reduce((sum, j) => sum + j.payoutCents, 0),
     weekCount: jobs.length,
+  };
+}
+
+export type DocCompletenessRow = { docType: DocType; label: string; status: "complete" | "missing" | "expired" };
+
+/** Checks the org's configured required-document list (set in Settings)
+ * against what's actually on file for this therapist — every configured
+ * type gets a row here, whether or not a document was ever added. */
+export async function getDocumentCompleteness(staffId: string): Promise<DocCompletenessRow[]> {
+  await requireStaffContext();
+  const supabase = await createServerSupabaseClient();
+  const requiredTypes = await getRequiredDocumentTypes();
+
+  const { data: docs } = await supabase
+    .from("staff_documents")
+    .select("doc_type, file_url, expiry_date")
+    .eq("staff_id", staffId);
+
+  const today = bangkokDate(new Date());
+
+  return requiredTypes.map((docType) => {
+    const matches = (docs ?? []).filter((d) => d.doc_type === docType);
+    const hasValid = matches.some((d) => d.file_url && !(d.expiry_date && d.expiry_date < today));
+    const hasExpiredOnly = !hasValid && matches.some((d) => d.file_url && d.expiry_date && d.expiry_date < today);
+    return {
+      docType,
+      label: docLabel(docType),
+      status: hasValid ? "complete" : hasExpiredOnly ? "expired" : "missing",
+    };
+  });
+}
+
+export type StaffLifetimeStats = {
+  lifetimeHours: number;
+  lifetimeEarningsCents: number;
+  currentPeriodLabel: string;
+  currentPeriodHours: number;
+  currentPeriodEarningsCents: number;
+};
+
+/** Semi-monthly pay period (1st–15th, 16th–end of month) containing `date`,
+ * in Bangkok time. A simple, gapless approximation of the business's
+ * twice-a-month payday cadence, used only for the at-a-glance stat on a
+ * therapist's profile — the payroll screens remain the source of truth. */
+function semiMonthlyPeriod(date: Date): { start: string; end: string; label: string } {
+  const parts = new Intl.DateTimeFormat("en-CA", {
+    timeZone: "Asia/Bangkok",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  })
+    .format(date)
+    .split("-");
+  const year = Number(parts[0]);
+  const month = Number(parts[1]);
+  const day = Number(parts[2]);
+  const mm = String(month).padStart(2, "0");
+
+  if (day <= 15) {
+    const start = `${year}-${mm}-01`;
+    const end = `${year}-${mm}-15`;
+    return { start, end, label: `${start} to ${end}` };
+  }
+  const lastDay = new Date(Date.UTC(year, month, 0)).getUTCDate();
+  const start = `${year}-${mm}-16`;
+  const end = `${year}-${mm}-${String(lastDay).padStart(2, "0")}`;
+  return { start, end, label: `${start} to ${end}` };
+}
+
+export async function getTherapistLifetimeStats(staffId: string): Promise<StaffLifetimeStats> {
+  await requireStaffContext();
+  const supabase = await createServerSupabaseClient();
+
+  const { data: items } = await supabase
+    .from("pos_transaction_items")
+    .select("duration_minutes, payout_cents, completed_at")
+    .eq("staff_id", staffId)
+    .not("completed_at", "is", null);
+
+  const all = items ?? [];
+  const lifetimeMinutes = all.reduce((sum, i) => sum + (i.duration_minutes ?? 0), 0);
+  const lifetimeEarningsCents = all.reduce((sum, i) => sum + i.payout_cents, 0);
+
+  const period = semiMonthlyPeriod(new Date());
+  const periodStartMs = new Date(`${period.start}T00:00:00+07:00`).getTime();
+  const periodEndExclusiveMs = new Date(`${period.end}T00:00:00+07:00`).getTime() + 86_400_000;
+
+  const periodItems = all.filter((i) => {
+    const t = new Date(i.completed_at!).getTime();
+    return t >= periodStartMs && t < periodEndExclusiveMs;
+  });
+
+  return {
+    lifetimeHours: Math.round((lifetimeMinutes / 60) * 10) / 10,
+    lifetimeEarningsCents,
+    currentPeriodLabel: period.label,
+    currentPeriodHours: Math.round((periodItems.reduce((sum, i) => sum + (i.duration_minutes ?? 0), 0) / 60) * 10) / 10,
+    currentPeriodEarningsCents: periodItems.reduce((sum, i) => sum + i.payout_cents, 0),
   };
 }
