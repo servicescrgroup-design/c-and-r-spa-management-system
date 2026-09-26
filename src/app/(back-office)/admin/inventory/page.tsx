@@ -3,14 +3,17 @@ import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { NewProductForm } from "@/components/admin/new-product-form";
 import { ReceiveStockForm } from "@/components/admin/receive-stock-form";
+import { AdjustStockForm } from "@/components/admin/adjust-stock-form";
 import { ProductCatalog } from "@/components/admin/product-catalog";
+import { InventoryHistory } from "@/components/admin/inventory-history";
+import { getInventoryHistory } from "@/lib/admin/product-actions";
 import { formatCents } from "@/lib/utils";
 
 export default async function InventoryPage() {
   await requireStaffContext();
   const supabase = await createServerSupabaseClient();
 
-  const [{ data: products }, { data: branches }, { data: inventory }, { data: overrides }] = await Promise.all([
+  const [{ data: products }, { data: branches }, { data: inventory }, { data: overrides }, history] = await Promise.all([
     supabase
       .from("products")
       .select("id, name, sku, retail_price_cents, cost_cents, unit_label, unit_amount, image_url, sort_order")
@@ -18,6 +21,7 @@ export default async function InventoryPage() {
     supabase.from("branches").select("id, name").order("sort_order").order("name"),
     supabase.from("branch_inventory").select("branch_id, product_id, quantity_on_hand, reorder_threshold"),
     supabase.from("branch_product_overrides").select("branch_id, product_id, is_carried"),
+    getInventoryHistory(),
   ]);
 
   const inventoryByProduct: Record<string, { branch_id: string; quantity_on_hand: number; reorder_threshold: number }[]> = {};
@@ -44,7 +48,7 @@ export default async function InventoryPage() {
         carriedOverrides={carriedOverrides}
       />
 
-      <div className="grid gap-4 sm:grid-cols-2">
+      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
         <Card>
           <CardHeader>
             <CardTitle>Add a product</CardTitle>
@@ -60,6 +64,18 @@ export default async function InventoryPage() {
           </CardHeader>
           <CardContent>
             <ReceiveStockForm
+              branches={branches ?? []}
+              products={(products ?? []).map((p) => ({ id: p.id, name: p.name }))}
+            />
+          </CardContent>
+        </Card>
+        <Card>
+          <CardHeader>
+            <CardTitle>Adjust stock</CardTitle>
+            <CardDescription>Correct a count, note damage/loss, or record a transfer.</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <AdjustStockForm
               branches={branches ?? []}
               products={(products ?? []).map((p) => ({ id: p.id, name: p.name }))}
             />
@@ -125,6 +141,16 @@ export default async function InventoryPage() {
               )}
             </tbody>
           </table>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Stock history</CardTitle>
+          <CardDescription>Every stock change — receiving, adjustments, sales, and refunds. Edit or delete a mistaken entry.</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <InventoryHistory entries={history} />
         </CardContent>
       </Card>
     </div>

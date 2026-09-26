@@ -1219,6 +1219,7 @@ export type Database = {
           branch_id: string
           created_at: string
           id: string
+          notes: string | null
           product_id: string
           quantity_delta: number
           reason: Database["public"]["Enums"]["inventory_adjustment_reason"]
@@ -1230,6 +1231,7 @@ export type Database = {
           branch_id: string
           created_at?: string
           id?: string
+          notes?: string | null
           product_id: string
           quantity_delta: number
           reason: Database["public"]["Enums"]["inventory_adjustment_reason"]
@@ -1241,6 +1243,7 @@ export type Database = {
           branch_id?: string
           created_at?: string
           id?: string
+          notes?: string | null
           product_id?: string
           quantity_delta?: number
           reason?: Database["public"]["Enums"]["inventory_adjustment_reason"]

@@ -30,6 +30,9 @@ export default async function AdminLayout({ children }: LayoutProps<"/admin">) {
       <header className="flex items-center justify-between border-b border-border bg-card px-4 py-3 sm:hidden">
         <p className="text-sm font-semibold">C&amp;R Back Office</p>
         <div className="flex items-center gap-3">
+          <Link href="/" className="text-sm text-muted-foreground hover:text-foreground">
+            Homepage
+          </Link>
           <Link href="/admin/settings" className="text-sm text-muted-foreground hover:text-foreground">
             Settings
           </Link>
@@ -75,7 +78,17 @@ export default async function AdminLayout({ children }: LayoutProps<"/admin">) {
           </button>
         </form>
       </aside>
-      <main className="flex-1 p-4 sm:p-6">{children}</main>
+      <div className="flex min-w-0 flex-1 flex-col">
+        <div className="hidden justify-end border-b border-border bg-card px-6 py-2.5 sm:flex">
+          <Link
+            href="/"
+            className="rounded-full border border-border px-3.5 py-1.5 text-sm text-muted-foreground transition-colors hover:border-foreground hover:text-foreground"
+          >
+            &larr; Back to homepage
+          </Link>
+        </div>
+        <main className="flex-1 p-4 sm:p-6">{children}</main>
+      </div>
     </div>
   );
 }
