@@ -90,14 +90,14 @@ export default async function StaffDetailPage({ params }: PageProps<"/admin/staf
         <CardContent>
           <div className="grid gap-4 sm:grid-cols-2">
             <div className="rounded-xl bg-muted/40 p-3">
-              <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Current pay period &middot; earned</p>
+              <p className="text-xs font-medium text-muted-foreground">Current pay period &middot; earned</p>
               <p className="font-display mt-1 text-xl">{formatCents(lifetimeStats.currentPeriodEarningsCents)}</p>
               <p className="text-xs text-muted-foreground">
                 {lifetimeStats.currentPeriodHours}h massaged &middot; {formatCents(lifetimeStats.currentPeriodRevenueCents)} revenue
               </p>
             </div>
             <div className="rounded-xl bg-primary/10 p-3">
-              <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Lifetime revenue at C&amp;R</p>
+              <p className="text-xs font-medium text-muted-foreground">Lifetime revenue at C&amp;R</p>
               <p className="font-display mt-1 text-xl text-primary">{formatCents(lifetimeStats.lifetimeRevenueCents)}</p>
               <p className="text-xs text-muted-foreground">
                 {lifetimeStats.lifetimeHours}h massaged &middot; {formatCents(lifetimeStats.lifetimeEarningsCents)} paid out
@@ -126,7 +126,7 @@ export default async function StaffDetailPage({ params }: PageProps<"/admin/staf
             <div className="overflow-x-auto">
               <table className="w-full min-w-[560px] text-sm">
                 <thead>
-                  <tr className="border-b border-border text-left text-xs uppercase tracking-wide text-muted-foreground">
+                  <tr className="border-b border-border text-left text-xs text-muted-foreground">
                     <th className="py-2 pr-3">When</th>
                     <th className="px-3 py-2">Branch</th>
                     <th className="px-3 py-2">Massage</th>

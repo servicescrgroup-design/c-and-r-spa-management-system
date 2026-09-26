@@ -18,19 +18,19 @@ export function ReceptionistPayrollBoard({ summary }: { summary: ReceptionistPay
         </CardHeader>
         <CardContent className="grid gap-4 sm:grid-cols-3">
           <div className="rounded-xl bg-muted/40 p-3">
-            <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Store revenue (both branches)</p>
+            <p className="text-xs font-medium text-muted-foreground">Store revenue (both branches)</p>
             <p className="font-display mt-1 text-xl">{formatCents(summary.storeRevenueCents)}</p>
           </div>
           <div className={cn("rounded-xl p-3", goalHit ? "bg-primary/10" : "bg-muted/40")}>
-            <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+            <p className="text-xs font-medium text-muted-foreground">
               {goalHit ? "Over goal by" : "Still needed to hit goal"}
             </p>
             <p className={cn("font-display mt-1 text-xl", goalHit && "text-primary")}>
               {formatCents(Math.abs(summary.storeRevenueCents - summary.commissionThresholdCents))}
             </p>
           </div>
-          <div className="rounded-xl bg-accent/15 p-3">
-            <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Commission pool (10% of overage)</p>
+          <div className="rounded-xl bg-highlight/10 p-3">
+            <p className="text-xs font-medium text-muted-foreground">Commission pool (10% of overage)</p>
             <p className="font-display mt-1 text-xl">{formatCents(summary.commissionPoolCents)}</p>
           </div>
         </CardContent>
@@ -51,19 +51,19 @@ export function ReceptionistPayrollBoard({ summary }: { summary: ReceptionistPay
             <CardContent className="space-y-4">
               <div className="grid gap-3 sm:grid-cols-4">
                 <div className="rounded-xl bg-muted/40 p-3">
-                  <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Base pay</p>
+                  <p className="text-xs font-medium text-muted-foreground">Base pay</p>
                   <p className="font-display mt-1 text-lg">{formatCents(row.basePayCents)}</p>
                 </div>
                 <div className="rounded-xl bg-muted/40 p-3">
-                  <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Commission</p>
+                  <p className="text-xs font-medium text-muted-foreground">Commission</p>
                   <p className="font-display mt-1 text-lg">{formatCents(row.commissionCents)}</p>
                 </div>
                 <div className="rounded-xl bg-primary/10 p-3">
-                  <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Total pay</p>
+                  <p className="text-xs font-medium text-muted-foreground">Total pay</p>
                   <p className="font-display mt-1 text-lg text-primary">{formatCents(row.totalPayCents)}</p>
                 </div>
                 <div className="rounded-xl bg-muted/40 p-3">
-                  <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Personal revenue rung up</p>
+                  <p className="text-xs font-medium text-muted-foreground">Personal revenue rung up</p>
                   <p className="font-display mt-1 text-lg">{formatCents(row.personalRevenueCents)}</p>
                 </div>
               </div>

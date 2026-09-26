@@ -23,7 +23,7 @@ const STATUS_LABEL: Record<QueueEntry["status"], string> = {
 
 const STATUS_STYLE: Record<QueueEntry["status"], string> = {
   available: "bg-primary/10 text-primary",
-  in_service: "bg-accent/20 text-accent-foreground",
+  in_service: "bg-highlight/15 text-highlight",
   on_break: "bg-secondary text-secondary-foreground",
   off_duty: "bg-muted text-muted-foreground",
 };
@@ -146,7 +146,7 @@ export function QueueBoard({
               onDragOver={(e) => e.preventDefault()}
               onDrop={() => handleDrop(index)}
               className={cn(
-                "flex cursor-grab items-center gap-4 rounded-2xl border border-border bg-card p-4 shadow-sm active:cursor-grabbing",
+                "flex cursor-grab items-center gap-4 rounded-[18px] bg-card p-4 shadow-[0_2px_12px_rgba(0,0,0,0.06)] ring-1 ring-black/[0.04] dark:ring-white/[0.06] active:cursor-grabbing",
                 dragIndex === index && "opacity-50",
               )}
             >
@@ -235,7 +235,7 @@ export function QueueBoard({
         )}
       </div>
 
-      <div className="space-y-2 rounded-2xl border border-border bg-card p-4">
+      <div className="space-y-2 rounded-[18px] bg-card ring-1 ring-black/[0.06] dark:ring-white/[0.08] p-4">
         <p className="font-medium">Clock in</p>
         {error && <p className="text-sm text-destructive">{error}</p>}
         {offDutyTherapists.length === 0 ? (
@@ -260,7 +260,7 @@ export function QueueBoard({
         )}
       </div>
 
-      <div className="space-y-2 rounded-2xl border border-border bg-card p-4">
+      <div className="space-y-2 rounded-[18px] bg-card ring-1 ring-black/[0.06] dark:ring-white/[0.08] p-4">
         <p className="font-medium">Add freelance masseur</p>
         <p className="text-xs text-muted-foreground">Not a staff account — paid in cash right after each job.</p>
         <div className="flex items-center gap-2">

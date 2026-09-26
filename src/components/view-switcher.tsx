@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { signOutStaff } from "@/lib/auth/actions";
 import { cn } from "@/lib/utils";
 
 type View = {
@@ -43,10 +44,14 @@ const HOME_VIEW: View = {
 export function ViewSwitcher({
   canAccessAdmin,
   canAccessPos,
+  userLabel,
+  compact,
   className,
 }: {
   canAccessAdmin: boolean;
   canAccessPos: boolean;
+  userLabel?: string;
+  compact?: boolean;
   className?: string;
 }) {
   const pathname = usePathname();
@@ -85,7 +90,14 @@ export function ViewSwitcher({
         onClick={() => setOpen((o) => !o)}
         aria-haspopup="menu"
         aria-expanded={open}
-        className="flex items-center gap-2 rounded-full border border-border bg-card px-3.5 py-1.5 text-sm text-foreground transition-colors hover:border-foreground"
+        aria-label="Main menu"
+        className={cn(
+          "flex h-8 items-center gap-1.5 rounded-full text-[13px] font-medium transition-colors",
+          compact
+            ? "px-2.5 text-foreground/80 hover:bg-muted hover:text-foreground"
+            : "bg-muted px-3.5 text-foreground hover:bg-secondary",
+          open && "bg-muted text-foreground",
+        )}
       >
         <svg aria-hidden viewBox="0 0 16 16" className="size-3.5" fill="currentColor">
           <rect x="1" y="1" width="6" height="6" rx="1.5" />
@@ -93,17 +105,15 @@ export function ViewSwitcher({
           <rect x="1" y="9" width="6" height="6" rx="1.5" />
           <rect x="9" y="9" width="6" height="6" rx="1.5" />
         </svg>
-        Main menu
+        <span className={cn(compact && "hidden sm:inline")}>Main menu</span>
       </button>
 
       {open && (
         <div
           role="menu"
-          className="absolute right-0 z-50 mt-2 w-72 overflow-hidden rounded-2xl border border-border bg-card p-1.5 shadow-lg"
+          className="absolute right-0 z-50 mt-2 w-72 overflow-hidden rounded-[18px] bg-card/95 p-1.5 shadow-2xl ring-1 ring-black/5 backdrop-blur-xl dark:ring-white/10"
         >
-          <p className="px-3 pb-1 pt-2 text-xs font-medium uppercase tracking-wide text-muted-foreground">
-            Switch view
-          </p>
+          <p className="px-3 pb-1 pt-2 text-xs font-medium text-muted-foreground">Switch view</p>
           {views.map((view) => {
             const active = current?.href === view.href;
             return (
@@ -114,17 +124,25 @@ export function ViewSwitcher({
                 onClick={() => setOpen(false)}
                 className={cn(
                   "block rounded-xl px-3 py-2.5 transition-colors hover:bg-muted",
-                  active && "bg-secondary/60",
+                  active && "bg-muted",
                 )}
               >
                 <span className="flex items-center justify-between gap-2 text-sm font-medium">
                   {view.label}
-                  {active && <span className="text-xs font-normal text-primary">You are here</span>}
+                  {active && <span className="text-xs font-normal text-accent">You are here</span>}
                 </span>
                 <span className="mt-0.5 block text-xs text-muted-foreground">{view.description}</span>
               </Link>
             );
           })}
+          <div className="mt-1 flex items-center justify-between gap-2 border-t border-border px-3 pb-1.5 pt-2.5">
+            <span className="truncate text-xs text-muted-foreground">{userLabel}</span>
+            <form action={signOutStaff}>
+              <button type="submit" className="text-xs font-medium text-accent hover:underline">
+                Sign out
+              </button>
+            </form>
+          </div>
         </div>
       )}
     </div>

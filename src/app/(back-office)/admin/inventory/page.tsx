@@ -91,7 +91,7 @@ export default async function InventoryPage() {
         <CardContent className="overflow-x-auto">
           <table className="w-full min-w-[720px] text-sm">
             <thead>
-              <tr className="border-b border-border text-left text-xs uppercase tracking-wide text-muted-foreground">
+              <tr className="border-b border-border text-left text-xs text-muted-foreground">
                 <th className="py-2 pr-3">Product</th>
                 {(branches ?? []).map((b) => (
                   <th key={b.id} className="px-3 py-2">

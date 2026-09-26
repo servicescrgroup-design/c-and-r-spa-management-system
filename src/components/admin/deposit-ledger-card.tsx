@@ -66,7 +66,7 @@ export function DepositLedgerCard({
       <div className="flex items-center justify-between rounded-lg bg-muted/40 p-3">
         <div>
           <p className="text-sm text-muted-foreground">Balance owed (deposit + uniform, minus paid/deducted)</p>
-          <p className={cn("font-display text-2xl", balanceCents > 0 ? "text-accent-foreground" : "text-primary")}>
+          <p className={cn("font-display text-2xl", balanceCents > 0 ? "text-highlight" : "text-primary")}>
             {formatCents(balanceCents)}
           </p>
         </div>

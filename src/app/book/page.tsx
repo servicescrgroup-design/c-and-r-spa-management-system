@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { PublicNav } from "@/components/public-nav";
 
 export default async function BookLandingPage() {
   const supabase = await createServerSupabaseClient();
@@ -9,36 +9,36 @@ export default async function BookLandingPage() {
     .select("id, name, slug, address")
     .eq("is_active", true)
     .eq("booking_enabled", true)
-    .order("name");
+    .order("sort_order");
 
   return (
-    <main className="mx-auto flex w-full max-w-2xl flex-1 flex-col gap-6 px-6 py-16">
-      <div className="text-center">
-        <p className="text-xs font-medium uppercase tracking-[0.2em] text-accent">
-          C&amp;R Thai Massage
-        </p>
-        <h1 className="font-display mt-2 text-4xl font-medium tracking-tight">Book an appointment</h1>
-        <p className="mt-2 text-muted-foreground">Choose a location to get started.</p>
-      </div>
+    <div className="flex min-h-svh flex-1 flex-col">
+      <PublicNav />
+      <main className="mx-auto flex w-full max-w-3xl flex-1 flex-col gap-10 px-6 py-16 sm:py-20">
+        <div className="text-center">
+          <h1 className="font-display text-4xl sm:text-5xl">Book an appointment</h1>
+          <p className="mt-3 text-[17px] text-muted-foreground">Choose a location to get started.</p>
+        </div>
 
-      <div className="grid gap-4">
-        {(branches ?? []).map((branch) => (
-          <Link key={branch.id} href={`/book/${branch.slug}`}>
-            <Card className="transition-colors hover:border-primary">
-              <CardHeader>
-                <CardTitle>{branch.name}</CardTitle>
-                {branch.address && <CardDescription>{branch.address}</CardDescription>}
-              </CardHeader>
-              <CardContent />
-            </Card>
-          </Link>
-        ))}
-        {(branches ?? []).length === 0 && (
-          <p className="text-center text-sm text-muted-foreground">
-            No locations are open for booking yet. Check back soon.
-          </p>
-        )}
-      </div>
-    </main>
+        <div className="grid gap-4 sm:grid-cols-2">
+          {(branches ?? []).map((branch) => (
+            <Link
+              key={branch.id}
+              href={`/book/${branch.slug}`}
+              className="group rounded-[18px] bg-card p-7 shadow-[0_2px_12px_rgba(0,0,0,0.06)] ring-1 ring-black/[0.04] transition-shadow hover:shadow-[0_6px_24px_rgba(0,0,0,0.1)] dark:ring-white/[0.06]"
+            >
+              <p className="font-display text-2xl">{branch.name}</p>
+              {branch.address && <p className="mt-2 text-sm text-muted-foreground">{branch.address}</p>}
+              <p className="mt-6 text-[15px] text-accent group-hover:underline">Book here &rsaquo;</p>
+            </Link>
+          ))}
+          {(branches ?? []).length === 0 && (
+            <p className="text-center text-sm text-muted-foreground sm:col-span-2">
+              No locations are open for booking yet. Check back soon.
+            </p>
+          )}
+        </div>
+      </main>
+    </div>
   );
 }

@@ -1,22 +1,24 @@
 @import "tailwindcss";
 
 :root {
-  --background: #faf8f4;
-  --foreground: #21281f;
+  --background: #f5f5f7;
+  --foreground: #1d1d1f;
   --card: #ffffff;
-  --card-foreground: #21281f;
-  --primary: #2f4a3f;
-  --primary-foreground: #f6f3ec;
-  --secondary: #ede7d8;
-  --secondary-foreground: #2f4a3f;
-  --muted: #f1eee5;
-  --muted-foreground: #6b6255;
-  --accent: #b08b57;
-  --accent-foreground: #2c2418;
-  --border: #e4ded0;
-  --ring: #2f4a3f;
-  --destructive: #a6473d;
-  --shadow-color: 90 40% 12%;
+  --card-foreground: #1d1d1f;
+  --primary: #0071e3;
+  --primary-foreground: #ffffff;
+  --secondary: #e8e8ed;
+  --secondary-foreground: #1d1d1f;
+  --muted: #ececf0;
+  --muted-foreground: #6e6e73;
+  --accent: #0066cc;
+  --accent-foreground: #ffffff;
+  --border: #d2d2d7;
+  --ring: #0071e3;
+  --destructive: #d70015;
+  --highlight: #bf4800;
+  --nav: rgba(251, 251, 253, 0.8);
+  --shadow-color: 0 0% 0%;
 }
 
 @theme inline {
@@ -35,56 +37,84 @@
   --color-border: var(--border);
   --color-ring: var(--ring);
   --color-destructive: var(--destructive);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
-  --font-display: var(--font-fraunces);
+  --color-nav: var(--nav);
+  --color-highlight: var(--highlight);
+  --font-sans: -apple-system, BlinkMacSystemFont, "SF Pro Text", var(--font-inter), "Helvetica Neue", "Noto Sans Thai", sans-serif;
+  --font-mono: ui-monospace, "SF Mono", var(--font-geist-mono), monospace;
+  --font-display: -apple-system, BlinkMacSystemFont, "SF Pro Display", var(--font-inter), "Helvetica Neue", "Noto Sans Thai", sans-serif;
 }
 
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme="light"]) {
-    --background: #171d16;
-    --foreground: #ede8dc;
-    --card: #1e2620;
-    --card-foreground: #ede8dc;
-    --primary: #9fc0af;
-    --primary-foreground: #10241d;
-    --secondary: #26302a;
-    --secondary-foreground: #ede8dc;
-    --muted: #232b25;
-    --muted-foreground: #a6ac9f;
-    --accent: #cba876;
-    --accent-foreground: #241d10;
-    --border: #2c3730;
-    --ring: #9fc0af;
-    --destructive: #e08a80;
+    --background: #000000;
+    --foreground: #f5f5f7;
+    --card: #1c1c1e;
+    --card-foreground: #f5f5f7;
+    --primary: #0071e3;
+    --primary-foreground: #ffffff;
+    --secondary: #2c2c2e;
+    --secondary-foreground: #f5f5f7;
+    --muted: #2c2c2e;
+    --muted-foreground: #a1a1a6;
+    --accent: #2997ff;
+    --accent-foreground: #ffffff;
+    --border: #38383a;
+    --ring: #0a84ff;
+    --destructive: #ff453a;
+    --highlight: #ff9f0a;
+    --nav: rgba(22, 22, 23, 0.8);
   }
 }
 
 :root[data-theme="dark"] {
-  --background: #171d16;
-  --foreground: #ede8dc;
-  --card: #1e2620;
-  --card-foreground: #ede8dc;
-  --primary: #9fc0af;
-  --primary-foreground: #10241d;
-  --secondary: #26302a;
-  --secondary-foreground: #ede8dc;
-  --muted: #232b25;
-  --muted-foreground: #a6ac9f;
-  --accent: #cba876;
-  --accent-foreground: #241d10;
-  --border: #2c3730;
-  --ring: #9fc0af;
-  --destructive: #e08a80;
+  --background: #000000;
+  --foreground: #f5f5f7;
+  --card: #1c1c1e;
+  --card-foreground: #f5f5f7;
+  --primary: #0071e3;
+  --primary-foreground: #ffffff;
+  --secondary: #2c2c2e;
+  --secondary-foreground: #f5f5f7;
+  --muted: #2c2c2e;
+  --muted-foreground: #a1a1a6;
+  --accent: #2997ff;
+  --accent-foreground: #ffffff;
+  --border: #38383a;
+  --ring: #0a84ff;
+  --destructive: #ff453a;
+  --highlight: #ff9f0a;
+  --nav: rgba(22, 22, 23, 0.8);
 }
 
 body {
   background: var(--background);
   color: var(--foreground);
-  font-family: var(--font-sans), Arial, Helvetica, sans-serif;
+  font-family: var(--font-sans);
+  letter-spacing: -0.01em;
+  -webkit-font-smoothing: antialiased;
 }
 
+/* Apple-style headline type: system display face, semibold, tight tracking.
+ * Unlayered on purpose so it wins over the older font-medium/tracking-tight
+ * utilities still sitting next to it on page headings. */
 .font-display {
-  font-family: var(--font-display), Georgia, serif;
-  font-feature-settings: "ss01";
+  font-family: var(--font-display);
+  font-weight: 600;
+  letter-spacing: -0.025em;
+}
+
+/* Frosted bar for floating navigation only (HIG materials: blur belongs to
+ * the functional layer, never to content). */
+.glass-bar {
+  background: var(--nav);
+  backdrop-filter: saturate(180%) blur(20px);
+  -webkit-backdrop-filter: saturate(180%) blur(20px);
+}
+
+@media (prefers-reduced-transparency: reduce) {
+  .glass-bar {
+    background: var(--card);
+    backdrop-filter: none;
+    -webkit-backdrop-filter: none;
+  }
 }

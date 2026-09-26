@@ -86,7 +86,7 @@ function JobsDrillDown({ jobs, guaranteeTopupCents }: { jobs: StaffDayJob[]; gua
         </li>
       ))}
       {guaranteeTopupCents > 0 && (
-        <li className="flex justify-between font-medium text-accent-foreground">
+        <li className="flex justify-between font-medium text-highlight">
           <span>ประกันมือ top-up</span>
           <span>{formatCents(guaranteeTopupCents)}</span>
         </li>
@@ -113,7 +113,7 @@ function DailyRow({ branchId, row }: { branchId: string; row: PayrollDayRow }) {
   }
 
   return (
-    <div className="rounded-2xl border border-border bg-card p-4">
+    <div className="rounded-[18px] bg-card ring-1 ring-black/[0.06] dark:ring-white/[0.08] p-4">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <p className="font-medium">{row.name}</p>
@@ -125,7 +125,7 @@ function DailyRow({ branchId, row }: { branchId: string; row: PayrollDayRow }) {
           <span>H {formatHours(row.serviceHours)}</span>
           <span>{row.jobsCount} jobs</span>
           <span>E {formatCents(row.payoutCents)}</span>
-          <span className={cn(row.guaranteeTopupCents > 0 && "font-medium text-accent-foreground")}>
+          <span className={cn(row.guaranteeTopupCents > 0 && "font-medium text-highlight")}>
             U {formatCents(row.guaranteeTopupCents)}
           </span>
           <span>Tips {formatCents(row.tipsCents)}</span>
@@ -281,7 +281,7 @@ export function PayrollBoard({
       <CardContent className="overflow-x-auto">
         <table className="w-full min-w-[720px] text-sm">
           <thead>
-            <tr className="border-b border-border text-left text-xs uppercase tracking-wide text-muted-foreground">
+            <tr className="border-b border-border text-left text-xs text-muted-foreground">
               <th className="py-2 pr-3">Therapist</th>
               <th className="px-3 py-2">Days present</th>
               <th className="px-3 py-2">Days &ge; {minHours}h</th>
@@ -303,7 +303,7 @@ export function PayrollBoard({
                 <td className="px-3 py-2">{m.daysOnGuarantee}</td>
                 <td className="px-3 py-2">{m.jobsCount}</td>
                 <td className="px-3 py-2">{formatCents(m.payoutCents)}</td>
-                <td className="px-3 py-2 font-medium text-accent-foreground">{formatCents(m.guaranteeTopupCents)}</td>
+                <td className="px-3 py-2 font-medium text-highlight">{formatCents(m.guaranteeTopupCents)}</td>
                 <td className="px-3 py-2">{formatCents(m.tipsCents)}</td>
                 <td className="px-3 py-2">
                   {m.clockedHours > 0 ? `${Math.round((m.serviceHours / m.clockedHours) * 100)}%` : "—"}

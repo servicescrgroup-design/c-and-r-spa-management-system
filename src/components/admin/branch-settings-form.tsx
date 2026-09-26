@@ -409,7 +409,7 @@ export function BranchSettingsForm({
 
   return (
     <div className="space-y-3 border-t border-border pt-3">
-      <div className="flex gap-1 rounded-full border border-border bg-secondary/40 p-1 text-xs">
+      <div className="flex gap-1 rounded-full bg-muted p-1 text-xs">
         {([
           ["settings", "Payroll & queue"],
           ["hours", "Opening hours"],

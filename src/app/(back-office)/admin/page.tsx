@@ -17,7 +17,7 @@ const DEPOSIT_LABEL: Record<string, string> = {
 
 const DEPOSIT_STYLE: Record<string, string> = {
   not_required: "bg-muted text-muted-foreground",
-  pending: "bg-accent/20 text-accent-foreground",
+  pending: "bg-highlight/15 text-highlight",
   paid: "bg-primary/10 text-primary",
   failed: "bg-destructive/10 text-destructive",
   refunded: "bg-secondary text-secondary-foreground",
@@ -96,7 +96,7 @@ export default async function AdminDashboardPage({ searchParams }: PageProps<"/a
         <CardHeader className="flex-row items-center justify-between space-y-0">
           <CardTitle>Revenue by branch</CardTitle>
           <div className="flex flex-wrap items-center gap-3">
-            <div className="flex gap-1 rounded-full border border-border bg-secondary/40 p-1">
+            <div className="flex gap-1 rounded-full bg-muted p-1">
               {(["day", "month", "year", "custom"] as const).map((v) => (
                 <Link
                   key={v}
@@ -185,7 +185,7 @@ export default async function AdminDashboardPage({ searchParams }: PageProps<"/a
             <div className="overflow-x-auto">
               <table className="w-full min-w-[640px] text-sm">
                 <thead>
-                  <tr className="border-b border-border text-left text-xs uppercase tracking-wide text-muted-foreground">
+                  <tr className="border-b border-border text-left text-xs text-muted-foreground">
                     <th className="py-2 pr-3">When</th>
                     <th className="px-3 py-2">Branch</th>
                     <th className="px-3 py-2">Customer</th>

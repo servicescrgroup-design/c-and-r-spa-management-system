@@ -121,7 +121,7 @@ export function ServicesExplorer({
         ))}
       </div>
 
-      <div className="divide-y divide-border overflow-hidden rounded-2xl border border-border bg-card">
+      <div className="divide-y divide-border overflow-hidden rounded-[18px] bg-card ring-1 ring-black/[0.06] dark:ring-white/[0.08]">
         {rows.map(({ service, options, active }) => {
           const categoryColor = service.category_id ? categoryColorById.get(service.category_id) : null;
           return (
@@ -158,7 +158,7 @@ export function ServicesExplorer({
             <div className="flex items-center gap-4">
               {options.length > 1 && (
                 <div
-                  className="flex items-center gap-1 rounded-full border border-border bg-secondary/40 p-0.5"
+                  className="flex items-center gap-1 rounded-full bg-muted p-0.5"
                   onClick={(e) => e.stopPropagation()}
                 >
                   {options.map((option) => (

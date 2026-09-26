@@ -301,7 +301,7 @@ function SkillsAndBranches({
                   <button
                     type="button"
                     onClick={() => setHomeId(b.id)}
-                    className={cn("text-xs", homeId === b.id ? "font-medium text-accent-foreground" : "text-muted-foreground hover:underline")}
+                    className={cn("text-xs", homeId === b.id ? "font-medium text-highlight" : "text-muted-foreground hover:underline")}
                     title="Set as home branch"
                   >
                     {homeId === b.id ? "★ home" : "set home"}

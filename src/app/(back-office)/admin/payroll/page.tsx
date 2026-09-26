@@ -57,7 +57,7 @@ export default async function PayrollPage({ searchParams }: PageProps<"/admin/pa
         </div>
 
         <div className="flex flex-wrap items-center justify-between gap-3">
-          <div className="flex gap-1 rounded-full border border-border bg-secondary/40 p-1">
+          <div className="flex gap-1 rounded-full bg-muted p-1">
             <Link
               href={`/admin/payroll?branchId=${branchId}&section=therapists`}
               className="rounded-full px-3.5 py-1.5 text-sm text-muted-foreground transition-colors"
@@ -117,7 +117,7 @@ export default async function PayrollPage({ searchParams }: PageProps<"/admin/pa
       </div>
 
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <div className="flex gap-1 rounded-full border border-border bg-secondary/40 p-1">
+        <div className="flex gap-1 rounded-full bg-muted p-1">
           <Link
             href={`/admin/payroll?branchId=${branchId}&section=therapists`}
             className="rounded-full bg-card px-3.5 py-1.5 text-sm font-medium shadow-sm transition-colors"
@@ -150,7 +150,7 @@ export default async function PayrollPage({ searchParams }: PageProps<"/admin/pa
       </div>
 
       <div className="flex flex-wrap items-center gap-4">
-        <div className="flex gap-1 rounded-full border border-border bg-secondary/40 p-1">
+        <div className="flex gap-1 rounded-full bg-muted p-1">
           <Link
             href={`/admin/payroll?branchId=${branchId}&view=daily&date=${date}&month=${month}`}
             className={cn(
@@ -237,7 +237,7 @@ export default async function PayrollPage({ searchParams }: PageProps<"/admin/pa
                       d.daysUntilExpiry <= 7
                         ? "bg-destructive/10 text-destructive"
                         : d.daysUntilExpiry <= 14
-                          ? "bg-accent/20 text-accent-foreground"
+                          ? "bg-highlight/15 text-highlight"
                           : "bg-muted text-muted-foreground",
                     )}
                   >

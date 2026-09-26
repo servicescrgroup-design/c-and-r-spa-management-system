@@ -21,7 +21,7 @@ function Section({ title, children }: { title: string; children: React.ReactNode
   return (
     <section className="space-y-3">
       <h2 className="px-1 text-sm font-medium text-muted-foreground">{title}</h2>
-      <div className="rounded-2xl border border-border bg-card shadow-sm">{children}</div>
+      <div className="rounded-[18px] bg-card shadow-[0_2px_12px_rgba(0,0,0,0.06)] ring-1 ring-black/[0.04] dark:ring-white/[0.06]">{children}</div>
     </section>
   );
 }
@@ -37,23 +37,23 @@ export default async function TherapistPortalPage() {
       </div>
 
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
-        <div className="rounded-2xl bg-primary p-4 text-primary-foreground shadow-sm sm:col-span-1">
-          <p className="text-xs font-medium uppercase tracking-wide opacity-80">Earned today</p>
+        <div className="rounded-[18px] bg-primary p-4 text-primary-foreground sm:col-span-1">
+          <p className="text-xs font-medium opacity-80">Earned today</p>
           <p className="font-display mt-1 text-2xl">{formatCents(data.earningsTodayCents)}</p>
           <p className="mt-0.5 text-xs opacity-80">
             {data.jobsToday.length} job{data.jobsToday.length === 1 ? "" : "s"}
           </p>
         </div>
-        <div className="rounded-2xl border border-border bg-card p-4 shadow-sm">
-          <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">This week</p>
+        <div className="rounded-[18px] bg-card p-4 shadow-[0_2px_12px_rgba(0,0,0,0.06)] ring-1 ring-black/[0.04] dark:ring-white/[0.06]">
+          <p className="text-xs font-medium text-muted-foreground">This week</p>
           <p className="font-display mt-1 text-2xl">{formatCents(data.earningsWeekCents)}</p>
           <p className="mt-0.5 text-xs text-muted-foreground">
             {data.jobsWeek.length} job{data.jobsWeek.length === 1 ? "" : "s"}
           </p>
         </div>
-        <div className="col-span-2 rounded-2xl border border-border bg-card p-4 shadow-sm sm:col-span-1">
-          <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Deposit balance</p>
-          <p className={cn("font-display mt-1 text-2xl", data.depositBalanceCents > 0 ? "text-accent-foreground" : "text-primary")}>
+        <div className="col-span-2 rounded-[18px] bg-card p-4 shadow-[0_2px_12px_rgba(0,0,0,0.06)] ring-1 ring-black/[0.04] dark:ring-white/[0.06] sm:col-span-1">
+          <p className="text-xs font-medium text-muted-foreground">Deposit balance</p>
+          <p className={cn("font-display mt-1 text-2xl", data.depositBalanceCents > 0 ? "text-highlight" : "text-primary")}>
             {formatCents(data.depositBalanceCents)}
           </p>
           <p className="mt-0.5 text-xs text-muted-foreground">Deposit + uniform, minus payments</p>
