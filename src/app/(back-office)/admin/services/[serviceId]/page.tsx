@@ -17,7 +17,7 @@ export default async function ServiceDetailPage({
     supabase
       .from("services")
       .select(
-        "id, name, name_th, description, description_th, category_id, is_active, duration_minutes, default_price_cents, service_price_options(duration_minutes, price_cents)",
+        "id, name, name_th, description, description_th, category_id, is_active, duration_minutes, default_price_cents, service_price_options(duration_minutes, price_cents, payout_cents)",
       )
       .eq("id", serviceId)
       .maybeSingle(),
@@ -31,8 +31,18 @@ export default async function ServiceDetailPage({
     service.service_price_options.length > 0
       ? [...service.service_price_options]
           .sort((a, b) => a.duration_minutes - b.duration_minutes)
-          .map((o) => ({ durationMinutes: o.duration_minutes, priceDollars: o.price_cents / 100 }))
-      : [{ durationMinutes: service.duration_minutes, priceDollars: service.default_price_cents / 100 }];
+          .map((o) => ({
+            durationMinutes: o.duration_minutes,
+            priceDollars: o.price_cents / 100,
+            payoutDollars: o.payout_cents / 100,
+          }))
+      : [
+          {
+            durationMinutes: service.duration_minutes,
+            priceDollars: service.default_price_cents / 100,
+            payoutDollars: 0,
+          },
+        ];
 
   return (
     <div className="max-w-2xl space-y-6">

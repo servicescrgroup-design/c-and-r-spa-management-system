@@ -8,7 +8,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 
 type Category = { id: string; name: string };
-type Variant = { durationMinutes: number; priceDollars: number };
+type Variant = { durationMinutes: number; priceDollars: number; payoutDollars: number };
 
 export function ServiceEditForm({
   serviceId,
@@ -32,7 +32,9 @@ export function ServiceEditForm({
   const [saved, setSaved] = useState(false);
   const [loading, setLoading] = useState(false);
   const [variants, setVariants] = useState<Variant[]>(
-    initial.variants.length > 0 ? initial.variants : [{ durationMinutes: 60, priceDollars: 0 }],
+    initial.variants.length > 0
+      ? initial.variants
+      : [{ durationMinutes: 60, priceDollars: 0, payoutDollars: 0 }],
   );
 
   function updateVariant(index: number, field: keyof Variant, value: number) {
@@ -53,6 +55,7 @@ export function ServiceEditForm({
     variants.forEach((v, i) => {
       formData.set(`duration${i}`, String(v.durationMinutes));
       formData.set(`price${i}`, String(v.priceDollars));
+      formData.set(`payout${i}`, String(v.payoutDollars));
     });
 
     const result = await updateService(serviceId, formData);
@@ -119,10 +122,10 @@ export function ServiceEditForm({
       </div>
 
       <div className="space-y-2">
-        <Label>Durations &amp; prices</Label>
+        <Label>Durations, prices &amp; payout (ค่ามือ)</Label>
         <div className="space-y-2">
           {variants.map((v, i) => (
-            <div key={i} className="grid grid-cols-[1fr_1fr_auto] items-center gap-3">
+            <div key={i} className="grid grid-cols-[1fr_1fr_1fr_auto] items-center gap-3">
               <Input
                 type="number"
                 min="1"
@@ -140,6 +143,15 @@ export function ServiceEditForm({
                 onChange={(e) => updateVariant(i, "priceDollars", Number(e.target.value))}
                 required
               />
+              <Input
+                type="number"
+                min="0"
+                step="0.01"
+                placeholder="Payout (฿)"
+                value={v.payoutDollars}
+                onChange={(e) => updateVariant(i, "payoutDollars", Number(e.target.value))}
+                required
+              />
               <button
                 type="button"
                 onClick={() => removeVariant(i)}
@@ -154,7 +166,9 @@ export function ServiceEditForm({
         {variants.length < 8 && (
           <button
             type="button"
-            onClick={() => setVariants((prev) => [...prev, { durationMinutes: 60, priceDollars: 0 }])}
+            onClick={() =>
+              setVariants((prev) => [...prev, { durationMinutes: 60, priceDollars: 0, payoutDollars: 0 }])
+            }
             className="text-sm text-primary hover:underline"
           >
             + Add another duration option
