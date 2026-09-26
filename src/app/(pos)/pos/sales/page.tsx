@@ -1,8 +1,7 @@
-import Link from "next/link";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
-import { getStaffBranches } from "@/lib/pos/session";
+import { redirect } from "next/navigation";
+import { getWorkingBranch } from "@/lib/pos/session";
 import { SalesList, type SaleRow } from "@/components/pos/sales-list";
-import { cn } from "@/lib/utils";
 
 function bangkokToday() {
   return new Date(Date.now() + 7 * 3600_000).toISOString().slice(0, 10);
@@ -10,13 +9,10 @@ function bangkokToday() {
 
 export default async function SalesPage({ searchParams }: PageProps<"/pos/sales">) {
   const sp = await searchParams;
-  const branches = await getStaffBranches();
-  const branchId = (typeof sp.branchId === "string" ? sp.branchId : branches[0]?.id) ?? null;
+  const working = await getWorkingBranch();
+  if (!working) redirect("/pos/register");
+  const branchId = working.branch.id;
   const date = typeof sp.date === "string" && /^\d{4}-\d{2}-\d{2}$/.test(sp.date) ? sp.date : bangkokToday();
-
-  if (!branchId) {
-    return <p className="text-muted-foreground">You aren&apos;t assigned to a branch yet.</p>;
-  }
 
   const start = new Date(`${date}T00:00:00+07:00`);
   const end = new Date(start.getTime() + 24 * 3600_000);
@@ -66,7 +62,6 @@ export default async function SalesPage({ searchParams }: PageProps<"/pos/sales"
           </p>
         </div>
         <form className="flex items-center gap-2">
-          <input type="hidden" name="branchId" value={branchId} />
           <input
             type="date"
             name="date"
@@ -79,23 +74,6 @@ export default async function SalesPage({ searchParams }: PageProps<"/pos/sales"
           </button>
         </form>
       </div>
-
-      {branches.length > 1 && (
-        <div className="flex flex-wrap gap-2">
-          {branches.map((b) => (
-            <Link
-              key={b.id}
-              href={`/pos/sales?branchId=${b.id}&date=${date}`}
-              className={cn(
-                "rounded-full px-3.5 py-1.5 text-sm ring-1 transition-colors",
-                b.id === branchId ? "bg-primary text-primary-foreground ring-primary" : "ring-border",
-              )}
-            >
-              {b.name}
-            </Link>
-          ))}
-        </div>
-      )}
 
       <SalesList sales={sales} />
     </div>

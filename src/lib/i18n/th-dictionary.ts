@@ -1058,4 +1058,5 @@ export const TH: Record<string, string> = {
   "The closing time is saved when you close the drawer.": "เวลาปิดจะถูกบันทึกเมื่อคุณปิดลิ้นชัก",
   "This date and time is saved as the opening time when you open the drawer.": "วันที่และเวลานี้จะถูกบันทึกเป็นเวลาเปิดเมื่อคุณเปิดลิ้นชัก",
   "opened": "เปิดเมื่อ",
+  "No register open": "ยังไม่ได้เปิดเครื่องคิดเงิน",
 };

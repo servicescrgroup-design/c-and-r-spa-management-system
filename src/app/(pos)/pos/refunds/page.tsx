@@ -1,16 +1,19 @@
-import { requireStaffContext } from "@/lib/auth/session";
+import { redirect } from "next/navigation";
+import { getWorkingBranch } from "@/lib/pos/session";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { RefundButton } from "@/components/pos/refund-button";
 import { formatCents } from "@/lib/utils";
 
 export default async function RefundsPage() {
-  await requireStaffContext();
+  const working = await getWorkingBranch();
+  if (!working) redirect("/pos/register");
   const supabase = await createServerSupabaseClient();
 
   const { data: transactions } = await supabase
     .from("pos_transactions")
-    .select("id, total_cents, status, created_at, customer:customer_id(first_name, last_name)")
+    .select("id, total_cents, status, created_at, customer_ref, customer_name, customer:customer_id(first_name, last_name)")
+    .eq("branch_id", working.branch.id)
     .is("original_transaction_id", null)
     .order("created_at", { ascending: false })
     .limit(25);
@@ -31,7 +34,8 @@ export default async function RefundsPage() {
               <div>
                 <CardTitle className="text-base">{formatCents(t.total_cents)}</CardTitle>
                 <CardDescription>
-                  {t.customer ? `${t.customer.first_name} ${t.customer.last_name}` : "Walk-in"} &middot;{" "}
+                  {t.customer_ref ? `${t.customer_ref} · ` : ""}
+                  {t.customer ? `${t.customer.first_name} ${t.customer.last_name}` : t.customer_name ?? "Walk-in"} &middot;{" "}
                   {new Date(t.created_at).toLocaleString(undefined, {
                     month: "short",
                     day: "numeric",

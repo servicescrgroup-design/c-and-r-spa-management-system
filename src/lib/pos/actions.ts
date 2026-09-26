@@ -37,6 +37,19 @@ export async function openDrawer(formData: FormData): Promise<ActionResult> {
     }
   }
 
+  // A person works one store and one register at a time.
+  const { data: mine } = await supabase
+    .from("cash_drawer_sessions")
+    .select("id, pos_registers(name, branch:branch_id(name))")
+    .eq("opened_by_staff_id", ctx.staffId)
+    .eq("status", "open")
+    .limit(1)
+    .maybeSingle();
+  if (mine) {
+    const where = [mine.pos_registers?.branch?.name, mine.pos_registers?.name].filter(Boolean).join(" · ");
+    return { ok: false, error: `You already have a drawer open (${where}). Close it before opening another.` };
+  }
+
   const { data: alreadyOpen } = await supabase
     .from("cash_drawer_sessions")
     .select("id")

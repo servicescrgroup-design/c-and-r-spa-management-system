@@ -98,3 +98,30 @@ export async function getMyOpenDrawer(branchId?: string) {
   const { data } = await query.maybeSingle();
   return data;
 }
+
+/**
+ * The store this staff member is working at right now: the branch of the
+ * register drawer they opened. Every POS page uses this instead of letting
+ * people pick a store per page, so sales always land at the right branch.
+ */
+export async function getWorkingBranch(): Promise<{
+  branch: { id: string; name: string };
+  drawer: { id: string; registerId: string; registerName: string; openedAt: string };
+} | null> {
+  const ctx = await requireStaffContext();
+  const supabase = await createServerSupabaseClient();
+  const { data } = await supabase
+    .from("cash_drawer_sessions")
+    .select("id, register_id, opened_at, pos_registers!inner(id, name, branch_id, branch:branch_id(id, name))")
+    .eq("opened_by_staff_id", ctx.staffId)
+    .eq("status", "open")
+    .order("opened_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  const branch = data?.pos_registers?.branch;
+  if (!data || !branch) return null;
+  return {
+    branch: { id: branch.id, name: branch.name },
+    drawer: { id: data.id, registerId: data.register_id, registerName: data.pos_registers.name, openedAt: data.opened_at },
+  };
+}

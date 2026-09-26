@@ -46,10 +46,13 @@ export function PosNav({
   canAccessAdmin,
   userLabel,
   locale,
+  workingAt,
 }: {
   canAccessAdmin: boolean;
   userLabel: string;
   locale: "en" | "th";
+  /** "Store · Register" from the drawer this person opened, or null. */
+  workingAt: string | null;
 }) {
   const pathname = usePathname();
 
@@ -57,9 +60,17 @@ export function PosNav({
     <>
       <header className="glass-bar sticky top-0 z-40 border-b border-black/5 dark:border-white/10">
         <div className="mx-auto flex h-12 max-w-[1280px] items-center justify-between gap-4 px-4 sm:px-6">
-          <p className="text-[15px] font-semibold tracking-tight">
-            C&amp;R <span className="font-normal text-muted-foreground">Point of Sale</span>
-          </p>
+          <div className="min-w-0">
+            <p className="text-[15px] font-semibold leading-tight tracking-tight">
+              C&amp;R <span className="font-normal text-muted-foreground">Point of Sale</span>
+            </p>
+            <Link
+              href="/pos/register"
+              className="block max-w-56 truncate text-[11px] leading-tight text-muted-foreground hover:text-foreground"
+            >
+              {workingAt ? <span data-no-translate>{workingAt}</span> : "No register open"}
+            </Link>
+          </div>
 
           <nav aria-label="POS sections" className="hidden rounded-full bg-muted p-0.5 sm:flex">
             {TABS.map((tab) => {
