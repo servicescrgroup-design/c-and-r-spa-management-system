@@ -1,19 +1,22 @@
 @import "tailwindcss";
 
 :root {
-  --background: #faf9f6;
-  --foreground: #22302a;
+  --background: #faf8f4;
+  --foreground: #21281f;
   --card: #ffffff;
-  --card-foreground: #22302a;
-  --primary: #3f6659;
-  --primary-foreground: #ffffff;
-  --secondary: #e4ece7;
-  --secondary-foreground: #22302a;
-  --muted: #eef1ee;
-  --muted-foreground: #5b6b63;
-  --border: #dde4de;
-  --ring: #3f6659;
-  --destructive: #b3413a;
+  --card-foreground: #21281f;
+  --primary: #2f4a3f;
+  --primary-foreground: #f6f3ec;
+  --secondary: #ede7d8;
+  --secondary-foreground: #2f4a3f;
+  --muted: #f1eee5;
+  --muted-foreground: #6b6255;
+  --accent: #b08b57;
+  --accent-foreground: #2c2418;
+  --border: #e4ded0;
+  --ring: #2f4a3f;
+  --destructive: #a6473d;
+  --shadow-color: 90 40% 12%;
 }
 
 @theme inline {
@@ -27,33 +30,61 @@
   --color-secondary-foreground: var(--secondary-foreground);
   --color-muted: var(--muted);
   --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
   --color-border: var(--border);
   --color-ring: var(--ring);
   --color-destructive: var(--destructive);
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
+  --font-display: var(--font-fraunces);
 }
 
 @media (prefers-color-scheme: dark) {
-  :root {
-    --background: #16201c;
-    --foreground: #eaf0ec;
-    --card: #1d2822;
-    --card-foreground: #eaf0ec;
-    --primary: #7fae9c;
+  :root:not([data-theme="light"]) {
+    --background: #171d16;
+    --foreground: #ede8dc;
+    --card: #1e2620;
+    --card-foreground: #ede8dc;
+    --primary: #9fc0af;
     --primary-foreground: #10241d;
-    --secondary: #223029;
-    --secondary-foreground: #eaf0ec;
-    --muted: #223029;
-    --muted-foreground: #9db3a9;
-    --border: #2c3a33;
-    --ring: #7fae9c;
-    --destructive: #e1746c;
+    --secondary: #26302a;
+    --secondary-foreground: #ede8dc;
+    --muted: #232b25;
+    --muted-foreground: #a6ac9f;
+    --accent: #cba876;
+    --accent-foreground: #241d10;
+    --border: #2c3730;
+    --ring: #9fc0af;
+    --destructive: #e08a80;
   }
+}
+
+:root[data-theme="dark"] {
+  --background: #171d16;
+  --foreground: #ede8dc;
+  --card: #1e2620;
+  --card-foreground: #ede8dc;
+  --primary: #9fc0af;
+  --primary-foreground: #10241d;
+  --secondary: #26302a;
+  --secondary-foreground: #ede8dc;
+  --muted: #232b25;
+  --muted-foreground: #a6ac9f;
+  --accent: #cba876;
+  --accent-foreground: #241d10;
+  --border: #2c3730;
+  --ring: #9fc0af;
+  --destructive: #e08a80;
 }
 
 body {
   background: var(--background);
   color: var(--foreground);
   font-family: var(--font-sans), Arial, Helvetica, sans-serif;
+}
+
+.font-display {
+  font-family: var(--font-display), Georgia, serif;
+  font-feature-settings: "ss01";
 }

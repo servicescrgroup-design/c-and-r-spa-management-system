@@ -14,7 +14,10 @@ export default async function BookLandingPage() {
   return (
     <main className="mx-auto flex w-full max-w-2xl flex-1 flex-col gap-6 px-6 py-16">
       <div className="text-center">
-        <h1 className="text-3xl font-semibold">Book an appointment</h1>
+        <p className="text-xs font-medium uppercase tracking-[0.2em] text-accent">
+          C&amp;R Thai Massage
+        </p>
+        <h1 className="font-display mt-2 text-4xl font-medium tracking-tight">Book an appointment</h1>
         <p className="mt-2 text-muted-foreground">Choose a location to get started.</p>
       </div>
 

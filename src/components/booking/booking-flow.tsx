@@ -164,21 +164,29 @@ export function BookingFlow({
   }
 
   const langToggle = (
-    <div className="flex justify-end gap-1 text-sm">
-      <button
-        type="button"
-        onClick={() => setLang("en")}
-        className={cn("rounded px-2 py-1", lang === "en" ? "bg-secondary font-medium" : "text-muted-foreground")}
-      >
-        English
-      </button>
-      <button
-        type="button"
-        onClick={() => setLang("th")}
-        className={cn("rounded px-2 py-1", lang === "th" ? "bg-secondary font-medium" : "text-muted-foreground")}
-      >
-        ไทย
-      </button>
+    <div className="flex justify-end">
+      <div className="inline-flex items-center rounded-full border border-border bg-secondary/50 p-0.5 text-sm">
+        <button
+          type="button"
+          onClick={() => setLang("en")}
+          className={cn(
+            "rounded-full px-3 py-1 transition-colors",
+            lang === "en" ? "bg-card font-medium shadow-sm" : "text-muted-foreground",
+          )}
+        >
+          English
+        </button>
+        <button
+          type="button"
+          onClick={() => setLang("th")}
+          className={cn(
+            "rounded-full px-3 py-1 transition-colors",
+            lang === "th" ? "bg-card font-medium shadow-sm" : "text-muted-foreground",
+          )}
+        >
+          ไทย
+        </button>
+      </div>
     </div>
   );
 
@@ -237,7 +245,7 @@ export function BookingFlow({
         <CardHeader>
           <CardTitle>{t.chooseServices}</CardTitle>
         </CardHeader>
-        <CardContent className="space-y-2">
+        <CardContent className="space-y-2.5">
           {services.map((service) => {
             const selection = selections[service.id];
             const options = optionsFor(service);
@@ -245,27 +253,55 @@ export function BookingFlow({
               <div
                 key={service.id}
                 className={cn(
-                  "rounded-md border border-border p-3 text-sm",
-                  selection && "border-primary bg-secondary",
+                  "rounded-xl border p-4 text-sm transition-colors",
+                  selection ? "border-primary/50 bg-secondary/50" : "border-border hover:border-primary/30",
                 )}
               >
-                <label className="flex cursor-pointer items-center justify-between">
-                  <span className="flex items-center gap-2">
-                    <input type="checkbox" checked={Boolean(selection)} onChange={() => toggleService(service)} />
-                    {serviceName(service)}
+                <label className="flex cursor-pointer items-center justify-between gap-3">
+                  <span className="flex items-center gap-3">
+                    <span
+                      className={cn(
+                        "flex h-5 w-5 shrink-0 items-center justify-center rounded-full border transition-colors",
+                        selection ? "border-primary bg-primary text-primary-foreground" : "border-border",
+                      )}
+                      aria-hidden
+                    >
+                      {selection && (
+                        <svg viewBox="0 0 12 12" className="h-3 w-3" fill="none">
+                          <path
+                            d="M2.5 6.5L4.75 8.75L9.5 3.5"
+                            stroke="currentColor"
+                            strokeWidth="1.5"
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                          />
+                        </svg>
+                      )}
+                    </span>
+                    <input
+                      type="checkbox"
+                      checked={Boolean(selection)}
+                      onChange={() => toggleService(service)}
+                      className="sr-only"
+                    />
+                    <span className="font-medium">{serviceName(service)}</span>
                   </span>
-                  {selection && <span>{formatCents(selection.priceCents)}</span>}
+                  {selection && (
+                    <span className="whitespace-nowrap font-display text-base">
+                      {formatCents(selection.priceCents)}
+                    </span>
+                  )}
                 </label>
                 {selection && options.length > 0 && (
-                  <div className="mt-2 flex items-center gap-2 pl-6">
-                    <Label htmlFor={`duration-${service.id}`} className="text-xs text-muted-foreground">
+                  <div className="mt-3 flex items-center gap-2 pl-8">
+                    <Label htmlFor={`duration-${service.id}`} className="normal-case tracking-normal">
                       {t.duration}
                     </Label>
                     <select
                       id={`duration-${service.id}`}
                       value={selection.duration}
                       onChange={(e) => setDuration(service, Number(e.target.value))}
-                      className="h-8 rounded-md border border-border bg-background px-2 text-sm"
+                      className="h-8 rounded-lg border border-border bg-background px-2 text-sm"
                     >
                       {options.map((o) => (
                         <option key={o.duration_minutes} value={o.duration_minutes}>
@@ -291,9 +327,14 @@ export function BookingFlow({
           <CardHeader>
             <CardTitle>{t.chooseTime}</CardTitle>
             <CardDescription>
-              {t.total}: {totalDuration} min &middot; {formatCents(totalPrice)}
-              {depositRequired &&
-                (lang === "en" ? " (a deposit is required to confirm)" : " (ต้องชำระมัดจำเพื่อยืนยัน)")}
+              {t.total}: {totalDuration} min &middot;{" "}
+              <span className="font-display text-foreground">{formatCents(totalPrice)}</span>
+              {depositRequired && (
+                <span className="text-accent">
+                  {" "}
+                  &middot; {lang === "en" ? "deposit required to confirm" : "ต้องชำระมัดจำเพื่อยืนยัน"}
+                </span>
+              )}
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
@@ -325,8 +366,10 @@ export function BookingFlow({
                     type="button"
                     onClick={() => setSelectedSlot(slot)}
                     className={cn(
-                      "rounded-md border border-border px-3 py-1.5 text-sm hover:border-primary",
-                      selectedSlot === slot && "border-primary bg-secondary",
+                      "rounded-full border px-4 py-1.5 text-sm transition-colors hover:border-primary/50",
+                      selectedSlot === slot
+                        ? "border-primary bg-primary text-primary-foreground"
+                        : "border-border",
                     )}
                   >
                     {new Date(slot).toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" })}

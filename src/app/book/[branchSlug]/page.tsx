@@ -26,8 +26,8 @@ export default async function BranchBookingPage({
   return (
     <main className="mx-auto flex w-full max-w-2xl flex-1 flex-col gap-6 px-6 py-16">
       <div>
-        <h1 className="text-3xl font-semibold">{branch.name}</h1>
-        {branch.address && <p className="text-muted-foreground">{branch.address}</p>}
+        <h1 className="font-display text-4xl font-medium tracking-tight">{branch.name}</h1>
+        {branch.address && <p className="mt-1 text-muted-foreground">{branch.address}</p>}
       </div>
       <BookingFlow branchId={branch.id} services={services ?? []} depositRequired={branch.deposit_required} />
     </main>
