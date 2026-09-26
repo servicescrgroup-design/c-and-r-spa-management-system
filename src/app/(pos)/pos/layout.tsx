@@ -15,6 +15,9 @@ export default async function PosLayout({ children }: LayoutProps<"/pos">) {
           <Link href="/pos/queue" className="hover:text-foreground">
             Queue
           </Link>
+          <Link href="/pos/sale" className="hover:text-foreground">
+            New sale
+          </Link>
           <Link href="/pos/refunds" className="hover:text-foreground">
             Refunds
           </Link>

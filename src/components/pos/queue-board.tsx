@@ -9,6 +9,7 @@ import {
   setTherapistStatus,
   type QueueEntry,
 } from "@/lib/pos/queue-actions";
+import { completeJob } from "@/lib/pos/sale-actions";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 
@@ -76,6 +77,13 @@ export function QueueBoard({
   async function handleStatus(sessionId: string, status: QueueEntry["status"]) {
     setQueue((prev) => prev.map((q) => (q.sessionId === sessionId ? { ...q, status } : q)));
     await setTherapistStatus(branchId, sessionId, status);
+    await refresh();
+  }
+
+  async function handleCompleteJob(sessionId: string) {
+    setBusy(sessionId);
+    await completeJob(branchId, sessionId);
+    setBusy(null);
     await refresh();
   }
 
@@ -159,6 +167,16 @@ export function QueueBoard({
                   <option value="on_break">On break</option>
                   <option value="off_duty">Off duty</option>
                 </select>
+                {entry.status === "in_service" && (
+                  <Button
+                    type="button"
+                    size="sm"
+                    disabled={busy === entry.sessionId}
+                    onClick={() => handleCompleteJob(entry.sessionId)}
+                  >
+                    Complete job
+                  </Button>
+                )}
                 <Button
                   type="button"
                   variant="outline"

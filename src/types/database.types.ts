@@ -1674,6 +1674,7 @@ export type Database = {
       pos_transaction_items: {
         Row: {
           cogs_cents: number | null
+          completed_at: string | null
           description: string
           discount_cents: number
           duration_minutes: number | null
@@ -1690,6 +1691,7 @@ export type Database = {
         }
         Insert: {
           cogs_cents?: number | null
+          completed_at?: string | null
           description: string
           discount_cents?: number
           duration_minutes?: number | null
@@ -1706,6 +1708,7 @@ export type Database = {
         }
         Update: {
           cogs_cents?: number | null
+          completed_at?: string | null
           description?: string
           discount_cents?: number
           duration_minutes?: number | null
@@ -2675,9 +2678,11 @@ export type Database = {
       }
       therapist_clock_sessions: {
         Row: {
+          active_item_id: string | null
           branch_id: string
           clock_in_at: string
           clock_out_at: string | null
+          current_room_id: string | null
           id: string
           jobs_today: number
           queue_position: number
@@ -2686,9 +2691,11 @@ export type Database = {
           work_date: string
         }
         Insert: {
+          active_item_id?: string | null
           branch_id: string
           clock_in_at?: string
           clock_out_at?: string | null
+          current_room_id?: string | null
           id?: string
           jobs_today?: number
           queue_position?: number
@@ -2697,9 +2704,11 @@ export type Database = {
           work_date: string
         }
         Update: {
+          active_item_id?: string | null
           branch_id?: string
           clock_in_at?: string
           clock_out_at?: string | null
+          current_room_id?: string | null
           id?: string
           jobs_today?: number
           queue_position?: number
@@ -2709,10 +2718,24 @@ export type Database = {
         }
         Relationships: [
           {
+            foreignKeyName: "therapist_clock_sessions_active_item_id_fkey"
+            columns: ["active_item_id"]
+            isOneToOne: false
+            referencedRelation: "pos_transaction_items"
+            referencedColumns: ["id"]
+          },
+          {
             foreignKeyName: "therapist_clock_sessions_branch_id_fkey"
             columns: ["branch_id"]
             isOneToOne: false
             referencedRelation: "branches"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "therapist_clock_sessions_current_room_id_fkey"
+            columns: ["current_room_id"]
+            isOneToOne: false
+            referencedRelation: "branch_rooms"
             referencedColumns: ["id"]
           },
           {
@@ -2951,6 +2974,26 @@ export type Database = {
           p_start_at: string
         }
         Returns: string
+      }
+      find_combo_options: {
+        Args: { p_branch_id: string; p_service_ids: string[] }
+        Returns: {
+          duration_minutes: number
+          payout_cents: number
+          price_cents: number
+        }[]
+      }
+      find_combo_price: {
+        Args: {
+          p_branch_id: string
+          p_duration_minutes: number
+          p_service_ids: string[]
+        }
+        Returns: {
+          combo_id: string
+          payout_cents: number
+          price_cents: number
+        }[]
       }
       get_available_slots: {
         Args: {
