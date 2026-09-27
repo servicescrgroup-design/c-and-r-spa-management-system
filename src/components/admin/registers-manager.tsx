@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { createRegister, renameRegister, deleteRegister } from "@/lib/admin/branch-actions";
@@ -58,8 +59,10 @@ function RegisterRow({ register, openSession }: { register: Register; openSessio
 
   return (
     <li className="flex items-center justify-between gap-2 rounded-lg border border-border p-2.5 text-sm">
-      <div>
-        <p className="font-medium">{register.name}</p>
+      <Link href={`/admin/registers/${register.id}`} className="group min-w-0 flex-1">
+        <p className="font-medium group-hover:text-primary">
+          {register.name} <span className="text-muted-foreground group-hover:text-primary">›</span>
+        </p>
         {openSession ? (
           <p className="text-xs text-muted-foreground">
             Open &middot; {openSession.staff ? `${openSession.staff.first_name} ${openSession.staff.last_name}` : "Unknown"} &middot;
@@ -75,8 +78,11 @@ function RegisterRow({ register, openSession }: { register: Register; openSessio
         ) : (
           <p className="text-xs text-muted-foreground">Available</p>
         )}
-      </div>
+      </Link>
       <div className="flex items-center gap-3">
+        <Link href={`/admin/registers/${register.id}`} className="text-xs font-medium text-primary hover:underline">
+          {openSession ? "View / close shift" : "View shifts"}
+        </Link>
         <button type="button" onClick={() => setEditing(true)} className="text-xs text-primary hover:underline">
           Rename
         </button>
