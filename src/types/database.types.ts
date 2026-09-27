@@ -1729,6 +1729,55 @@ export type Database = {
           },
         ]
       }
+      payroll_guarantee_waivers: {
+        Row: {
+          branch_id: string
+          created_at: string
+          id: string
+          staff_id: string
+          waived_by_staff_id: string | null
+          work_date: string
+        }
+        Insert: {
+          branch_id: string
+          created_at?: string
+          id?: string
+          staff_id: string
+          waived_by_staff_id?: string | null
+          work_date: string
+        }
+        Update: {
+          branch_id?: string
+          created_at?: string
+          id?: string
+          staff_id?: string
+          waived_by_staff_id?: string | null
+          work_date?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "payroll_guarantee_waivers_branch_id_fkey"
+            columns: ["branch_id"]
+            isOneToOne: false
+            referencedRelation: "branches"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "payroll_guarantee_waivers_staff_id_fkey"
+            columns: ["staff_id"]
+            isOneToOne: false
+            referencedRelation: "staff"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "payroll_guarantee_waivers_waived_by_staff_id_fkey"
+            columns: ["waived_by_staff_id"]
+            isOneToOne: false
+            referencedRelation: "staff"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       payroll_periods: {
         Row: {
           id: string

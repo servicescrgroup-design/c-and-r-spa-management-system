@@ -14,6 +14,8 @@ function canManagePayroll(ctx: Awaited<ReturnType<typeof requireStaffContext>>, 
 }
 
 export type PayrollDayRow = {
+  branchId: string;
+  branchName: string;
   workDate: string;
   sessionId: string;
   staffId: string;
@@ -43,6 +45,8 @@ export async function getPayrollDays(branchId: string, startDate: string, endDat
   });
   if (error) throw new Error(error.message);
   return (data ?? []).map((r) => ({
+    branchId,
+    branchName: "",
     workDate: r.work_date,
     sessionId: r.session_id,
     staffId: r.staff_id,
@@ -61,6 +65,154 @@ export async function getPayrollDays(branchId: string, startDate: string, endDat
     grossPayCents: r.gross_pay_cents,
     locked: r.locked,
   }));
+}
+
+/** Payroll rows for several stores combined, each labelled with its store. */
+export async function getPayrollDaysForBranches(
+  branches: { id: string; name: string }[],
+  startDate: string,
+  endDate: string,
+): Promise<PayrollDayRow[]> {
+  const perBranch = await Promise.all(
+    branches.map(async (b) =>
+      (await getPayrollDays(b.id, startDate, endDate)).map((r) => ({ ...r, branchName: b.name })),
+    ),
+  );
+  return perBranch.flat().sort((a, b) => a.workDate.localeCompare(b.workDate) || a.clockInAt.localeCompare(b.clockInAt));
+}
+
+export type GuaranteeDay = {
+  branchId: string;
+  branchName: string;
+  workDate: string;
+  serviceHours: number;
+  jobs: { description: string; durationMinutes: number | null; payoutCents: number }[];
+  earnedCents: number;
+  guaranteeCents: number;
+  topupCents: number;
+  dayPayCents: number;
+  waived: boolean;
+  locked: boolean;
+};
+
+/** Each day a therapist worked in the period, with the services done that
+ * day and how far the guarantee topped their ค่ามือ up. */
+export async function getGuaranteeDays(
+  branches: { id: string; name: string }[],
+  staffId: string,
+  startDate: string,
+  endDate: string,
+): Promise<GuaranteeDay[]> {
+  await requireStaffContext();
+  const supabase = await createServerSupabaseClient();
+  const branchIds = branches.map((b) => b.id);
+
+  const [rows, { data: branchRows }, { data: profile }, { data: waivers }, { data: items }] = await Promise.all([
+    getPayrollDaysForBranches(branches, startDate, endDate),
+    supabase.from("branches").select("id, timezone, payroll_guarantee_cents").in("id", branchIds),
+    supabase.from("therapist_profiles").select("guarantee_override_cents").eq("staff_id", staffId).maybeSingle(),
+    supabase
+      .from("payroll_guarantee_waivers")
+      .select("branch_id, work_date")
+      .eq("staff_id", staffId)
+      .in("branch_id", branchIds)
+      .gte("work_date", startDate)
+      .lte("work_date", endDate),
+    supabase
+      .from("pos_transaction_items")
+      .select("description, duration_minutes, payout_cents, completed_at, reference_id, item_type, pos_transactions!inner(branch_id)")
+      .eq("staff_id", staffId)
+      .in("pos_transactions.branch_id", branchIds)
+      .not("completed_at", "is", null)
+      // A day's jobs can finish just after midnight UTC; pad the window and filter by local date below.
+      .gte("completed_at", `${startDate}T00:00:00+07:00`)
+      .lte("completed_at", `${endDate}T23:59:59+07:00`),
+  ]);
+
+  const serviceIds = Array.from(
+    new Set((items ?? []).filter((i) => i.item_type === "service" && i.reference_id).map((i) => i.reference_id!)),
+  );
+  const { data: services } = serviceIds.length
+    ? await supabase.from("services").select("id, name").in("id", serviceIds)
+    : { data: [] };
+  const serviceName = new Map((services ?? []).map((s) => [s.id, s.name]));
+
+  const branchInfo = new Map((branchRows ?? []).map((b) => [b.id, b]));
+  const waived = new Set((waivers ?? []).map((w) => `${w.branch_id}:${w.work_date}`));
+
+  return rows
+    .filter((r) => r.staffId === staffId)
+    .map((r) => {
+      const info = branchInfo.get(r.branchId);
+      const tz = info?.timezone ?? "Asia/Bangkok";
+      const dayJobs = (items ?? []).filter(
+        (i) =>
+          i.pos_transactions.branch_id === r.branchId &&
+          new Intl.DateTimeFormat("en-CA", { timeZone: tz }).format(new Date(i.completed_at!)) === r.workDate,
+      );
+      return {
+        branchId: r.branchId,
+        branchName: r.branchName,
+        workDate: r.workDate,
+        serviceHours: r.serviceHours,
+        jobs: dayJobs.map((j) => ({
+          description: (j.reference_id && serviceName.get(j.reference_id)) || j.description,
+          durationMinutes: j.duration_minutes,
+          payoutCents: j.payout_cents,
+        })),
+        earnedCents: r.payoutCents,
+        guaranteeCents: profile?.guarantee_override_cents ?? info?.payroll_guarantee_cents ?? 0,
+        topupCents: r.guaranteeTopupCents,
+        dayPayCents: r.payoutCents + r.guaranteeTopupCents,
+        waived: waived.has(`${r.branchId}:${r.workDate}`),
+        locked: r.locked,
+      };
+    });
+}
+
+/** Remove (or restore) the guarantee top-up for the chosen days. */
+export async function setGuaranteeWaived(
+  staffId: string,
+  days: { branchId: string; workDate: string }[],
+  waive: boolean,
+): Promise<ActionResult> {
+  const ctx = await requireStaffContext();
+  if (days.length === 0) return { ok: false, error: "Select at least one day." };
+  if (days.some((d) => !canManagePayroll(ctx, d.branchId))) {
+    return { ok: false, error: "Only an owner or manager can change guarantee days." };
+  }
+
+  const supabase = await createServerSupabaseClient();
+  const { data: locks } = await supabase
+    .from("payroll_day_locks")
+    .select("branch_id, work_date")
+    .in("branch_id", Array.from(new Set(days.map((d) => d.branchId))))
+    .in("work_date", Array.from(new Set(days.map((d) => d.workDate))));
+  const locked = new Set((locks ?? []).map((l) => `${l.branch_id}:${l.work_date}`));
+  if (days.some((d) => locked.has(`${d.branchId}:${d.workDate}`))) {
+    return { ok: false, error: "One of the selected days is locked. Unlock it first." };
+  }
+
+  if (waive) {
+    const { error } = await supabase.from("payroll_guarantee_waivers").upsert(
+      days.map((d) => ({ branch_id: d.branchId, staff_id: staffId, work_date: d.workDate, waived_by_staff_id: ctx.staffId })),
+      { onConflict: "branch_id,staff_id,work_date" },
+    );
+    if (error) return { ok: false, error: error.message };
+  } else {
+    for (const d of days) {
+      const { error } = await supabase
+        .from("payroll_guarantee_waivers")
+        .delete()
+        .eq("branch_id", d.branchId)
+        .eq("staff_id", staffId)
+        .eq("work_date", d.workDate);
+      if (error) return { ok: false, error: error.message };
+    }
+  }
+
+  revalidatePath("/admin/payroll");
+  return { ok: true };
 }
 
 export type StaffDayJob = {

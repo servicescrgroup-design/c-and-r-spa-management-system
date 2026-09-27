@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireStaffContext } from "@/lib/auth/session";
-import { getPayrollDays } from "@/lib/admin/payroll-actions";
+import { getPayrollDaysForBranches } from "@/lib/admin/payroll-actions";
+import { getStaffBranches } from "@/lib/pos/session";
 
 function csvEscape(value: string | number): string {
   const str = String(value);
@@ -18,10 +19,14 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ error: "branchId, start, and end are required." }, { status: 400 });
   }
 
-  const rows = await getPayrollDays(branchId, start, end);
+  const branches = await getStaffBranches();
+  const selected = branchId === "all" ? branches : branches.filter((b) => b.id === branchId);
+  if (selected.length === 0) return NextResponse.json({ error: "Branch not found." }, { status: 404 });
+  const rows = await getPayrollDaysForBranches(selected, start, end);
 
   const header = [
     "Work date",
+    "Store",
     "Therapist",
     "Clock in",
     "Clocked hours",
@@ -40,6 +45,7 @@ export async function GET(request: NextRequest) {
   const lines = rows.map((r) =>
     [
       r.workDate,
+      r.branchName,
       r.name,
       new Date(r.clockInAt).toISOString(),
       r.clockedHours.toFixed(2),

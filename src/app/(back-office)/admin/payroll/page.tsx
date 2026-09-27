@@ -3,7 +3,7 @@ import { requireStaffContext } from "@/lib/auth/session";
 import { isOwner } from "@/lib/auth/roles";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { getStaffBranches } from "@/lib/pos/session";
-import { getPayrollDays, getDocumentExpiryList } from "@/lib/admin/payroll-actions";
+import { getPayrollDaysForBranches, getDocumentExpiryList } from "@/lib/admin/payroll-actions";
 import { getReceptionistPayroll } from "@/lib/admin/receptionist-payroll-actions";
 import { PayrollBoard } from "@/components/admin/payroll-board";
 import { ReceptionistPayrollBoard } from "@/components/admin/receptionist-payroll-board";
@@ -25,11 +25,17 @@ export default async function PayrollPage({ searchParams }: PageProps<"/admin/pa
   const ctx = await requireStaffContext();
   const sp = await searchParams;
   const branches = await getStaffBranches();
-  const branchId = (typeof sp.branchId === "string" ? sp.branchId : branches[0]?.id) ?? null;
+  const requested = typeof sp.branchId === "string" ? sp.branchId : null;
+  // "all" combines every store the user can see into one payroll.
+  const branchId =
+    requested === "all" && branches.length > 1
+      ? "all"
+      : (branches.find((b) => b.id === requested)?.id ?? branches[0]?.id ?? null);
 
   if (!branchId) {
     return <p className="text-muted-foreground">No branch available.</p>;
   }
+  const selectedBranches = branchId === "all" ? branches : branches.filter((b) => b.id === branchId);
 
   const canViewReceptionistPayroll = isOwner(ctx);
   const section = sp.section === "receptionists" && canViewReceptionistPayroll ? "receptionists" : "therapists";
@@ -38,7 +44,7 @@ export default async function PayrollPage({ searchParams }: PageProps<"/admin/pa
   const { data: branch } = await supabase
     .from("branches")
     .select("timezone, payroll_min_hours")
-    .eq("id", branchId)
+    .eq("id", selectedBranches[0].id)
     .single();
   const timezone = branch?.timezone ?? "Asia/Bangkok";
   const minHours = branch?.payroll_min_hours ?? 3;
@@ -104,7 +110,10 @@ export default async function PayrollPage({ searchParams }: PageProps<"/admin/pa
   const month = typeof sp.month === "string" ? sp.month : today.slice(0, 7);
 
   const { start, end } = view === "monthly" ? monthRange(month) : { start: date, end: date };
-  const [rows, documentExpiry] = await Promise.all([getPayrollDays(branchId, start, end), getDocumentExpiryList()]);
+  const [rows, documentExpiry] = await Promise.all([
+    getPayrollDaysForBranches(selectedBranches.map((b) => ({ id: b.id, name: b.name })), start, end),
+    getDocumentExpiryList(),
+  ]);
 
   return (
     <div className="space-y-6">
@@ -134,6 +143,17 @@ export default async function PayrollPage({ searchParams }: PageProps<"/admin/pa
           )}
         </div>
         <div className="flex flex-wrap gap-2">
+          {branches.length > 1 && (
+            <Link
+              href={`/admin/payroll?branchId=all&view=${view}&date=${date}&month=${month}`}
+              className={cn(
+                "rounded-full border px-3.5 py-1.5 text-sm transition-colors",
+                branchId === "all" ? "border-primary bg-primary text-primary-foreground" : "border-border",
+              )}
+            >
+              Both stores
+            </Link>
+          )}
           {branches.map((b) => (
             <Link
               key={b.id}
@@ -210,9 +230,12 @@ export default async function PayrollPage({ searchParams }: PageProps<"/admin/pa
       </div>
 
       <PayrollBoard
-        branchId={branchId}
+        branches={selectedBranches.map((b) => ({ id: b.id, name: b.name }))}
+        combined={branchId === "all"}
         view={view}
         date={date}
+        start={start}
+        end={end}
         minHours={minHours}
         rows={rows}
       />

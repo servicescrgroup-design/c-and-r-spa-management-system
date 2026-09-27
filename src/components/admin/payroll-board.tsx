@@ -1,11 +1,14 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { Fragment, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import {
   addPayrollAdjustment,
+  getGuaranteeDays,
   getStaffDayJobs,
+  setGuaranteeWaived,
   setPayrollDayLock,
+  type GuaranteeDay,
   type PayrollDayRow,
   type StaffDayJob,
 } from "@/lib/admin/payroll-actions";
@@ -98,7 +101,8 @@ function JobsDrillDown({ jobs, guaranteeTopupCents }: { jobs: StaffDayJob[]; gua
   );
 }
 
-function DailyRow({ branchId, row }: { branchId: string; row: PayrollDayRow }) {
+function DailyRow({ row, showStore }: { row: PayrollDayRow; showStore: boolean }) {
+  const branchId = row.branchId;
   const router = useRouter();
   const [expanded, setExpanded] = useState(false);
   const [jobs, setJobs] = useState<StaffDayJob[] | null>(null);
@@ -118,6 +122,7 @@ function DailyRow({ branchId, row }: { branchId: string; row: PayrollDayRow }) {
         <div>
           <p className="font-medium">{row.name}</p>
           <p className="text-xs text-muted-foreground">
+            {showStore && <span data-no-translate>{row.branchName} &middot; </span>}
             Clocked in {new Date(row.clockInAt).toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" })}
           </p>
         </div>
@@ -225,28 +230,265 @@ function summarizeMonthly(rows: PayrollDayRow[], minHours: number): MonthlySumma
   return Array.from(byStaff.values()).sort((a, b) => a.name.localeCompare(b.name));
 }
 
+const TH = "px-3 py-2.5 font-medium";
+
+function GuaranteeDays({
+  branches,
+  staffId,
+  name,
+  start,
+  end,
+  minHours,
+  showStore,
+}: {
+  branches: { id: string; name: string }[];
+  staffId: string;
+  name: string;
+  start: string;
+  end: string;
+  minHours: number;
+  showStore: boolean;
+}) {
+  const router = useRouter();
+  const [days, setDays] = useState<GuaranteeDay[] | null>(null);
+  const [showAll, setShowAll] = useState(false);
+  const [selected, setSelected] = useState<Set<string>>(new Set());
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [reload, setReload] = useState(0);
+
+  useEffect(() => {
+    let alive = true;
+    getGuaranteeDays(branches, staffId, start, end)
+      .then((result) => alive && setDays(result))
+      .catch((e: unknown) => alive && setError(e instanceof Error ? e.message : "Could not load days."));
+    return () => {
+      alive = false;
+    };
+  }, [branches, staffId, start, end, reload]);
+
+  const key = (d: GuaranteeDay) => `${d.branchId}:${d.workDate}`;
+  const visible = (days ?? []).filter((d) => showAll || d.topupCents > 0 || d.waived);
+  const allSelected = visible.length > 0 && visible.every((d) => selected.has(key(d)));
+
+  function toggle(d: GuaranteeDay) {
+    setSelected((prev) => {
+      const next = new Set(prev);
+      if (next.has(key(d))) next.delete(key(d));
+      else next.add(key(d));
+      return next;
+    });
+  }
+
+  async function apply(waive: boolean) {
+    const chosen = (days ?? []).filter((d) => selected.has(key(d)) && d.waived !== waive);
+    if (chosen.length === 0) return setError(waive ? "Select days that still have a guarantee." : "Select removed days to restore.");
+    const message = waive
+      ? `Remove the guarantee top-up for ${chosen.length} day${chosen.length === 1 ? "" : "s"} for ${name}? Their jobs stay on record.`
+      : `Restore the guarantee for ${chosen.length} day${chosen.length === 1 ? "" : "s"}?`;
+    if (!window.confirm(message)) return;
+    setBusy(true);
+    setError(null);
+    const result = await setGuaranteeWaived(
+      staffId,
+      chosen.map((d) => ({ branchId: d.branchId, workDate: d.workDate })),
+      waive,
+    );
+    setBusy(false);
+    if (!result.ok) return setError(result.error);
+    setSelected(new Set());
+    setReload((n) => n + 1);
+    router.refresh();
+  }
+
+  const dateLabel = (d: string) =>
+    new Intl.DateTimeFormat("en-GB", { weekday: "short", day: "numeric", month: "short", timeZone: "UTC" }).format(
+      new Date(`${d}T00:00:00Z`),
+    );
+
+  const totals = visible.reduce(
+    (t, d) => ({ earned: t.earned + d.earnedCents, topup: t.topup + d.topupCents, pay: t.pay + d.dayPayCents }),
+    { earned: 0, topup: 0, pay: 0 },
+  );
+  const cols = showStore ? 10 : 9;
+
+  return (
+    <div className="space-y-3 rounded-2xl bg-muted/40 p-4">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <p className="text-sm font-medium">
+          <span data-no-translate>{name}</span>: {showAll ? "all days worked" : "days on guarantee"}
+        </p>
+        <div className="flex flex-wrap items-center gap-2">
+          <div className="flex gap-1 rounded-full bg-card p-0.5 text-xs ring-1 ring-black/[0.06]">
+            <button
+              type="button"
+              onClick={() => setShowAll(false)}
+              className={cn("rounded-full px-3 py-1", !showAll && "bg-primary text-primary-foreground")}
+            >
+              Guarantee days
+            </button>
+            <button
+              type="button"
+              onClick={() => setShowAll(true)}
+              className={cn("rounded-full px-3 py-1", showAll && "bg-primary text-primary-foreground")}
+            >
+              All days
+            </button>
+          </div>
+          <Button type="button" size="sm" variant="destructive" disabled={busy || selected.size === 0} onClick={() => apply(true)}>
+            Remove guarantee ({selected.size})
+          </Button>
+          <Button type="button" size="sm" variant="ghost" disabled={busy || selected.size === 0} onClick={() => apply(false)}>
+            Restore
+          </Button>
+        </div>
+      </div>
+      {error && <p className="text-sm text-destructive">{error}</p>}
+
+      {days === null ? (
+        <p className="text-sm text-muted-foreground">Loading...</p>
+      ) : (
+        <div className="overflow-x-auto rounded-xl bg-card ring-1 ring-black/[0.06]">
+          <table className="w-full min-w-[860px] text-sm">
+            <thead>
+              <tr className="bg-muted/60 text-left text-xs uppercase tracking-wide text-muted-foreground">
+                <th className="w-10 px-3 py-2.5">
+                  <input
+                    type="checkbox"
+                    aria-label="Select all"
+                    checked={allSelected}
+                    onChange={() => setSelected(allSelected ? new Set() : new Set(visible.map(key)))}
+                  />
+                </th>
+                <th className={TH}>Date</th>
+                {showStore && <th className={TH}>Store</th>}
+                <th className={TH}>Services done</th>
+                <th className={cn(TH, "text-right")}>Hours</th>
+                <th className={cn(TH, "text-right")}>ค่ามือ earned</th>
+                <th className={cn(TH, "text-right")}>Guarantee</th>
+                <th className={cn(TH, "text-right")}>Top-up paid</th>
+                <th className={cn(TH, "text-right")}>Day pay</th>
+                <th className={TH}>Status</th>
+              </tr>
+            </thead>
+            <tbody>
+              {visible.map((d) => {
+                const reached = d.serviceHours >= minHours;
+                return (
+                  <tr key={key(d)} className={cn("border-t border-border align-top", selected.has(key(d)) && "bg-primary/5")}>
+                    <td className="px-3 py-2.5">
+                      <input type="checkbox" checked={selected.has(key(d))} disabled={d.locked} onChange={() => toggle(d)} />
+                    </td>
+                    <td className="whitespace-nowrap px-3 py-2.5 font-medium">{dateLabel(d.workDate)}</td>
+                    {showStore && (
+                      <td className="px-3 py-2.5" data-no-translate>
+                        {d.branchName}
+                      </td>
+                    )}
+                    <td className="px-3 py-2.5">
+                      {d.jobs.length === 0 ? (
+                        <span className="text-muted-foreground">No services</span>
+                      ) : (
+                        <ul className="space-y-0.5">
+                          {d.jobs.map((j, i) => (
+                            <li key={i} className="flex justify-between gap-3">
+                              <span data-no-translate>
+                                {j.description}
+                                {j.durationMinutes ? ` · ${j.durationMinutes} min` : ""}
+                              </span>
+                              <span className="shrink-0 text-muted-foreground">{formatCents(j.payoutCents)}</span>
+                            </li>
+                          ))}
+                        </ul>
+                      )}
+                    </td>
+                    <td className="px-3 py-2.5 text-right">{formatHours(d.serviceHours)}</td>
+                    <td className="px-3 py-2.5 text-right">{formatCents(d.earnedCents)}</td>
+                    <td className="px-3 py-2.5 text-right text-muted-foreground">{formatCents(d.guaranteeCents)}</td>
+                    <td
+                      className={cn(
+                        "px-3 py-2.5 text-right font-medium",
+                        d.topupCents > 0 ? "text-highlight" : "text-muted-foreground",
+                      )}
+                    >
+                      {d.topupCents > 0 ? `+${formatCents(d.topupCents)}` : formatCents(0)}
+                    </td>
+                    <td className="px-3 py-2.5 text-right font-medium">{formatCents(d.dayPayCents)}</td>
+                    <td className="px-3 py-2.5 text-xs">
+                      {d.waived ? (
+                        <span className="rounded-full bg-destructive/10 px-2 py-0.5 text-destructive">Guarantee removed</span>
+                      ) : d.topupCents > 0 ? (
+                        <span className="rounded-full bg-highlight/15 px-2 py-0.5 text-highlight">On guarantee</span>
+                      ) : reached ? (
+                        <span className="rounded-full bg-primary/10 px-2 py-0.5 text-primary">Hit {minHours}h</span>
+                      ) : (
+                        <span className="text-muted-foreground">Earned above guarantee</span>
+                      )}
+                      {d.locked && <span className="ml-1 text-muted-foreground">Locked</span>}
+                    </td>
+                  </tr>
+                );
+              })}
+              {visible.length === 0 ? (
+                <tr>
+                  <td colSpan={cols} className="px-3 py-6 text-center text-muted-foreground">
+                    {showAll ? "No days worked in this period." : "No guarantee days in this period."}
+                  </td>
+                </tr>
+              ) : (
+                <tr className="border-t-2 border-border font-medium">
+                  <td className="px-3 py-2.5" />
+                  <td className="px-3 py-2.5" colSpan={showStore ? 4 : 3}>
+                    Total ({visible.length} day{visible.length === 1 ? "" : "s"})
+                  </td>
+                  <td className="px-3 py-2.5 text-right">{formatCents(totals.earned)}</td>
+                  <td className="px-3 py-2.5" />
+                  <td className="px-3 py-2.5 text-right text-highlight">+{formatCents(totals.topup)}</td>
+                  <td className="px-3 py-2.5 text-right">{formatCents(totals.pay)}</td>
+                  <td className="px-3 py-2.5" />
+                </tr>
+              )}
+            </tbody>
+          </table>
+        </div>
+      )}
+      <p className="text-xs text-muted-foreground">
+        Top-up = guarantee minus ค่ามือ earned, paid on days under {minHours}h of service. Removing a guarantee keeps the
+        check-in and jobs; only the top-up is dropped. You can restore it any time before the day is locked.
+      </p>
+    </div>
+  );
+}
+
 export function PayrollBoard({
-  branchId,
+  branches,
+  combined,
   view,
   date,
+  start,
+  end,
   minHours,
   rows,
 }: {
-  branchId: string;
+  branches: { id: string; name: string }[];
+  combined: boolean;
   view: "daily" | "monthly";
   date: string;
+  start: string;
+  end: string;
   minHours: number;
   rows: PayrollDayRow[];
 }) {
   const router = useRouter();
   const [lockLoading, setLockLoading] = useState(false);
+  const [openStaffId, setOpenStaffId] = useState<string | null>(null);
   const dayLocked = rows.length > 0 && rows.every((r) => r.locked);
 
   const monthly = useMemo(() => (view === "monthly" ? summarizeMonthly(rows, minHours) : []), [view, rows, minHours]);
 
   async function toggleLock() {
     setLockLoading(true);
-    await setPayrollDayLock(branchId, date, !dayLocked);
+    for (const b of branches) await setPayrollDayLock(b.id, date, !dayLocked);
     setLockLoading(false);
     router.refresh();
   }
@@ -267,7 +509,7 @@ export function PayrollBoard({
             No one clocked in on this day.
           </p>
         ) : (
-          rows.map((row) => <DailyRow key={row.sessionId} branchId={branchId} row={row} />)
+          rows.map((row) => <DailyRow key={row.sessionId} row={row} showStore={combined} />)
         )}
       </div>
     );
@@ -276,41 +518,69 @@ export function PayrollBoard({
   return (
     <Card>
       <CardHeader>
-        <CardTitle>Monthly summary</CardTitle>
+        <CardTitle>Monthly summary{combined ? " · both stores" : ""}</CardTitle>
       </CardHeader>
-      <CardContent className="overflow-x-auto">
-        <table className="w-full min-w-[720px] text-sm">
+      <CardContent className="overflow-x-auto p-0">
+        <table className="w-full min-w-[960px] text-sm">
           <thead>
-            <tr className="border-b border-border text-left text-xs text-muted-foreground">
-              <th className="py-2 pr-3">Therapist</th>
-              <th className="px-3 py-2">Days present</th>
-              <th className="px-3 py-2">Days &ge; {minHours}h</th>
-              <th className="px-3 py-2">Days on guarantee</th>
-              <th className="px-3 py-2">Jobs</th>
-              <th className="px-3 py-2">E</th>
-              <th className="px-3 py-2">Extra (U)</th>
-              <th className="px-3 py-2">Tips</th>
-              <th className="px-3 py-2">Utilisation</th>
-              <th className="px-3 py-2 text-right">Total pay</th>
+            <tr className="bg-muted/60 text-left text-xs uppercase tracking-wide text-muted-foreground">
+              <th className="px-6 py-2.5 font-medium">Therapist</th>
+              <th className={cn(TH, "text-right")}>Days worked</th>
+              <th className={cn(TH, "text-right")}>Days hit {minHours}h</th>
+              <th className={cn(TH, "text-right")}>Guarantee days</th>
+              <th className={cn(TH, "text-right")}>Jobs</th>
+              <th className={cn(TH, "text-right")}>ค่ามือ earned</th>
+              <th className={cn(TH, "text-right")}>Guarantee top-up</th>
+              <th className={cn(TH, "text-right")}>Tips</th>
+              <th className={cn(TH, "text-right")}>Busy time</th>
+              <th className="px-6 py-2.5 text-right font-medium">Total pay</th>
             </tr>
           </thead>
           <tbody>
-            {monthly.map((m) => (
-              <tr key={m.staffId} className="border-b border-border last:border-0">
-                <td className="py-2 pr-3 font-medium">{m.name}</td>
-                <td className="px-3 py-2">{m.daysPresent}</td>
-                <td className="px-3 py-2">{m.daysHitting3Hours}</td>
-                <td className="px-3 py-2">{m.daysOnGuarantee}</td>
-                <td className="px-3 py-2">{m.jobsCount}</td>
-                <td className="px-3 py-2">{formatCents(m.payoutCents)}</td>
-                <td className="px-3 py-2 font-medium text-highlight">{formatCents(m.guaranteeTopupCents)}</td>
-                <td className="px-3 py-2">{formatCents(m.tipsCents)}</td>
-                <td className="px-3 py-2">
-                  {m.clockedHours > 0 ? `${Math.round((m.serviceHours / m.clockedHours) * 100)}%` : "—"}
-                </td>
-                <td className="px-3 py-2 text-right font-display font-medium">{formatCents(m.grossPayCents)}</td>
-              </tr>
-            ))}
+            {monthly.map((m) => {
+              const open = openStaffId === m.staffId;
+              return (
+                <Fragment key={m.staffId}>
+                  <tr className={cn("border-t border-border", open && "bg-muted/30")}>
+                    <td className="px-6 py-3 font-medium">{m.name}</td>
+                    <td className="px-3 py-3 text-right">{m.daysPresent}</td>
+                    <td className="px-3 py-3 text-right">{m.daysHitting3Hours}</td>
+                    <td className="px-3 py-3 text-right">
+                      <button
+                        type="button"
+                        onClick={() => setOpenStaffId(open ? null : m.staffId)}
+                        className="rounded-full bg-highlight/15 px-3 py-1 font-medium text-highlight hover:bg-highlight/25"
+                      >
+                        {m.daysOnGuarantee} {open ? "▴" : "▾"}
+                      </button>
+                    </td>
+                    <td className="px-3 py-3 text-right">{m.jobsCount}</td>
+                    <td className="px-3 py-3 text-right">{formatCents(m.payoutCents)}</td>
+                    <td className="px-3 py-3 text-right font-medium text-highlight">{formatCents(m.guaranteeTopupCents)}</td>
+                    <td className="px-3 py-3 text-right">{formatCents(m.tipsCents)}</td>
+                    <td className="px-3 py-3 text-right">
+                      {m.clockedHours > 0 ? `${Math.round((m.serviceHours / m.clockedHours) * 100)}%` : "—"}
+                    </td>
+                    <td className="px-6 py-3 text-right font-display font-medium">{formatCents(m.grossPayCents)}</td>
+                  </tr>
+                  {open && (
+                    <tr>
+                      <td colSpan={10} className="px-6 pb-5 pt-1">
+                        <GuaranteeDays
+                          branches={branches}
+                          staffId={m.staffId}
+                          name={m.name}
+                          start={start}
+                          end={end}
+                          minHours={minHours}
+                          showStore={combined}
+                        />
+                      </td>
+                    </tr>
+                  )}
+                </Fragment>
+              );
+            })}
             {monthly.length === 0 && (
               <tr>
                 <td colSpan={10} className="py-6 text-center text-muted-foreground">
