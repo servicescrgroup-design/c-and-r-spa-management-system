@@ -131,3 +131,26 @@ body {
     visibility: visible;
   }
 }
+
+/* Printing (e.g. the daily report's Download PDF): only the page content, on white. */
+@media print {
+  header,
+  nav,
+  [data-print-hide] {
+    display: none !important;
+  }
+  html,
+  body {
+    background: #fff !important;
+  }
+  main {
+    padding: 0 !important;
+    max-width: none !important;
+  }
+  details > summary {
+    list-style: none;
+  }
+  .print-break-inside-avoid {
+    break-inside: avoid;
+  }
+}

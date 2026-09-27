@@ -101,22 +101,29 @@ export async function closeDrawer(formData: FormData): Promise<ActionResult> {
 
   const { data: session } = await supabase
     .from("cash_drawer_sessions")
-    .select("id, opening_amount_cents, register_id, opened_at, status")
+    .select("id, opening_amount_cents, register_id, opened_at, status, pos_registers(branch_id)")
     .eq("id", drawerSessionId)
     .single();
   if (!session) return { ok: false, error: "Drawer session not found." };
   if (session.status !== "open") return { ok: false, error: "This shift is already closed." };
   if (closedAt < new Date(session.opened_at)) return { ok: false, error: "The closing time is before the shift opened." };
 
-  const { data: sales } = await supabase
-    .from("pos_payments")
-    .select("amount_cents, pos_transactions!inner(drawer_session_id)")
-    .eq("pos_transactions.drawer_session_id", drawerSessionId)
-    .eq("method", "cash");
-
-  const cashSalesCents = (sales ?? []).reduce((sum, p) => sum + p.amount_cents, 0);
+  // Expected cash: float + cash sales − cash refunds − cash paid out − freelancers paid.
+  // Refunds are saved as positive amounts on their own sale, so they come off here.
+  const { data: drawerTxns } = await supabase
+    .from("pos_transactions")
+    .select("original_transaction_id, pos_payments(method, amount_cents), pos_transaction_items(freelance_session_id, payout_cents)")
+    .eq("drawer_session_id", drawerSessionId);
+  const cashOf = (t: { pos_payments: { method: string; amount_cents: number }[] }) =>
+    t.pos_payments.filter((p) => p.method === "cash").reduce((sum, p) => sum + p.amount_cents, 0);
+  const cashSalesCents = (drawerTxns ?? []).filter((t) => !t.original_transaction_id).reduce((sum, t) => sum + cashOf(t), 0);
+  const cashRefundsCents = (drawerTxns ?? []).filter((t) => t.original_transaction_id).reduce((sum, t) => sum + cashOf(t), 0);
+  const freelanceCashCents = (drawerTxns ?? [])
+    .filter((t) => !t.original_transaction_id)
+    .flatMap((t) => t.pos_transaction_items.filter((i) => i.freelance_session_id))
+    .reduce((sum, i) => sum + i.payout_cents, 0);
   const { data: paidOut } = await supabase.rpc("drawer_cash_paid_out", { p_drawer_session_id: drawerSessionId });
-  const expectedCents = session.opening_amount_cents + cashSalesCents - (paidOut ?? 0);
+  const expectedCents = session.opening_amount_cents + cashSalesCents - cashRefundsCents - (paidOut ?? 0) - freelanceCashCents;
   const countedCents = Math.round(countedDollars * 100);
 
   const { error } = await supabase
@@ -135,7 +142,10 @@ export async function closeDrawer(formData: FormData): Promise<ActionResult> {
   if (error) return { ok: false, error: error.message };
 
   revalidatePath("/pos");
-  redirect("/pos/register");
+  // Straight to the day's report for this store.
+  const shiftDate = new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Bangkok" }).format(new Date(session.opened_at));
+  const branchId = session.pos_registers?.branch_id;
+  redirect(branchId ? `/pos/report?branchId=${branchId}&date=${shiftDate}&closed=1` : "/pos/register");
 }
 
 export type CartItem = {

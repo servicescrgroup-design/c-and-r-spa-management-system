@@ -51,6 +51,7 @@ export const SEARCH_INDEX: SearchItem[] = [
   { label: "Payroll — Receptionists", href: "/admin/payroll?section=receptionists", keywords: "base pay certification commission" },
   { label: "Therapist earnings", href: "/admin/therapists", keywords: "masseuse masseur pay sales amount their view screen" },
   { label: "Store checklists", href: "/admin/checklists", keywords: "opening closing 2pm midday double check cleaning tasks" },
+  { label: "Daily report", href: "/admin/reports/daily", keywords: "shift report end of day close pdf net profit cash promptpay card" },
   { label: "Payroll export", href: "/admin/payroll", keywords: "csv download" },
   { label: "Document expiry", href: "/admin/payroll", keywords: "expiring soon work permit health check" },
 

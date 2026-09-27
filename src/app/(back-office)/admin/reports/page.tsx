@@ -38,9 +38,14 @@ export default async function ReportsPage() {
           <h1 className="text-2xl font-semibold">Reports</h1>
           <p className="text-muted-foreground">A quick cross-branch snapshot.</p>
         </div>
-        <Link href="/admin/expenses" className="text-sm text-primary hover:underline">
-          Expenses by day, month and category &rarr;
-        </Link>
+        <div className="flex flex-col items-end gap-1">
+          <Link href="/admin/reports/daily" className="text-sm text-primary hover:underline">
+            Daily report: revenue, costs, net profit and cash &rarr;
+          </Link>
+          <Link href="/admin/expenses" className="text-sm text-primary hover:underline">
+            Expenses by day, month and category &rarr;
+          </Link>
+        </div>
       </div>
 
       <div className="grid gap-4 sm:grid-cols-2">

@@ -10,13 +10,22 @@ type Supabase = Awaited<ReturnType<typeof createServerSupabaseClient>>;
 
 /** Net cash in a shift: cash payments (refunds are negative, so they net out) minus cash paid out. */
 async function cashTakenCents(supabase: Supabase, sessionId: string) {
-  const { data } = await supabase
-    .from("pos_payments")
-    .select("amount_cents, pos_transactions!inner(drawer_session_id)")
-    .eq("pos_transactions.drawer_session_id", sessionId)
-    .eq("method", "cash");
-  const taken = (data ?? []).reduce((sum, p) => sum + p.amount_cents, 0);
-  // Cash paid out of the drawer (e.g. transportation fees) leaves it too.
+  // Cash sales, minus refunds (saved as positive amounts on their own sale),
+  // cash paid out of the drawer (e.g. transport) and freelancers paid in cash.
+  const { data: txns } = await supabase
+    .from("pos_transactions")
+    .select("original_transaction_id, pos_payments(method, amount_cents), pos_transaction_items(freelance_session_id, payout_cents)")
+    .eq("drawer_session_id", sessionId);
+  let taken = 0;
+  for (const t of txns ?? []) {
+    const cash = t.pos_payments.filter((p) => p.method === "cash").reduce((sum, p) => sum + p.amount_cents, 0);
+    if (t.original_transaction_id) {
+      taken -= cash;
+    } else {
+      taken += cash;
+      taken -= t.pos_transaction_items.filter((i) => i.freelance_session_id).reduce((sum, i) => sum + i.payout_cents, 0);
+    }
+  }
   const { data: paidOut } = await supabase.rpc("drawer_cash_paid_out", { p_drawer_session_id: sessionId });
   return taken - (paidOut ?? 0);
 }

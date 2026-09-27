@@ -33,6 +33,11 @@ const TABS = [
     icon: <path d="M4 5.5 5.5 7 8 4.5M4 10.5 5.5 12 8 9.5M4 15.5 5.5 17 8 14.5M10.5 6h6M10.5 11h6M10.5 16h6" />,
   },
   {
+    href: "/pos/report",
+    label: "Report",
+    icon: <path d="M4 16.5h12M6.5 13.5V9M10 13.5V5.5M13.5 13.5v-6" />,
+  },
+  {
     href: "/pos/refunds",
     label: "Refunds",
     icon: <path d="M7 6 4 9l3 3M4 9h8a4 4 0 0 1 0 8H9" />,
