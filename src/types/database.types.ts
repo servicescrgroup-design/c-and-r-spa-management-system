@@ -3615,6 +3615,7 @@ export type Database = {
         }
         Returns: string
       }
+      delete_expense: { Args: { p_expense_id: string }; Returns: undefined }
       edit_pos_sale: {
         Args: {
           p_discount_cents: number

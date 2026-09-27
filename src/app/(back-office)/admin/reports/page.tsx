@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { requireStaffContext } from "@/lib/auth/session";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -32,9 +33,14 @@ export default async function ReportsPage() {
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-semibold">Reports</h1>
-        <p className="text-muted-foreground">A quick cross-branch snapshot.</p>
+      <div className="flex flex-wrap items-end justify-between gap-3">
+        <div>
+          <h1 className="text-2xl font-semibold">Reports</h1>
+          <p className="text-muted-foreground">A quick cross-branch snapshot.</p>
+        </div>
+        <Link href="/admin/expenses" className="text-sm text-primary hover:underline">
+          Expenses by day, month and category &rarr;
+        </Link>
       </div>
 
       <div className="grid gap-4 sm:grid-cols-2">

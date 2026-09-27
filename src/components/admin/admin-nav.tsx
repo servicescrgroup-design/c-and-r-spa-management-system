@@ -18,6 +18,7 @@ const NAV = [
   { href: "/admin/scheduling", label: "Scheduling" },
   { href: "/admin/registers", label: "Registers" },
   { href: "/admin/payroll", label: "Payroll" },
+  { href: "/admin/expenses", label: "Expenses" },
   { href: "/admin/accounting", label: "Accounting" },
   { href: "/admin/reports", label: "Reports" },
   { href: "/admin/settings", label: "Settings" },

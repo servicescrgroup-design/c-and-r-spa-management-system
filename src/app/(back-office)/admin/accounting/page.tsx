@@ -3,36 +3,26 @@ import { requireStaffContext } from "@/lib/auth/session";
 import { isOwner } from "@/lib/auth/roles";
 import { redirect } from "next/navigation";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
-import { ensureDefaultExpenseCategory } from "@/lib/admin/accounting-actions";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { NewVendorForm } from "@/components/admin/new-vendor-form";
-import { NewExpenseForm } from "@/components/admin/new-expense-form";
+import Link from "next/link";
 import { formatCents } from "@/lib/utils";
 
 export default async function AccountingPage() {
   const ctx = await requireStaffContext();
   if (!isOwner(ctx)) redirect("/admin");
 
-  await ensureDefaultExpenseCategory();
-
   const supabase = await createServerSupabaseClient();
-  const [
-    { data: trialBalance },
-    { data: expenses },
-    { data: vendors },
-    { data: branches },
-    { data: categories },
-  ] = await Promise.all([
+  const thisMonth = new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Bangkok" }).format(new Date()).slice(0, 7);
+  const [{ data: trialBalance }, { data: expenses }, { data: monthExpenses }] = await Promise.all([
     supabase.from("v_trial_balance").select("code, name, type, balance_cents").order("code"),
     supabase
       .from("expenses")
       .select("id, amount_cents, expense_date, description, vendor:vendor_id(name), category:category_id(name)")
       .order("expense_date", { ascending: false })
-      .limit(10),
-    supabase.from("vendors").select("id, name").order("name"),
-    supabase.from("branches").select("id, name").order("name"),
-    supabase.from("expense_categories").select("id, name").order("name"),
+      .limit(5),
+    supabase.from("expenses").select("amount_cents, tax_cents").gte("expense_date", `${thisMonth}-01`),
   ]);
+  const monthExpenseCents = (monthExpenses ?? []).reduce((sum, e) => sum + e.amount_cents + e.tax_cents, 0);
 
   const revenueTotal = (trialBalance ?? [])
     .filter((a) => a.type === "revenue")
@@ -99,8 +89,19 @@ export default async function AccountingPage() {
       </Card>
 
       <Card>
-        <CardHeader>
-          <CardTitle>Recent expenses</CardTitle>
+        <CardHeader className="flex-row items-center justify-between gap-3 space-y-0">
+          <div>
+            <CardTitle>Expenses</CardTitle>
+            <CardDescription>
+              {formatCents(monthExpenseCents)} spent this month. Record and review expenses on the Expenses page.
+            </CardDescription>
+          </div>
+          <Link
+            href="/admin/expenses"
+            className="inline-flex h-10 shrink-0 items-center rounded-full bg-primary px-5 text-sm font-medium text-primary-foreground"
+          >
+            Open expenses
+          </Link>
         </CardHeader>
         <CardContent className="space-y-2 text-sm">
           {(expenses ?? []).map((e) => (
@@ -115,34 +116,9 @@ export default async function AccountingPage() {
               </span>
             </div>
           ))}
-          {(expenses ?? []).length === 0 && (
-            <p className="text-muted-foreground">No expenses recorded yet.</p>
-          )}
+          {(expenses ?? []).length === 0 && <p className="text-muted-foreground">No expenses recorded yet.</p>}
         </CardContent>
       </Card>
-
-      <div className="grid gap-4 sm:grid-cols-2">
-        <Card>
-          <CardHeader>
-            <CardTitle>Record an expense</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <NewExpenseForm
-              branches={branches ?? []}
-              categories={categories ?? []}
-              vendors={vendors ?? []}
-            />
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader>
-            <CardTitle>Add a vendor</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <NewVendorForm />
-          </CardContent>
-        </Card>
-      </div>
     </div>
   );
 }

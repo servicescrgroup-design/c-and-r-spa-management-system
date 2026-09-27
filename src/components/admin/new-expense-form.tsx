@@ -6,6 +6,9 @@ import { recordExpense } from "@/lib/admin/accounting-actions";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { EXPENSE_METHODS, EXPENSE_METHOD_LABELS } from "@/lib/expenses";
+
+const today = () => new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Bangkok" }).format(new Date());
 
 type Option = { id: string; name: string };
 
@@ -96,16 +99,23 @@ export function NewExpenseForm({
             name="paymentMethod"
             className="flex h-10 w-full rounded-md border border-border bg-background px-3 py-2 text-sm"
           >
-            <option value="cash">Cash</option>
-            <option value="card">Card</option>
-            <option value="check">Check</option>
-            <option value="ach">ACH</option>
+            {EXPENSE_METHODS.map((m) => (
+              <option key={m} value={m}>
+                {EXPENSE_METHOD_LABELS[m]}
+              </option>
+            ))}
           </select>
         </div>
       </div>
-      <div className="space-y-2">
-        <Label htmlFor="description">Description</Label>
-        <Input id="description" name="description" />
+      <div className="grid grid-cols-2 gap-3">
+        <div className="space-y-2">
+          <Label htmlFor="expenseDate">Date</Label>
+          <Input id="expenseDate" name="expenseDate" type="date" defaultValue={today()} max={today()} required />
+        </div>
+        <div className="space-y-2">
+          <Label htmlFor="description">Description</Label>
+          <Input id="description" name="description" placeholder="e.g. 20 kg towels" />
+        </div>
       </div>
       {error && <p className="text-sm text-destructive">{error}</p>}
       <Button type="submit" disabled={loading}>
