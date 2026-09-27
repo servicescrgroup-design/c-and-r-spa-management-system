@@ -50,6 +50,7 @@ export const SEARCH_INDEX: SearchItem[] = [
   { label: "Payroll — Therapists", href: "/admin/payroll?section=therapists", keywords: "guarantee hours payout" },
   { label: "Payroll — Receptionists", href: "/admin/payroll?section=receptionists", keywords: "base pay certification commission" },
   { label: "Therapist earnings", href: "/admin/therapists", keywords: "masseuse masseur pay sales amount their view screen" },
+  { label: "Store checklists", href: "/admin/checklists", keywords: "opening closing 2pm midday double check cleaning tasks" },
   { label: "Payroll export", href: "/admin/payroll", keywords: "csv download" },
   { label: "Document expiry", href: "/admin/payroll", keywords: "expiring soon work permit health check" },
 

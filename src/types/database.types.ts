@@ -704,6 +704,192 @@ export type Database = {
           },
         ]
       }
+      checklist_days: {
+        Row: {
+          branch_id: string
+          midday_note: string | null
+          midday_signed_off_at: string | null
+          midday_signed_off_by_staff_id: string | null
+          solo: boolean
+          solo_set_by_staff_id: string | null
+          work_date: string
+        }
+        Insert: {
+          branch_id: string
+          midday_note?: string | null
+          midday_signed_off_at?: string | null
+          midday_signed_off_by_staff_id?: string | null
+          solo?: boolean
+          solo_set_by_staff_id?: string | null
+          work_date: string
+        }
+        Update: {
+          branch_id?: string
+          midday_note?: string | null
+          midday_signed_off_at?: string | null
+          midday_signed_off_by_staff_id?: string | null
+          solo?: boolean
+          solo_set_by_staff_id?: string | null
+          work_date?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "checklist_days_branch_id_fkey"
+            columns: ["branch_id"]
+            isOneToOne: false
+            referencedRelation: "branches"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "checklist_days_midday_signed_off_by_staff_id_fkey"
+            columns: ["midday_signed_off_by_staff_id"]
+            isOneToOne: false
+            referencedRelation: "staff"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "checklist_days_solo_set_by_staff_id_fkey"
+            columns: ["solo_set_by_staff_id"]
+            isOneToOne: false
+            referencedRelation: "staff"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      checklist_entries: {
+        Row: {
+          branch_id: string
+          done_at: string | null
+          done_by_staff_id: string | null
+          id: string
+          item_id: string | null
+          label: string
+          note: string | null
+          recorded_by_staff_id: string | null
+          section: string | null
+          shift: string
+          verified_at: string | null
+          verified_by_staff_id: string | null
+          verified_solo: boolean
+          verify_note: string | null
+          verify_result: string | null
+          work_date: string
+        }
+        Insert: {
+          branch_id: string
+          done_at?: string | null
+          done_by_staff_id?: string | null
+          id?: string
+          item_id?: string | null
+          label: string
+          note?: string | null
+          recorded_by_staff_id?: string | null
+          section?: string | null
+          shift: string
+          verified_at?: string | null
+          verified_by_staff_id?: string | null
+          verified_solo?: boolean
+          verify_note?: string | null
+          verify_result?: string | null
+          work_date: string
+        }
+        Update: {
+          branch_id?: string
+          done_at?: string | null
+          done_by_staff_id?: string | null
+          id?: string
+          item_id?: string | null
+          label?: string
+          note?: string | null
+          recorded_by_staff_id?: string | null
+          section?: string | null
+          shift?: string
+          verified_at?: string | null
+          verified_by_staff_id?: string | null
+          verified_solo?: boolean
+          verify_note?: string | null
+          verify_result?: string | null
+          work_date?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "checklist_entries_branch_id_fkey"
+            columns: ["branch_id"]
+            isOneToOne: false
+            referencedRelation: "branches"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "checklist_entries_done_by_staff_id_fkey"
+            columns: ["done_by_staff_id"]
+            isOneToOne: false
+            referencedRelation: "staff"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "checklist_entries_item_id_fkey"
+            columns: ["item_id"]
+            isOneToOne: false
+            referencedRelation: "checklist_items"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "checklist_entries_recorded_by_staff_id_fkey"
+            columns: ["recorded_by_staff_id"]
+            isOneToOne: false
+            referencedRelation: "staff"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "checklist_entries_verified_by_staff_id_fkey"
+            columns: ["verified_by_staff_id"]
+            isOneToOne: false
+            referencedRelation: "staff"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      checklist_items: {
+        Row: {
+          branch_id: string
+          created_at: string
+          id: string
+          is_active: boolean
+          label: string
+          section: string | null
+          shift: string
+          sort_order: number
+        }
+        Insert: {
+          branch_id: string
+          created_at?: string
+          id?: string
+          is_active?: boolean
+          label: string
+          section?: string | null
+          shift: string
+          sort_order?: number
+        }
+        Update: {
+          branch_id?: string
+          created_at?: string
+          id?: string
+          is_active?: boolean
+          label?: string
+          section?: string | null
+          shift?: string
+          sort_order?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "checklist_items_branch_id_fkey"
+            columns: ["branch_id"]
+            isOneToOne: false
+            referencedRelation: "branches"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       commission_rules: {
         Row: {
           branch_id: string | null
@@ -3661,6 +3847,50 @@ export type Database = {
     }
     Functions: {
       auto_complete_finished_jobs: { Args: never; Returns: number }
+      checklist_reopen_midday: {
+        Args: { p_branch_id: string; p_work_date: string }
+        Returns: undefined
+      }
+      checklist_set_solo: {
+        Args: {
+          p_branch_id: string
+          p_solo: boolean
+          p_staff_id: string
+          p_work_date: string
+        }
+        Returns: undefined
+      }
+      checklist_signoff_midday: {
+        Args: {
+          p_branch_id: string
+          p_note?: string
+          p_staff_id: string
+          p_work_date: string
+        }
+        Returns: undefined
+      }
+      checklist_tick: {
+        Args: {
+          p_branch_id: string
+          p_done: boolean
+          p_done_by: string
+          p_item_id: string
+          p_note?: string
+          p_work_date: string
+        }
+        Returns: undefined
+      }
+      checklist_verify: {
+        Args: {
+          p_branch_id: string
+          p_item_id: string
+          p_note?: string
+          p_result: string
+          p_verified_by: string
+          p_work_date: string
+        }
+        Returns: undefined
+      }
       claim_owner_account: {
         Args: { p_first_name: string; p_last_name: string }
         Returns: undefined
