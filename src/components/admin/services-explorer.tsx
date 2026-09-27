@@ -3,6 +3,7 @@
 import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { formatCents, cn } from "@/lib/utils";
+import { bulkUpdatePrices, quickUpdatePrice, type BulkCostChange, type BulkPriceChange } from "@/lib/admin/service-actions";
 
 type PriceOption = { duration_minutes: number; price_cents: number; payout_cents: number | null };
 type Category = { id: string; name: string; background_color?: string | null };
@@ -34,6 +35,208 @@ function marginPercent(option: PriceOption): number | null {
   return ((option.price_cents - option.payout_cents) / option.price_cents) * 100;
 }
 
+/** Shows an amount; click it to type a new one. Enter saves, Esc cancels. */
+function InlineMoney({
+  cents,
+  onSave,
+  className,
+  label,
+}: {
+  cents: number | null;
+  onSave: (cents: number) => Promise<string | null>;
+  className?: string;
+  label: string;
+}) {
+  const [editing, setEditing] = useState(false);
+  const [value, setValue] = useState("");
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  async function save() {
+    const n = Number(value);
+    if (value.trim() === "" || !Number.isFinite(n) || n < 0) {
+      setError("Enter 0 or more");
+      return;
+    }
+    const next = Math.round(n * 100);
+    if (next === cents) return setEditing(false);
+    setSaving(true);
+    const err = await onSave(next);
+    setSaving(false);
+    if (err) return setError(err);
+    setEditing(false);
+  }
+
+  if (!editing) {
+    return (
+      <button
+        type="button"
+        aria-label={`Edit ${label}`}
+        title="Click to edit"
+        onClick={(e) => {
+          e.stopPropagation();
+          setValue(cents != null ? String(cents / 100) : "");
+          setError(null);
+          setEditing(true);
+        }}
+        className={cn("rounded-md px-1.5 py-0.5 underline decoration-dotted decoration-muted-foreground/50 underline-offset-4 hover:bg-card", className)}
+      >
+        {cents != null ? formatCents(cents) : "—"}
+      </button>
+    );
+  }
+  return (
+    <span className="inline-flex flex-col items-end" onClick={(e) => e.stopPropagation()}>
+      <input
+        autoFocus
+        inputMode="decimal"
+        value={value}
+        disabled={saving}
+        aria-label={label}
+        onChange={(e) => setValue(e.target.value)}
+        onKeyDown={(e) => {
+          if (e.key === "Enter") save();
+          if (e.key === "Escape") setEditing(false);
+        }}
+        onBlur={save}
+        className="h-9 w-24 rounded-lg border border-ring bg-card px-2 text-right text-sm tabular-nums focus:outline-none focus:ring-2 focus:ring-ring/30"
+      />
+      {error && <span className="text-[11px] text-destructive">{error}</span>}
+    </span>
+  );
+}
+
+type PriceMode = "none" | "set" | "add" | "percent";
+type CostMode = PriceMode | "share";
+
+function BulkBar({
+  selected,
+  services,
+  onClear,
+}: {
+  selected: Set<string>;
+  services: Service[];
+  onClear: () => void;
+}) {
+  const router = useRouter();
+  const [lengths, setLengths] = useState<string>("all");
+  const [priceMode, setPriceMode] = useState<PriceMode>("none");
+  const [priceValue, setPriceValue] = useState("");
+  const [costMode, setCostMode] = useState<CostMode>("none");
+  const [costValue, setCostValue] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [message, setMessage] = useState<{ ok: boolean; text: string } | null>(null);
+
+  const durations = Array.from(
+    new Set(services.filter((s) => selected.has(s.id)).flatMap((s) => optionsFor(s).map((o) => o.duration_minutes))),
+  ).sort((a, b) => a - b);
+
+  async function apply() {
+    const build = (mode: CostMode, raw: string): BulkCostChange | null => {
+      if (mode === "none") return null;
+      const n = Number(raw);
+      if (mode === "set" || mode === "add") return { mode, baht: n };
+      return { mode, percent: n };
+    };
+    const price = build(priceMode, priceValue) as BulkPriceChange | null;
+    const cost = build(costMode, costValue);
+    if (!price && !cost) return setMessage({ ok: false, text: "Choose what to change." });
+    if ((price && priceValue.trim() === "") || (cost && costValue.trim() === "")) return setMessage({ ok: false, text: "Enter the amount." });
+    const what = [price && "retail price", cost && "therapist cost"].filter(Boolean).join(" and ");
+    if (!window.confirm(`Change the ${what} for ${selected.size} service${selected.size > 1 ? "s" : ""} (${lengths === "all" ? "all lengths" : `${lengths} min`})?`)) return;
+    setBusy(true);
+    setMessage(null);
+    const result = await bulkUpdatePrices({
+      serviceIds: Array.from(selected),
+      durations: lengths === "all" ? "all" : [Number(lengths)],
+      price,
+      cost,
+    }).catch(() => ({ ok: false as const, error: "Couldn't save. Try again." }));
+    setBusy(false);
+    if (!result.ok) return setMessage({ ok: false, text: result.error });
+    setMessage({ ok: true, text: `Updated ${"updated" in result ? result.updated : ""} price${"updated" in result && result.updated === 1 ? "" : "s"}.` });
+    setPriceValue("");
+    setCostValue("");
+    router.refresh();
+  }
+
+  const field = "h-9 rounded-lg border border-border bg-card px-2 text-sm";
+  return (
+    <div className="sticky bottom-3 z-20 space-y-3 rounded-2xl bg-card p-4 shadow-lg ring-1 ring-border">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <p className="font-medium">
+          {selected.size} selected
+          <button type="button" onClick={onClear} className="ml-3 text-sm font-normal text-muted-foreground hover:text-foreground">
+            Clear
+          </button>
+        </p>
+        <label className="flex items-center gap-2 text-sm">
+          <span className="text-muted-foreground">Lengths</span>
+          <select value={lengths} onChange={(e) => setLengths(e.target.value)} className={field}>
+            <option value="all">All lengths</option>
+            {durations.map((d) => (
+              <option key={d} value={String(d)}>
+                {d} min only
+              </option>
+            ))}
+          </select>
+        </label>
+      </div>
+      <div className="grid gap-3 sm:grid-cols-2">
+        <div className="flex flex-wrap items-center gap-2 text-sm">
+          <span className="w-24 font-medium">Retail price</span>
+          <select value={priceMode} onChange={(e) => setPriceMode(e.target.value as PriceMode)} className={field}>
+            <option value="none">Keep as is</option>
+            <option value="set">Set to ฿</option>
+            <option value="add">Add or subtract ฿</option>
+            <option value="percent">Change by %</option>
+          </select>
+          {priceMode !== "none" && (
+            <input
+              inputMode="decimal"
+              value={priceValue}
+              onChange={(e) => setPriceValue(e.target.value)}
+              placeholder={priceMode === "percent" ? "e.g. 10 or -5" : priceMode === "add" ? "e.g. 50 or -50" : "e.g. 690"}
+              className={cn(field, "w-32")}
+            />
+          )}
+        </div>
+        <div className="flex flex-wrap items-center gap-2 text-sm">
+          <span className="w-24 font-medium">Therapist cost</span>
+          <select value={costMode} onChange={(e) => setCostMode(e.target.value as CostMode)} className={field}>
+            <option value="none">Keep as is</option>
+            <option value="set">Set to ฿</option>
+            <option value="add">Add or subtract ฿</option>
+            <option value="percent">Change by %</option>
+            <option value="share">% of retail price</option>
+          </select>
+          {costMode !== "none" && (
+            <input
+              inputMode="decimal"
+              value={costValue}
+              onChange={(e) => setCostValue(e.target.value)}
+              placeholder={costMode === "share" ? "e.g. 40" : costMode === "percent" ? "e.g. 10" : costMode === "add" ? "e.g. 20" : "e.g. 250"}
+              className={cn(field, "w-32")}
+            />
+          )}
+        </div>
+      </div>
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <p className={cn("text-sm", message?.ok ? "text-primary" : "text-destructive")}>{message?.text}</p>
+        <button
+          type="button"
+          disabled={busy}
+          onClick={apply}
+          className="h-10 rounded-full bg-primary px-5 text-sm font-medium text-primary-foreground disabled:opacity-50"
+        >
+          {busy ? "Saving..." : "Apply to selected"}
+        </button>
+      </div>
+      <p className="text-xs text-muted-foreground">New amounts are rounded to whole baht. Every change is kept in each service&apos;s edit history.</p>
+    </div>
+  );
+}
+
 export function ServicesExplorer({
   services,
   categories,
@@ -46,6 +249,21 @@ export function ServicesExplorer({
   const [categoryId, setCategoryId] = useState<string | "all">("all");
   const [sortKey, setSortKey] = useState<SortKey>("name");
   const [selectedDuration, setSelectedDuration] = useState<Record<string, number>>({});
+  const [selected, setSelected] = useState<Set<string>>(() => new Set());
+  const toggle = (id: string) =>
+    setSelected((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+
+  async function saveOption(serviceId: string, duration: number, patch: { priceCents?: number; payoutCents?: number }) {
+    const result = await quickUpdatePrice(serviceId, duration, patch).catch(() => ({ ok: false as const, error: "Couldn't save" }));
+    if (!result.ok) return result.error;
+    router.refresh();
+    return null;
+  }
 
   const categoryById = useMemo(() => new Map(categories.map((c) => [c.id, c.name])), [categories]);
   const categoryColorById = useMemo(
@@ -84,6 +302,7 @@ export function ServicesExplorer({
 
   return (
     <div className="space-y-4">
+      <p className="text-sm text-muted-foreground">Click a price or therapist cost to change it. Tick services to change many at once.</p>
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <input
           type="search"
@@ -134,7 +353,25 @@ export function ServicesExplorer({
 
       <div className="divide-y divide-border overflow-hidden rounded-[18px] bg-card ring-1 ring-black/[0.06] dark:ring-white/[0.08]">
         <div className={cn(ROW_GRID, "hidden bg-muted/60 px-4 py-2.5 text-xs font-medium uppercase tracking-wide text-muted-foreground sm:grid")}>
-          <span>Service</span>
+          <span className="flex items-center gap-3">
+            <input
+              type="checkbox"
+              aria-label="Select all shown"
+              checked={rows.length > 0 && rows.every((r) => selected.has(r.service.id))}
+              onChange={(e) =>
+                setSelected((prev) => {
+                  const next = new Set(prev);
+                  for (const r of rows) {
+                    if (e.target.checked) next.add(r.service.id);
+                    else next.delete(r.service.id);
+                  }
+                  return next;
+                })
+              }
+              className="size-4 accent-[var(--color-primary)]"
+            />
+            Service
+          </span>
           <span className="text-right">Duration</span>
           <span className="text-right">Retail price</span>
           <span className="text-right">Therapist cost</span>
@@ -159,7 +396,16 @@ export function ServicesExplorer({
             }
             className={cn(ROW_GRID, "grid cursor-pointer grid-cols-3 gap-x-3 gap-y-2 p-4 text-foreground transition-colors hover:brightness-95")}
           >
-            <div className="col-span-3 min-w-0 sm:col-span-1">
+            <div className="col-span-3 flex min-w-0 items-start gap-3 sm:col-span-1">
+              <input
+                type="checkbox"
+                aria-label={`Select ${service.name}`}
+                checked={selected.has(service.id)}
+                onClick={(e) => e.stopPropagation()}
+                onChange={() => toggle(service.id)}
+                className="mt-1 size-4 shrink-0 accent-[var(--color-primary)]"
+              />
+              <div className="min-w-0">
               <div className="flex flex-wrap items-center gap-x-2">
                 <p className="font-medium">{service.name}</p>
                 {service.name_th && <p className="text-sm text-muted-foreground">({service.name_th})</p>}
@@ -172,6 +418,7 @@ export function ServicesExplorer({
               {service.category_id && (
                 <p className="text-xs text-muted-foreground">{categoryById.get(service.category_id)}</p>
               )}
+              </div>
             </div>
 
             <div className="col-span-3 flex sm:col-span-1 sm:justify-end">
@@ -205,11 +452,21 @@ export function ServicesExplorer({
 
             <div className="sm:text-right">
               <p className="text-[11px] text-muted-foreground sm:hidden">Retail price</p>
-              <p className="font-display text-base">{formatCents(active.price_cents)}</p>
+              <InlineMoney
+                label={`${service.name} ${active.duration_minutes} min price`}
+                cents={active.price_cents}
+                onSave={(cents) => saveOption(service.id, active.duration_minutes, { priceCents: cents })}
+                className="font-display text-base"
+              />
             </div>
             <div className="sm:text-right">
               <p className="text-[11px] text-muted-foreground sm:hidden">Therapist cost</p>
-              <p className="text-sm">{active.payout_cents != null ? formatCents(active.payout_cents) : "—"}</p>
+              <InlineMoney
+                label={`${service.name} ${active.duration_minutes} min therapist cost`}
+                cents={active.payout_cents}
+                onSave={(cents) => saveOption(service.id, active.duration_minutes, { payoutCents: cents })}
+                className="text-sm"
+              />
             </div>
             <div className="sm:text-right">
               <p className="text-[11px] text-muted-foreground sm:hidden">Margin</p>
@@ -231,6 +488,7 @@ export function ServicesExplorer({
           </p>
         )}
       </div>
+      {selected.size > 0 && <BulkBar selected={selected} services={services} onClear={() => setSelected(new Set())} />}
     </div>
   );
 }
