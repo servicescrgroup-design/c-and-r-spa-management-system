@@ -7,7 +7,8 @@ export async function getStaffBranches() {
   const ctx = await requireStaffContext();
   const supabase = await createServerSupabaseClient();
 
-  if (isOwner(ctx)) {
+  // Owners, and anyone whose role was saved for "All branches", see every branch.
+  if (isOwner(ctx) || ctx.roles.some((r) => r.branchId === null && r.role !== "therapist")) {
     const { data } = await supabase.from("branches").select("id, name").order("sort_order").order("name");
     return data ?? [];
   }

@@ -4,7 +4,7 @@ import { revalidatePath } from "next/cache";
 import { getStaffConflicts } from "@/lib/admin/calendar-data";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { requireStaffContext } from "@/lib/auth/session";
-import { isOwner } from "@/lib/auth/roles";
+import { hasBranchRole, isOwner } from "@/lib/auth/roles";
 import { getMyOpenDrawer } from "@/lib/pos/session";
 import type { Enums } from "@/types/database.types";
 
@@ -14,7 +14,7 @@ type PaymentMethod = Enums<"pos_payment_method">;
 function canSell(ctx: Awaited<ReturnType<typeof requireStaffContext>>, branchId: string) {
   return (
     isOwner(ctx) ||
-    ctx.roles.some((r) => r.branchId === branchId && (r.role === "manager" || r.role === "front_desk"))
+    hasBranchRole(ctx, branchId, ["manager", "front_desk"])
   );
 }
 

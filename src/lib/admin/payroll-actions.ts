@@ -3,14 +3,14 @@
 import { revalidatePath } from "next/cache";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { requireStaffContext } from "@/lib/auth/session";
-import { isOwner } from "@/lib/auth/roles";
+import { hasBranchRole, isOwner } from "@/lib/auth/roles";
 import type { Enums } from "@/types/database.types";
 
 type ActionResult = { ok: true } | { ok: false; error: string };
 type AdjustmentType = Enums<"payroll_adjustment_type">;
 
 function canManagePayroll(ctx: Awaited<ReturnType<typeof requireStaffContext>>, branchId: string) {
-  return isOwner(ctx) || ctx.roles.some((r) => r.branchId === branchId && r.role === "manager");
+  return isOwner(ctx) || hasBranchRole(ctx, branchId, ["manager"]);
 }
 
 export type PayrollDayRow = {

@@ -15,6 +15,12 @@ export function isOwner(ctx: Pick<StaffContext, "roles">): boolean {
   return ctx.roles.some((r) => r.role === "owner");
 }
 
+/** A role saved with no branch ("All branches") covers every branch, the
+ * same rule the database's app.has_branch_role uses. */
+export function hasBranchRole(ctx: Pick<StaffContext, "roles">, branchId: string, allowed: RoleType[]): boolean {
+  return ctx.roles.some((r) => allowed.includes(r.role) && (r.branchId === null || r.branchId === branchId));
+}
+
 export function branchIdsForRoles(
   ctx: Pick<StaffContext, "roles">,
   allowed: RoleType[],

@@ -3,7 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { requireStaffContext } from "@/lib/auth/session";
-import { isOwner } from "@/lib/auth/roles";
+import { hasBranchRole, isOwner } from "@/lib/auth/roles";
 import type { Enums } from "@/types/database.types";
 
 type ActionResult = { ok: true } | { ok: false; error: string };
@@ -12,7 +12,7 @@ type ClockStatus = Enums<"clock_status">;
 function canOperateQueue(ctx: Awaited<ReturnType<typeof requireStaffContext>>, branchId: string) {
   return (
     isOwner(ctx) ||
-    ctx.roles.some((r) => r.branchId === branchId && (r.role === "manager" || r.role === "front_desk"))
+    hasBranchRole(ctx, branchId, ["manager", "front_desk"])
   );
 }
 
