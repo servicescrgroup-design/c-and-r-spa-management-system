@@ -2011,6 +2011,7 @@ export type Database = {
         Row: {
           cogs_cents: number | null
           completed_at: string | null
+          customer_name: string | null
           description: string
           discount_cents: number
           duration_minutes: number | null
@@ -2030,6 +2031,7 @@ export type Database = {
         Insert: {
           cogs_cents?: number | null
           completed_at?: string | null
+          customer_name?: string | null
           description: string
           discount_cents?: number
           duration_minutes?: number | null
@@ -2049,6 +2051,7 @@ export type Database = {
         Update: {
           cogs_cents?: number | null
           completed_at?: string | null
+          customer_name?: string | null
           description?: string
           discount_cents?: number
           duration_minutes?: number | null

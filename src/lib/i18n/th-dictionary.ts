@@ -1224,4 +1224,12 @@ export const TH: Record<string, string> = {
   "Reason (optional), e.g. regular customer": "เหตุผล (ไม่บังคับ) เช่น ลูกค้าประจำ",
   "e.g. 10": "เช่น 10",
   "e.g. 100": "เช่น 100",
+  "Store therapists · clocked in": "หมอนวดร้าน · ลงเวลาแล้ว",
+  "Store therapists · not checked in yet": "หมอนวดร้าน · ยังไม่ลงเวลา",
+  "Freelancers today": "ฟรีแลนซ์วันนี้",
+  "+ Add a freelancer...": "+ เพิ่มฟรีแลนซ์...",
+  "Freelancer's name": "ชื่อฟรีแลนซ์",
+  "Freelancer": "ฟรีแลนซ์",
+  "Store therapist": "หมอนวดร้าน",
+  "Guest name (optional)": "ชื่อลูกค้า (ไม่บังคับ)",
 };

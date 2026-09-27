@@ -373,7 +373,7 @@ export async function getFreelanceSessions(branchId: string): Promise<FreelanceS
   return (data ?? []).map((r) => ({ id: r.id, name: r.name, status: r.status, jobsToday: r.jobs_today }));
 }
 
-export async function addFreelancer(branchId: string, name: string): Promise<ActionResult> {
+export async function addFreelancer(branchId: string, name: string): Promise<ActionResult & { sessionId?: string }> {
   const ctx = await requireStaffContext();
   if (!canSell(ctx, branchId)) return { ok: false, error: "Not authorized to manage the queue here." };
   if (!name.trim()) return { ok: false, error: "Enter the freelancer's name." };
@@ -391,18 +391,23 @@ export async function addFreelancer(branchId: string, name: string): Promise<Act
     .limit(1)
     .maybeSingle();
 
-  const { error } = await supabase.from("freelance_sessions").insert({
-    branch_id: branchId,
-    work_date: workDate,
-    name: name.trim(),
-    queue_position: (maxRow?.queue_position ?? -1) + 1,
-    created_by_staff_id: ctx.staffId,
-  });
-  if (error) return { ok: false, error: error.message };
+  const { data: created, error } = await supabase
+    .from("freelance_sessions")
+    .insert({
+      branch_id: branchId,
+      work_date: workDate,
+      name: name.trim(),
+      queue_position: (maxRow?.queue_position ?? -1) + 1,
+      created_by_staff_id: ctx.staffId,
+    })
+    .select("id")
+    .single();
+  if (error || !created) return { ok: false, error: error?.message ?? "Could not add the freelancer." };
 
   revalidatePath("/pos/queue");
   revalidatePath("/pos/sale");
-  return { ok: true };
+  revalidatePath("/pos/checkout");
+  return { ok: true, sessionId: created.id };
 }
 
 export async function removeFreelancer(sessionId: string): Promise<ActionResult> {

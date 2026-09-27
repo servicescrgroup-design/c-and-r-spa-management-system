@@ -2,6 +2,7 @@
 
 import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
+import { addFreelancer } from "@/lib/pos/sale-actions";
 import { checkoutSale, issueGiftCard, type CartAddOn, type CartItem, type PaymentMethod } from "@/lib/pos/actions";
 import { AddOnsEditor, RoomBedPicker, SellingGuide, TransportFeeBox, type PosRoom } from "@/components/pos/sale-extras";
 import { Button } from "@/components/ui/button";
@@ -119,6 +120,7 @@ export function CheckoutCart({
   packages,
   customers,
   rooms,
+  freelancers: initialFreelancers,
   busyBedIds,
   busyRoomIds,
   transportFeeCents,
@@ -133,6 +135,7 @@ export function CheckoutCart({
   packages: CatalogItem[];
   customers: Customer[];
   rooms: PosRoom[];
+  freelancers: { id: string; name: string }[];
   busyBedIds: string[];
   busyRoomIds: string[];
   transportFeeCents: number;
@@ -141,6 +144,10 @@ export function CheckoutCart({
   const [roomId, setRoomId] = useState<string | null>(null);
   const [bedId, setBedId] = useState<string | null>(null);
   const [addOns, setAddOns] = useState<CartAddOn[]>([]);
+  const [freelancers, setFreelancers] = useState(initialFreelancers);
+  const [newFreelancerFor, setNewFreelancerFor] = useState<number | null>(null);
+  const [newFreelancerName, setNewFreelancerName] = useState("");
+  const [addingFreelancer, setAddingFreelancer] = useState(false);
   const [discountMode, setDiscountMode] = useState<"percent" | "fixed">("percent");
   const [discountValue, setDiscountValue] = useState("");
   const [discountReason, setDiscountReason] = useState("");
@@ -183,8 +190,38 @@ export function CheckoutCart({
     ]);
   }
 
-  function setLineTherapist(index: number, staffId: string) {
-    setCart((prev) => prev.map((c, i) => (i === index ? { ...c, staffId: staffId || null } : c)));
+  // Select values: "staff:<id>" for a store therapist, "free:<sessionId>" for a freelancer.
+  function setLineWorker(index: number, value: string) {
+    if (value === "new-freelancer") {
+      setNewFreelancerFor(index);
+      setNewFreelancerName("");
+      return;
+    }
+    const [kind, id] = value.split(":");
+    setCart((prev) =>
+      prev.map((c, i) =>
+        i === index
+          ? { ...c, staffId: kind === "staff" ? id : null, freelanceSessionId: kind === "free" ? id : null }
+          : c,
+      ),
+    );
+  }
+
+  function setLineCustomer(index: number, name: string) {
+    setCart((prev) => prev.map((c, i) => (i === index ? { ...c, customerName: name } : c)));
+  }
+
+  async function createFreelancer(index: number) {
+    const name = newFreelancerName.trim();
+    if (!name) return;
+    setAddingFreelancer(true);
+    setError(null);
+    const result = await addFreelancer(branchId, name);
+    setAddingFreelancer(false);
+    if (!result.ok || !result.sessionId) return setError(result.ok ? "Could not add the freelancer." : result.error);
+    setFreelancers((prev) => [...prev, { id: result.sessionId!, name }]);
+    setLineWorker(index, `free:${result.sessionId}`);
+    setNewFreelancerFor(null);
   }
 
   function addItem(item: CatalogItem, itemType: "product" | "package") {
@@ -213,7 +250,9 @@ export function CheckoutCart({
     .map((item, index) => ({ item, index }))
     .filter(({ item }) => item.itemType === "service")
     .map(({ item, index }) => {
-      const who = therapists.find((t) => t.id === item.staffId)?.name.split(" (")[0];
+      const who =
+        therapists.find((t) => t.id === item.staffId)?.name.split(" (")[0] ??
+        freelancers.find((f) => f.id === item.freelanceSessionId)?.name;
       return { index, label: `${index + 1}. ${item.description}${who ? ` · ${who}` : ""}` };
     });
 
@@ -537,39 +576,93 @@ export function CheckoutCart({
                     </div>
                   ))}
                 {item.itemType === "service" && (
-                  <select
-                    aria-label="Therapist"
-                    value={item.staffId ?? ""}
-                    onChange={(e) => setLineTherapist(i, e.target.value)}
-                    className={cn(
-                      "h-9 w-full rounded-lg border bg-card px-2 text-sm",
-                      item.staffId ? "border-border" : "border-highlight/60 text-muted-foreground",
-                    )}
-                  >
-                    <option value="">Choose therapist...</option>
-                    {therapists.some((t) => t.status) && (
-                      <optgroup label="Clocked in">
-                        {therapists
-                          .filter((t) => t.status)
-                          .map((t) => (
-                            <option key={t.id} value={t.id}>
-                              {t.name} · {STATUS_TEXT[t.status!] ?? t.status}
-                            </option>
-                          ))}
+                  <div className="space-y-1.5">
+                    <select
+                      aria-label="Therapist"
+                      value={
+                        item.freelanceSessionId
+                          ? `free:${item.freelanceSessionId}`
+                          : item.staffId
+                            ? `staff:${item.staffId}`
+                            : ""
+                      }
+                      onChange={(e) => setLineWorker(i, e.target.value)}
+                      className={cn(
+                        "h-9 w-full rounded-lg border bg-card px-2 text-sm",
+                        item.staffId || item.freelanceSessionId ? "border-border" : "border-highlight/60 text-muted-foreground",
+                      )}
+                    >
+                      <option value="">Choose therapist...</option>
+                      {therapists.some((t) => t.status) && (
+                        <optgroup label="Store therapists · clocked in">
+                          {therapists
+                            .filter((t) => t.status)
+                            .map((t) => (
+                              <option key={t.id} value={`staff:${t.id}`}>
+                                {t.name} · {STATUS_TEXT[t.status!] ?? t.status}
+                              </option>
+                            ))}
+                        </optgroup>
+                      )}
+                      {therapists.some((t) => !t.status) && (
+                        <optgroup label="Store therapists · not checked in yet">
+                          {therapists
+                            .filter((t) => !t.status)
+                            .map((t) => (
+                              <option key={t.id} value={`staff:${t.id}`}>
+                                {t.name}
+                              </option>
+                            ))}
+                        </optgroup>
+                      )}
+                      <optgroup label="Freelancers today">
+                        {freelancers.map((f) => (
+                          <option key={f.id} value={`free:${f.id}`}>
+                            {f.name} · Freelancer
+                          </option>
+                        ))}
+                        <option value="new-freelancer">+ Add a freelancer...</option>
                       </optgroup>
+                    </select>
+
+                    {newFreelancerFor === i && (
+                      <div className="flex items-center gap-2">
+                        <Input
+                          autoFocus
+                          value={newFreelancerName}
+                          onChange={(e) => setNewFreelancerName(e.target.value)}
+                          onKeyDown={(e) => e.key === "Enter" && createFreelancer(i)}
+                          placeholder="Freelancer's name"
+                          className="h-9"
+                        />
+                        <Button type="button" size="sm" disabled={addingFreelancer || !newFreelancerName.trim()} onClick={() => createFreelancer(i)}>
+                          {addingFreelancer ? "Adding..." : "Add"}
+                        </Button>
+                        <button type="button" onClick={() => setNewFreelancerFor(null)} className="text-xs text-muted-foreground">
+                          Cancel
+                        </button>
+                      </div>
                     )}
-                    {therapists.some((t) => !t.status) && (
-                      <optgroup label="Not checked in yet">
-                        {therapists
-                          .filter((t) => !t.status)
-                          .map((t) => (
-                            <option key={t.id} value={t.id}>
-                              {t.name}
-                            </option>
-                          ))}
-                      </optgroup>
-                    )}
-                  </select>
+
+                    <div className="flex items-center gap-2">
+                      {item.freelanceSessionId ? (
+                        <span className="shrink-0 rounded-full bg-highlight/15 px-2 py-0.5 text-[11px] font-medium text-highlight">
+                          Freelancer
+                        </span>
+                      ) : item.staffId ? (
+                        <span className="shrink-0 rounded-full bg-primary/10 px-2 py-0.5 text-[11px] font-medium text-primary">
+                          Store therapist
+                        </span>
+                      ) : null}
+                      <Input
+                        aria-label="Guest name for this massage"
+                        value={item.customerName ?? ""}
+                        onChange={(e) => setLineCustomer(i, e.target.value)}
+                        placeholder="Guest name (optional)"
+                        className="h-8 text-xs"
+                      />
+                    </div>
+                  </div>
                 )}
               </div>
             ))}

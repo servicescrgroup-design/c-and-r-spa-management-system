@@ -148,6 +148,10 @@ export type CartItem = {
   /** Services only: chosen duration and the therapist's payout (ค่ามือ) for it. */
   durationMinutes?: number | null;
   payoutCents?: number | null;
+  /** Services only: today's freelancer doing it instead of a store therapist. */
+  freelanceSessionId?: string | null;
+  /** Services only: the guest having this massage (a sale can cover several guests). */
+  customerName?: string | null;
 };
 
 export type PaymentMethod = "cash" | "bank_transfer" | "card_manual";
@@ -242,6 +246,22 @@ export async function checkoutSale(input: {
     if (reason) return { ok: false, error: `A therapist on this sale isn't free: ${reason}.` };
   }
 
+  // Freelancers must be today's, at this branch.
+  const freelanceIds = Array.from(
+    new Set(input.items.filter((i) => i.itemType === "service" && i.freelanceSessionId).map((i) => i.freelanceSessionId!)),
+  );
+  const { data: freelancers } = freelanceIds.length
+    ? await supabase.from("freelance_sessions").select("id, name, branch_id, jobs_today").in("id", freelanceIds)
+    : { data: [] };
+  const freelancerById = new Map((freelancers ?? []).map((f) => [f.id, f]));
+  for (const id of freelanceIds) {
+    const f = freelancerById.get(id);
+    if (!f || f.branch_id !== input.branchId) return { ok: false, error: "A freelancer on this sale isn't at this store." };
+  }
+  for (const item of input.items) {
+    if (item.freelanceSessionId && item.staffId) return { ok: false, error: "Pick a store therapist or a freelancer, not both." };
+  }
+
   if (input.bedId || input.roomId) {
     if (input.bedId) {
       const { data: bed } = await supabase.from("room_beds").select("id, room_id").eq("id", input.bedId).maybeSingle();
@@ -296,7 +316,11 @@ export async function checkoutSale(input: {
       register_id: drawerSession.register_id,
       drawer_session_id: input.drawerSessionId,
       customer_id: input.customerId,
-      customer_name: input.customerName?.trim() || null,
+      // With no sale-level name, list the guests' names from the lines.
+      customer_name:
+        input.customerName?.trim() ||
+        Array.from(new Set(input.items.map((i) => i.customerName?.trim()).filter(Boolean))).join(", ") ||
+        null,
       staff_id: ctx.staffId,
       room_id: input.roomId ?? null,
       bed_id: input.bedId ?? null,
@@ -314,21 +338,29 @@ export async function checkoutSale(input: {
 
   // One insert per line so each massage's item id is known for the queue.
   const itemIdByLine = new Map<number, string>();
+  const nowIso = new Date().toISOString();
   for (const [index, item] of input.items.entries()) {
+    const freelancer = item.freelanceSessionId ? freelancerById.get(item.freelanceSessionId) : undefined;
     const { data: row, error: itemError } = await supabase
       .from("pos_transaction_items")
       .insert({
         transaction_id: txn.id,
         item_type: item.itemType,
         reference_id: item.referenceId,
-        description: item.description,
-        staff_id: item.staffId,
+        // The "Freelance (name)" prefix is how the calendar groups a freelancer's jobs.
+        description: freelancer ? `Freelance (${freelancer.name}) · ${item.description}` : item.description,
+        staff_id: freelancer ? null : item.staffId,
+        freelance_session_id: freelancer?.id ?? null,
+        // Freelancers are paid in cash on the spot and their job counts as done.
+        freelancer_paid: Boolean(freelancer),
+        completed_at: freelancer ? nowIso : null,
+        customer_name: item.itemType === "service" ? item.customerName?.trim() || null : null,
         quantity: item.quantity,
         unit_price_cents: item.unitPriceCents,
         discount_cents: lineDiscounts[index],
         total_cents: item.unitPriceCents * item.quantity - lineDiscounts[index],
         duration_minutes: item.itemType === "service" ? (item.durationMinutes ?? null) : null,
-        payout_cents: item.itemType === "service" && item.staffId ? (item.payoutCents ?? 0) : 0,
+        payout_cents: item.itemType === "service" && (item.staffId || freelancer) ? (item.payoutCents ?? 0) : 0,
       })
       .select("id")
       .single();
@@ -341,18 +373,25 @@ export async function checkoutSale(input: {
       addOns.map((a, addOnIndex) => {
         const line = input.items[a.lineIndex];
         const discount = lineDiscounts[input.items.length + addOnIndex];
+        const lineFreelancer = line.freelanceSessionId ? freelancerById.get(line.freelanceSessionId) : undefined;
         return {
           transaction_id: txn.id,
           item_type: "service" as const,
           reference_id: line.referenceId,
-          description: `Add-on · ${a.description.trim()}`,
-          staff_id: line.staffId,
+          description: lineFreelancer
+            ? `Freelance (${lineFreelancer.name}) · Add-on · ${a.description.trim()}`
+            : `Add-on · ${a.description.trim()}`,
+          staff_id: lineFreelancer ? null : line.staffId,
+          freelance_session_id: lineFreelancer?.id ?? null,
+          freelancer_paid: Boolean(lineFreelancer),
+          completed_at: lineFreelancer ? nowIso : null,
+          customer_name: line.customerName?.trim() || null,
           quantity: 1,
           unit_price_cents: a.priceCents,
           discount_cents: discount,
           total_cents: a.priceCents - discount,
           duration_minutes: a.minutes,
-          payout_cents: line.staffId ? a.payoutCents : 0,
+          payout_cents: line.staffId || lineFreelancer ? a.payoutCents : 0,
         };
       }),
     );
@@ -406,6 +445,11 @@ export async function checkoutSale(input: {
       })
       .eq("id", sess.id);
     if (queueError) return { ok: false, error: `Sale saved but the queue wasn't updated: ${queueError.message}` };
+  }
+
+  for (const f of freelancerById.values()) {
+    const jobs = input.items.filter((i) => i.itemType === "service" && i.freelanceSessionId === f.id).length;
+    await supabase.from("freelance_sessions").update({ jobs_today: f.jobs_today + jobs }).eq("id", f.id);
   }
 
   revalidatePath("/pos/queue");

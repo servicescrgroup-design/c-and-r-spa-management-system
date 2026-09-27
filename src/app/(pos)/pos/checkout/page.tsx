@@ -2,6 +2,7 @@ import { redirect } from "next/navigation";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { getStaffBranches, getMyOpenDrawer } from "@/lib/pos/session";
 import { CheckoutCart } from "@/components/pos/checkout-cart";
+import { getFreelanceSessions } from "@/lib/pos/sale-actions";
 
 export default async function CheckoutPage({
   searchParams,
@@ -88,6 +89,8 @@ export default async function CheckoutPage({
     supabase.from("branches").select("transportation_fee_cents").eq("id", activeBranchId).single(),
   ]);
 
+  const freelancers = (await getFreelanceSessions(activeBranchId)).map((f) => ({ id: f.id, name: f.name }));
+
   const roomList = (rooms ?? []).map((r) => ({
     id: r.id,
     name: r.name,
@@ -148,6 +151,7 @@ export default async function CheckoutPage({
       packages={packages ?? []}
       customers={customerList}
       rooms={roomList}
+      freelancers={freelancers}
       busyBedIds={busyBedIds}
       busyRoomIds={busyRoomIds}
       transportFeeCents={branchRow?.transportation_fee_cents ?? 0}
