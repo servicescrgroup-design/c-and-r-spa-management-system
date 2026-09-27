@@ -1238,4 +1238,8 @@ export const TH: Record<string, string> = {
   "History": "ประวัติ",
   "No history yet.": "ยังไม่มีประวัติ",
   "Clocked out": "ลงเวลาออก",
+  "Room / bed: not set": "ห้อง / เตียง: ยังไม่เลือก",
+  "Placing:": "กำลังเลือกให้:",
+  "Add a massage to the cart, then pick its room and bed here.": "เพิ่มการนวดลงตะกร้า แล้วเลือกห้องและเตียงที่นี่",
+  "Some massages have no room or bed yet. You can still take payment.": "บางรายการยังไม่ได้เลือกห้องหรือเตียง ยังรับชำระเงินได้",
 };

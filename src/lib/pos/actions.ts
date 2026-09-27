@@ -152,6 +152,9 @@ export type CartItem = {
   freelanceSessionId?: string | null;
   /** Services only: the guest having this massage (a sale can cover several guests). */
   customerName?: string | null;
+  /** Services only: where this massage happens. */
+  roomId?: string | null;
+  bedId?: string | null;
 };
 
 export type PaymentMethod = "cash" | "bank_transfer" | "card_manual";
@@ -262,22 +265,46 @@ export async function checkoutSale(input: {
     if (item.freelanceSessionId && item.staffId) return { ok: false, error: "Pick a store therapist or a freelancer, not both." };
   }
 
-  if (input.bedId || input.roomId) {
-    if (input.bedId) {
-      const { data: bed } = await supabase.from("room_beds").select("id, room_id").eq("id", input.bedId).maybeSingle();
-      if (!bed || (input.roomId && bed.room_id !== input.roomId)) return { ok: false, error: "That bed isn't in the chosen room." };
-      input.roomId = bed.room_id;
-      const { data: taken } = await supabase
-        .from("therapist_clock_sessions")
-        .select("id")
-        .eq("current_bed_id", input.bedId)
-        .is("clock_out_at", null)
-        .limit(1);
-      if ((taken ?? []).length > 0) return { ok: false, error: "That bed is already in use. Pick another one." };
+  // Each massage has its own room/bed; an older sale-wide choice fills any line without one.
+  const placeFor = (item: CartItem) => ({
+    roomId: item.roomId ?? input.roomId ?? null,
+    bedId: item.bedId ?? input.bedId ?? null,
+  });
+  const serviceItems = input.items.filter((i) => i.itemType === "service");
+  const bedIds = serviceItems.map((i) => placeFor(i).bedId).filter((id): id is string => Boolean(id));
+  if (new Set(bedIds).size !== bedIds.length) return { ok: false, error: "Two massages are on the same bed. Pick a different bed for one." };
+  const roomIds = Array.from(new Set(serviceItems.map((i) => placeFor(i).roomId).filter((id): id is string => Boolean(id))));
+
+  const [{ data: bedRows }, { data: roomRows }, { data: takenBeds }] = await Promise.all([
+    bedIds.length ? supabase.from("room_beds").select("id, room_id").in("id", bedIds) : Promise.resolve({ data: [] as { id: string; room_id: string }[] }),
+    roomIds.length ? supabase.from("branch_rooms").select("id, branch_id").in("id", roomIds) : Promise.resolve({ data: [] as { id: string; branch_id: string }[] }),
+    bedIds.length
+      ? supabase.from("therapist_clock_sessions").select("current_bed_id").in("current_bed_id", bedIds).is("clock_out_at", null)
+      : Promise.resolve({ data: [] as { current_bed_id: string | null }[] }),
+  ]);
+  const bedRoom = new Map((bedRows ?? []).map((b) => [b.id, b.room_id]));
+  if ((takenBeds ?? []).length > 0) return { ok: false, error: "A chosen bed is already in use. Pick another one." };
+  for (const item of serviceItems) {
+    const place = placeFor(item);
+    if (place.bedId) {
+      const room = bedRoom.get(place.bedId);
+      if (!room || (place.roomId && room !== place.roomId)) return { ok: false, error: "A bed isn't in the chosen room." };
+      item.roomId = room;
+      item.bedId = place.bedId;
+    } else {
+      item.roomId = place.roomId;
+      item.bedId = null;
     }
-    const { data: room } = await supabase.from("branch_rooms").select("id, branch_id").eq("id", input.roomId!).maybeSingle();
-    if (!room || room.branch_id !== input.branchId) return { ok: false, error: "That room isn't at this store." };
   }
+  const allRooms = Array.from(new Set(serviceItems.map((i) => i.roomId).filter((id): id is string => Boolean(id))));
+  const roomsAtBranch = new Set((roomRows ?? []).filter((r) => r.branch_id === input.branchId).map((r) => r.id));
+  for (const id of allRooms) {
+    if (!roomsAtBranch.has(id)) {
+      const { data: room } = await supabase.from("branch_rooms").select("branch_id").eq("id", id).maybeSingle();
+      if (room?.branch_id !== input.branchId) return { ok: false, error: "A room isn't at this store." };
+    }
+  }
+  const firstPlaced = serviceItems.find((i) => i.roomId);
 
   const addOnCents = addOns.reduce((sum, a) => sum + a.priceCents, 0);
   const subtotalCents = input.items.reduce((sum, i) => sum + i.unitPriceCents * i.quantity, 0) + addOnCents;
@@ -322,8 +349,8 @@ export async function checkoutSale(input: {
         Array.from(new Set(input.items.map((i) => i.customerName?.trim()).filter(Boolean))).join(", ") ||
         null,
       staff_id: ctx.staffId,
-      room_id: input.roomId ?? null,
-      bed_id: input.bedId ?? null,
+      room_id: firstPlaced?.roomId ?? null,
+      bed_id: firstPlaced?.bedId ?? null,
       subtotal_cents: subtotalCents,
       discount_cents: discountCents,
       tax_cents: input.taxCents,
@@ -355,6 +382,8 @@ export async function checkoutSale(input: {
         freelancer_paid: Boolean(freelancer),
         completed_at: freelancer ? nowIso : null,
         customer_name: item.itemType === "service" ? item.customerName?.trim() || null : null,
+        room_id: item.itemType === "service" ? (item.roomId ?? null) : null,
+        bed_id: item.itemType === "service" ? (item.bedId ?? null) : null,
         quantity: item.quantity,
         unit_price_cents: item.unitPriceCents,
         discount_cents: lineDiscounts[index],
@@ -386,6 +415,8 @@ export async function checkoutSale(input: {
           freelancer_paid: Boolean(lineFreelancer),
           completed_at: lineFreelancer ? nowIso : null,
           customer_name: line.customerName?.trim() || null,
+          room_id: line.roomId ?? null,
+          bed_id: line.bedId ?? null,
           quantity: 1,
           unit_price_cents: a.priceCents,
           discount_cents: discount,
@@ -440,8 +471,8 @@ export async function checkoutSale(input: {
       .update({
         status: "in_service",
         active_item_id: itemIdByLine.get(firstLine.index) ?? null,
-        current_room_id: input.roomId ?? null,
-        current_bed_id: input.bedId ?? null,
+        current_room_id: firstLine.item.roomId ?? null,
+        current_bed_id: firstLine.item.bedId ?? null,
       })
       .eq("id", sess.id);
     if (queueError) return { ok: false, error: `Sale saved but the queue wasn't updated: ${queueError.message}` };

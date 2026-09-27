@@ -55,6 +55,7 @@ function translateDates(text: string): string {
 
 /** English sentences with a value in the middle. */
 const PATTERNS: [RegExp, string][] = [
+  [/^Massage (\d+)$/, "การนวด $1"],
   [/^ends (\d{2}:\d{2}) · (\d+) min left$/, "เสร็จ $1 · เหลือ $2 นาที"],
   [/^ends (\d{2}:\d{2}) · finishing now$/, "เสร็จ $1 · กำลังจะเสร็จ"],
   [/^Checked in for (\d{2}:\d{2})$/, "ลงเวลาเข้างาน $1"],

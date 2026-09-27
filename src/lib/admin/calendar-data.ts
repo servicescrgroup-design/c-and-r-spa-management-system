@@ -115,7 +115,7 @@ export async function getCalendarDay(date: string, view: CalendarView = "day"): 
       supabase
         .from("pos_transactions")
         .select(
-          "id, branch_id, room_id, created_at, status, customer_ref, customer_name, customer:customer_id(id, first_name, last_name), pos_payments(method), pos_transaction_items(id, item_type, reference_id, description, staff_id, duration_minutes, completed_at, unit_price_cents, discount_cents, customer_name, staff:staff_id(first_name, last_name))",
+          "id, branch_id, room_id, created_at, status, customer_ref, customer_name, customer:customer_id(id, first_name, last_name), pos_payments(method), pos_transaction_items(id, item_type, reference_id, description, staff_id, duration_minutes, completed_at, unit_price_cents, discount_cents, customer_name, room_id, staff:staff_id(first_name, last_name))",
         )
         .in("branch_id", branchIds)
         .is("original_transaction_id", null)
@@ -198,7 +198,7 @@ export async function getCalendarDay(date: string, view: CalendarView = "day"): 
         id: `sale-${t.id}-${key}`,
         kind: "walk_in",
         branchId: t.branch_id,
-        roomId: t.room_id,
+        roomId: main.room_id ?? t.room_id,
         bedName: null,
         therapist: freelancer ? `${freelancer} (freelance)` : therapistLabel(main.staff_id, main.staff),
         service: (main.description ?? "").startsWith("Combo") ? `${baseName} combo` : baseName,

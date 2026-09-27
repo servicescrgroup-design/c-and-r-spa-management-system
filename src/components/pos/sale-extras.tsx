@@ -25,6 +25,7 @@ export function RoomBedPicker({
   roomId,
   bedId,
   onChange,
+  takenBy = {},
 }: {
   rooms: PosRoom[];
   busyBedIds: string[];
@@ -32,6 +33,8 @@ export function RoomBedPicker({
   roomId: string | null;
   bedId: string | null;
   onChange: (roomId: string | null, bedId: string | null) => void;
+  /** Beds already given to another massage in this cart, with that massage's label. */
+  takenBy?: Record<string, string>;
 }) {
   const [tab, setTab] = useState<string | null>(roomId ?? rooms[0]?.id ?? null);
   const room = rooms.find((r) => r.id === tab) ?? null;
@@ -102,8 +105,9 @@ export function RoomBedPicker({
             </button>
           ) : (
             room.beds.map((b) => {
-              const busy = busyBeds.has(b.id);
               const selected = bedId === b.id;
+              const cartTaken = !selected ? takenBy[b.id] : undefined;
+              const busy = busyBeds.has(b.id) || Boolean(cartTaken);
               return (
                 <button
                   key={b.id}
@@ -123,7 +127,7 @@ export function RoomBedPicker({
                   </p>
                   <p className="text-xs text-muted-foreground">{BED_TYPE[b.bedType] ?? b.bedType}</p>
                   <p className={cn("mt-1 text-xs font-medium", busy ? "text-rose-600" : "text-emerald-700")}>
-                    {busy ? "In use" : selected ? "Selected" : "Free"}
+                    {cartTaken ? cartTaken : busy ? "In use" : selected ? "Selected" : "Free"}
                   </p>
                 </button>
               );

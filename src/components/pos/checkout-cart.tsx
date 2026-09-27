@@ -141,8 +141,8 @@ export function CheckoutCart({
   transportFeeCents: number;
 }) {
   const router = useRouter();
-  const [roomId, setRoomId] = useState<string | null>(null);
-  const [bedId, setBedId] = useState<string | null>(null);
+  // Which massage in the cart the floor/bed boxes are placing.
+  const [placingLine, setPlacingLine] = useState<number | null>(null);
   const [addOns, setAddOns] = useState<CartAddOn[]>([]);
   const [freelancers, setFreelancers] = useState(initialFreelancers);
   const [newFreelancerFor, setNewFreelancerFor] = useState<number | null>(null);
@@ -246,6 +246,12 @@ export function CheckoutCart({
     );
   }
 
+  function setLinePlace(index: number, roomId: string | null, bedId: string | null) {
+    setCart((prev) => prev.map((c, i) => (i === index ? { ...c, roomId, bedId } : c)));
+  }
+
+  const allBeds = rooms.flatMap((r) => r.beds.map((b) => ({ ...b, roomId: r.id, roomName: r.name })));
+
   const serviceLines = cart
     .map((item, index) => ({ item, index }))
     .filter(({ item }) => item.itemType === "service")
@@ -297,8 +303,6 @@ export function CheckoutCart({
           : payments.map((p) => ({ method: p.method, amountCents: Math.round((Number(p.amount) || 0) * 100) })),
       customerId: customerId || null,
       customerName: customerId ? null : customerName.trim() || null,
-      roomId,
-      bedId,
       addOns,
       discountCents,
       discountType: discountMode,
@@ -315,8 +319,7 @@ export function CheckoutCart({
     setAddOns([]);
     setDiscountValue("");
     setDiscountReason("");
-    setRoomId(null);
-    setBedId(null);
+    setPlacingLine(null);
     setCustomerId("");
     setCustomerName("");
     setPayments([{ method: "cash", amount: "0" }]);
@@ -501,18 +504,57 @@ export function CheckoutCart({
           <CardHeader>
             <CardTitle>Room and bed</CardTitle>
           </CardHeader>
-          <CardContent>
-            <RoomBedPicker
-              rooms={rooms}
-              busyBedIds={busyBedIds}
-              busyRoomIds={busyRoomIds}
-              roomId={roomId}
-              bedId={bedId}
-              onChange={(r, b) => {
-                setRoomId(r);
-                setBedId(b);
-              }}
-            />
+          <CardContent className="space-y-4">
+            {serviceLines.length === 0 ? (
+              <p className="text-sm text-muted-foreground">Add a massage to the cart, then pick its room and bed here.</p>
+            ) : (
+              (() => {
+                const target = serviceLines.some((l) => l.index === placingLine) ? placingLine! : serviceLines[0].index;
+                const targetItem = cart[target];
+                const takenBy: Record<string, string> = {};
+                cart.forEach((c, i) => {
+                  if (i !== target && c.itemType === "service" && c.bedId) takenBy[c.bedId] = `Massage ${i + 1}`;
+                });
+                return (
+                  <>
+                    {serviceLines.length > 1 && (
+                      <div className="flex flex-wrap items-center gap-2">
+                        <span className="text-xs text-muted-foreground">Placing:</span>
+                        {serviceLines.map((l) => (
+                          <button
+                            key={l.index}
+                            type="button"
+                            onClick={() => setPlacingLine(l.index)}
+                            className={cn(
+                              "rounded-full border px-3 py-1 text-xs",
+                              l.index === target ? "border-primary bg-primary text-primary-foreground" : "border-border",
+                            )}
+                          >
+                            <span data-no-translate>{l.label}</span>
+                            {cart[l.index].bedId || cart[l.index].roomId ? " ✓" : ""}
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                    <RoomBedPicker
+                      key={target}
+                      rooms={rooms}
+                      busyBedIds={busyBedIds}
+                      busyRoomIds={busyRoomIds}
+                      roomId={targetItem?.roomId ?? null}
+                      bedId={targetItem?.bedId ?? null}
+                      takenBy={takenBy}
+                      onChange={(r, b) => {
+                        setLinePlace(target, r, b);
+                        // Move on to the next massage that still needs a place.
+                        const next = serviceLines.find((l) => l.index !== target && !cart[l.index].bedId && !cart[l.index].roomId);
+                        if (next && b) setPlacingLine(next.index);
+                      }}
+                    />
+                  </>
+                );
+              })()
+            )}
           </CardContent>
         </Card>
 
@@ -662,6 +704,45 @@ export function CheckoutCart({
                         className="h-8 text-xs"
                       />
                     </div>
+
+                    <select
+                      aria-label="Room and bed for this massage"
+                      value={item.bedId ? `bed:${item.bedId}` : item.roomId ? `room:${item.roomId}` : ""}
+                      onChange={(e) => {
+                        const [kind, id] = e.target.value.split(":");
+                        if (!id) return setLinePlace(i, null, null);
+                        if (kind === "room") return setLinePlace(i, id, null);
+                        const bed = allBeds.find((b) => b.id === id);
+                        setLinePlace(i, bed?.roomId ?? null, id);
+                      }}
+                      className={cn(
+                        "h-8 w-full rounded-lg border bg-card px-2 text-xs",
+                        item.roomId ? "border-border" : "border-dashed border-border text-muted-foreground",
+                      )}
+                    >
+                      <option value="">Room / bed: not set</option>
+                      {rooms.map((r) =>
+                        r.beds.length === 0 ? (
+                          <option key={r.id} value={`room:${r.id}`} disabled={busyRoomIds.includes(r.id)}>
+                            {r.name}
+                            {busyRoomIds.includes(r.id) ? " · in use" : ""}
+                          </option>
+                        ) : (
+                          <optgroup key={r.id} label={r.name}>
+                            {r.beds.map((b) => {
+                              const otherLine = cart.findIndex((c, ci) => ci !== i && c.bedId === b.id);
+                              const inUse = busyBedIds.includes(b.id);
+                              return (
+                                <option key={b.id} value={`bed:${b.id}`} disabled={inUse || otherLine >= 0}>
+                                  {b.name}
+                                  {inUse ? " · in use" : otherLine >= 0 ? ` · massage ${otherLine + 1}` : ""}
+                                </option>
+                              );
+                            })}
+                          </optgroup>
+                        ),
+                      )}
+                    </select>
                   </div>
                 )}
               </div>
@@ -669,14 +750,9 @@ export function CheckoutCart({
             {cart.length === 0 && <p className="text-sm text-muted-foreground">Cart is empty.</p>}
           </div>
 
-          {cart.some((c) => c.itemType === "service") && (
+          {cart.some((c) => c.itemType === "service" && !c.roomId) && rooms.length > 0 && (
             <p className="rounded-lg bg-muted/60 px-3 py-2 text-xs text-muted-foreground">
-              Room:{" "}
-              <span className="font-medium text-foreground" data-no-translate>
-                {roomId
-                  ? `${rooms.find((r) => r.id === roomId)?.name ?? ""}${bedId ? ` · ${rooms.flatMap((r) => r.beds).find((b) => b.id === bedId)?.name ?? ""}` : ""}`
-                  : "None"}
-              </span>
+              Some massages have no room or bed yet. You can still take payment.
             </p>
           )}
 

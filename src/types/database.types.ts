@@ -2009,6 +2009,7 @@ export type Database = {
       }
       pos_transaction_items: {
         Row: {
+          bed_id: string | null
           cogs_cents: number | null
           completed_at: string | null
           customer_name: string | null
@@ -2022,6 +2023,7 @@ export type Database = {
           payout_cents: number
           quantity: number
           reference_id: string | null
+          room_id: string | null
           staff_id: string | null
           tax_cents: number
           total_cents: number
@@ -2029,6 +2031,7 @@ export type Database = {
           unit_price_cents: number
         }
         Insert: {
+          bed_id?: string | null
           cogs_cents?: number | null
           completed_at?: string | null
           customer_name?: string | null
@@ -2042,6 +2045,7 @@ export type Database = {
           payout_cents?: number
           quantity?: number
           reference_id?: string | null
+          room_id?: string | null
           staff_id?: string | null
           tax_cents?: number
           total_cents: number
@@ -2049,6 +2053,7 @@ export type Database = {
           unit_price_cents: number
         }
         Update: {
+          bed_id?: string | null
           cogs_cents?: number | null
           completed_at?: string | null
           customer_name?: string | null
@@ -2062,6 +2067,7 @@ export type Database = {
           payout_cents?: number
           quantity?: number
           reference_id?: string | null
+          room_id?: string | null
           staff_id?: string | null
           tax_cents?: number
           total_cents?: number
@@ -2070,10 +2076,24 @@ export type Database = {
         }
         Relationships: [
           {
+            foreignKeyName: "pos_transaction_items_bed_id_fkey"
+            columns: ["bed_id"]
+            isOneToOne: false
+            referencedRelation: "room_beds"
+            referencedColumns: ["id"]
+          },
+          {
             foreignKeyName: "pos_transaction_items_freelance_session_id_fkey"
             columns: ["freelance_session_id"]
             isOneToOne: false
             referencedRelation: "freelance_sessions"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "pos_transaction_items_room_id_fkey"
+            columns: ["room_id"]
+            isOneToOne: false
+            referencedRelation: "branch_rooms"
             referencedColumns: ["id"]
           },
           {
