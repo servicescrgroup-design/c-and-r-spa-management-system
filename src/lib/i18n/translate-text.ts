@@ -55,6 +55,8 @@ function translateDates(text: string): string {
 
 /** English sentences with a value in the middle. */
 const PATTERNS: [RegExp, string][] = [
+  [/^Checked in for (\d{2}:\d{2})$/, "ลงเวลาเข้างาน $1"],
+  [/^Check-in time changed from (\d{2}:\d{2}) to (\d{2}:\d{2})$/, "แก้เวลาเข้างานจาก $1 เป็น $2"],
   [/^Clear (.+)'s shift from today\? It had no jobs\. They can then check in at either store\.$/, "ล้างกะวันนี้ของ $1 หรือไม่? กะนี้ไม่มีงาน หลังจากนั้นลงเวลาได้ทั้งสองสาขา"],
   [/^Discount \((\d+(?:\.\d+)?)%\)$/, "ส่วนลด ($1%)"],
   [/^Delete (.+)\? This removes their account and can't be undone\.$/, "ลบ $1 หรือไม่? บัญชีจะถูกลบและกู้คืนไม่ได้"],

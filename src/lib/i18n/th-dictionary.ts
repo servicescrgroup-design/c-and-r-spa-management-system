@@ -1233,4 +1233,9 @@ export const TH: Record<string, string> = {
   "Store therapist": "หมอนวดร้าน",
   "Guest name (optional)": "ชื่อลูกค้า (ไม่บังคับ)",
   "Clear today's shift": "ล้างกะวันนี้",
+  "Check-in": "ลงเวลาเข้างาน",
+  "Save time": "บันทึกเวลา",
+  "History": "ประวัติ",
+  "No history yet.": "ยังไม่มีประวัติ",
+  "Clocked out": "ลงเวลาออก",
 };

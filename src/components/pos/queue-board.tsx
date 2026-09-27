@@ -7,6 +7,9 @@ import {
   clockOut,
   removeCheckIn,
   clearTodayShift,
+  editCheckInTime,
+  getCheckInHistory,
+  type CheckInHistoryEntry,
   reorderCombinedQueue,
   setTherapistStatus,
   getTherapistSkillIds,
@@ -126,6 +129,85 @@ function SkillsEditor({
   );
 }
 
+function CheckInEditor({ entry, onClose }: { entry: CombinedQueueEntry; onClose: () => void }) {
+  const router = useRouter();
+  const [time, setTime] = useState(clock(entry.clockInAt));
+  const [history, setHistory] = useState<CheckInHistoryEntry[] | null>(null);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    getCheckInHistory(entry.sessionId)
+      .then(setHistory)
+      .catch(() => setHistory([]));
+  }, [entry.sessionId]);
+
+  async function save() {
+    setSaving(true);
+    setError(null);
+    const result = await editCheckInTime(entry.branchId, entry.sessionId, time);
+    setSaving(false);
+    if (!result.ok) return setError(result.error);
+    router.refresh();
+    onClose();
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/30 backdrop-blur-sm sm:items-center sm:p-4" onClick={onClose}>
+      <div
+        role="dialog"
+        aria-modal="true"
+        onClick={(e) => e.stopPropagation()}
+        className="flex max-h-[85svh] w-full max-w-md flex-col rounded-t-[22px] bg-card p-6 shadow-2xl sm:rounded-[22px]"
+      >
+        <p className="text-xs font-medium text-muted-foreground">Check-in</p>
+        <h2 className="font-display text-2xl" data-no-translate>
+          {entry.nickname ?? entry.name}
+        </h2>
+
+        <div className="mt-4 flex items-end gap-2">
+          <div className="space-y-1">
+            <label htmlFor="edit-check-in" className="text-xs text-muted-foreground">
+              Check-in time
+            </label>
+            <Input id="edit-check-in" type="time" value={time} onChange={(e) => setTime(e.target.value)} className="h-10 w-36" />
+          </div>
+          <Button type="button" disabled={saving || !time || time === clock(entry.clockInAt)} onClick={save}>
+            {saving ? "Saving..." : "Save time"}
+          </Button>
+        </div>
+        {error && <p className="mt-2 text-sm text-destructive">{error}</p>}
+
+        <p className="mt-5 text-xs font-medium uppercase tracking-wide text-muted-foreground">History</p>
+        <ol className="mt-2 flex-1 space-y-2 overflow-y-auto">
+          {history === null && <li className="text-sm text-muted-foreground">Loading...</li>}
+          {history?.map((h, i) => (
+            <li key={i} className="flex gap-3 text-sm">
+              <span className="w-12 shrink-0 tabular-nums text-muted-foreground">{clock(h.at)}</span>
+              <span>
+                {h.text}
+                {h.who && (
+                  <span className="text-muted-foreground">
+                    {" "}
+                    by <span data-no-translate>{h.who}</span>
+                  </span>
+                )}
+              </span>
+            </li>
+          ))}
+          {history?.length === 0 && <li className="text-sm text-muted-foreground">No history yet.</li>}
+        </ol>
+
+        <div className="mt-4 flex justify-end">
+          <Button type="button" variant="ghost" onClick={onClose}>
+            Close
+          </Button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export function QueueBoard({
   branches,
   queue,
@@ -143,6 +225,7 @@ export function QueueBoard({
   const [busy, setBusy] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [editing, setEditing] = useState<{ staffId: string; name: string } | null>(null);
+  const [timeEntry, setTimeEntry] = useState<CombinedQueueEntry | null>(null);
   const [freelancerName, setFreelancerName] = useState("");
   const [freelancerBranch, setFreelancerBranch] = useState(branches[0]?.id ?? "");
   const [filter, setFilter] = useState<string>("all");
@@ -319,7 +402,14 @@ export function QueueBoard({
                       </button>
                     </td>
                     <td className="px-2 py-3">
-                      <p className="font-medium tabular-nums">{clock(q.clockInAt)}</p>
+                      <button
+                        type="button"
+                        onClick={() => setTimeEntry(q)}
+                        title="Edit check-in time and see history"
+                        className="font-medium tabular-nums underline decoration-dotted underline-offset-4 hover:text-primary"
+                      >
+                        {clock(q.clockInAt)}
+                      </button>
                       {(q.checkedInBy || q.recordedAt) && (
                         <p className="text-[11px] leading-tight text-muted-foreground">
                           {q.checkedInBy && (
@@ -547,6 +637,7 @@ export function QueueBoard({
       </div>
 
       {editing && <SkillsEditor entry={editing} services={services} onClose={() => setEditing(null)} />}
+      {timeEntry && <CheckInEditor entry={timeEntry} onClose={() => setTimeEntry(null)} />}
     </div>
   );
 }

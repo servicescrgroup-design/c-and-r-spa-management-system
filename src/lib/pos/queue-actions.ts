@@ -490,3 +490,95 @@ export async function clearTodayShift(staffId: string): Promise<ActionResult> {
   revalidatePath("/pos/queue");
   return { ok: true };
 }
+
+/** Corrects when a therapist checked in today. Logged, with the old and new time. */
+export async function editCheckInTime(branchId: string, sessionId: string, time: string): Promise<ActionResult> {
+  const ctx = await requireStaffContext();
+  if (!canOperateQueue(ctx, branchId)) return { ok: false, error: "Not authorized to manage the queue here." };
+  if (!/^([01]\d|2[0-3]):[0-5]\d$/.test(time)) return { ok: false, error: "Enter the check-in time as HH:MM." };
+
+  const supabase = await createServerSupabaseClient();
+  const { data: session } = await supabase
+    .from("therapist_clock_sessions")
+    .select("id, staff_id, branch_id, work_date, clock_in_at, clock_out_at")
+    .eq("id", sessionId)
+    .maybeSingle();
+  if (!session || session.branch_id !== branchId) return { ok: false, error: "Check-in not found." };
+
+  const newAt = new Date(`${session.work_date}T${time}:00+07:00`);
+  if (newAt.getTime() > Date.now() + 60_000) return { ok: false, error: "The check-in time can't be in the future." };
+  if (session.clock_out_at && newAt >= new Date(session.clock_out_at)) {
+    return { ok: false, error: "The check-in time must be before they clocked out." };
+  }
+  if (newAt.getTime() === new Date(session.clock_in_at).getTime()) return { ok: true };
+
+  const { error } = await supabase.from("therapist_clock_sessions").update({ clock_in_at: newAt.toISOString() }).eq("id", sessionId);
+  if (error) return { ok: false, error: error.message };
+
+  const { data: org } = await supabase.from("organizations").select("id").limit(1).single();
+  if (org) {
+    await supabase.from("audit_log").insert({
+      org_id: org.id,
+      branch_id: branchId,
+      staff_id: ctx.staffId,
+      action: "clock_in_time_edited",
+      entity_type: "therapist_clock_session",
+      entity_id: sessionId,
+      detail: { therapist: session.staff_id, from: session.clock_in_at, to: newAt.toISOString() },
+    });
+  }
+
+  revalidatePath("/pos/queue");
+  revalidatePath("/admin/payroll");
+  return { ok: true };
+}
+
+export type CheckInHistoryEntry = { at: string; who: string | null; text: string };
+
+/** Everything that happened to one check-in: when it was entered and by whom, then each change. */
+export async function getCheckInHistory(sessionId: string): Promise<CheckInHistoryEntry[]> {
+  await requireStaffContext();
+  const supabase = await createServerSupabaseClient();
+  const [{ data: session }, { data: log }] = await Promise.all([
+    supabase
+      .from("therapist_clock_sessions")
+      .select("clock_in_at, clock_in_recorded_at, clock_out_at, by:clocked_in_by_staff_id(first_name, last_name), out_by:clocked_out_by_staff_id(first_name, last_name)")
+      .eq("id", sessionId)
+      .maybeSingle(),
+    supabase
+      .from("audit_log")
+      .select("created_at, action, detail, staff:staff_id(first_name, last_name)")
+      .eq("entity_type", "therapist_clock_session")
+      .eq("entity_id", sessionId)
+      .order("created_at"),
+  ]);
+
+  const name = (p: { first_name: string; last_name: string } | null) => (p ? `${p.first_name} ${p.last_name}`.trim() : null);
+  const hhmm = (iso: string) =>
+    new Intl.DateTimeFormat("en-GB", { timeZone: "Asia/Bangkok", hour: "2-digit", minute: "2-digit", hour12: false }).format(new Date(iso));
+
+  // The first entry shows the time as originally entered, before any edits.
+  const firstEdit = (log ?? []).find((r) => r.action === "clock_in_time_edited");
+  const originalAt = ((firstEdit?.detail ?? {}) as { from?: string }).from ?? session?.clock_in_at;
+
+  const entries: CheckInHistoryEntry[] = [];
+  if (session && originalAt) {
+    entries.push({
+      at: session.clock_in_recorded_at ?? originalAt,
+      who: name(session.by),
+      text: `Checked in for ${hhmm(originalAt)}`,
+    });
+  }
+  for (const row of log ?? []) {
+    const d = (row.detail ?? {}) as { from?: string; to?: string };
+    const text =
+      row.action === "clock_in_time_edited" && d.from && d.to
+        ? `Check-in time changed from ${hhmm(d.from)} to ${hhmm(d.to)}`
+        : row.action.replace(/_/g, " ");
+    entries.push({ at: row.created_at, who: name(row.staff), text });
+  }
+  if (session?.clock_out_at) {
+    entries.push({ at: session.clock_out_at, who: name(session.out_by), text: "Clocked out" });
+  }
+  return entries.sort((a, b) => a.at.localeCompare(b.at));
+}
