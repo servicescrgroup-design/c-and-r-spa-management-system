@@ -16,7 +16,7 @@ export default async function ServicesPage() {
       supabase
         .from("services")
         .select(
-          "id, name, name_th, is_active, category_id, duration_minutes, default_price_cents, service_price_options(duration_minutes, price_cents)",
+          "id, name, name_th, is_active, category_id, duration_minutes, default_price_cents, service_price_options(duration_minutes, price_cents, payout_cents)",
         )
         .order("name"),
       supabase

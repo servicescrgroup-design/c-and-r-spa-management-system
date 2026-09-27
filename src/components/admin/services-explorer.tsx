@@ -4,7 +4,7 @@ import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { formatCents, cn } from "@/lib/utils";
 
-type PriceOption = { duration_minutes: number; price_cents: number };
+type PriceOption = { duration_minutes: number; price_cents: number; payout_cents: number | null };
 type Category = { id: string; name: string; background_color?: string | null };
 type Service = {
   id: string;
@@ -17,12 +17,21 @@ type Service = {
   service_price_options: PriceOption[];
 };
 
-type SortKey = "name" | "price-desc" | "duration";
+// Shared column layout so the header lines up with every row.
+const ROW_GRID = "sm:grid-cols-[minmax(0,1fr)_11rem_7.5rem_7.5rem_5.5rem] sm:items-center sm:gap-x-4";
+
+type SortKey = "name" | "price-desc" | "duration" | "margin-desc";
 
 function optionsFor(service: Service): PriceOption[] {
   return service.service_price_options.length > 0
     ? [...service.service_price_options].sort((a, b) => a.duration_minutes - b.duration_minutes)
-    : [{ duration_minutes: service.duration_minutes, price_cents: service.default_price_cents }];
+    : [{ duration_minutes: service.duration_minutes, price_cents: service.default_price_cents, payout_cents: null }];
+}
+
+// Share of the retail price the shop keeps after paying the therapist.
+function marginPercent(option: PriceOption): number | null {
+  if (option.payout_cents == null || option.price_cents <= 0) return null;
+  return ((option.price_cents - option.payout_cents) / option.price_cents) * 100;
 }
 
 export function ServicesExplorer({
@@ -66,6 +75,7 @@ export function ServicesExplorer({
     withActiveOption.sort((a, b) => {
       if (sortKey === "name") return a.service.name.localeCompare(b.service.name);
       if (sortKey === "price-desc") return b.active.price_cents - a.active.price_cents;
+      if (sortKey === "margin-desc") return (marginPercent(b.active) ?? -Infinity) - (marginPercent(a.active) ?? -Infinity);
       return a.active.duration_minutes - b.active.duration_minutes;
     });
 
@@ -90,6 +100,7 @@ export function ServicesExplorer({
           <option value="name">Name (A–Z)</option>
           <option value="price-desc">Price (high to low)</option>
           <option value="duration">Duration (short to long)</option>
+          <option value="margin-desc">Margin (high to low)</option>
         </select>
       </div>
 
@@ -122,8 +133,16 @@ export function ServicesExplorer({
       </div>
 
       <div className="divide-y divide-border overflow-hidden rounded-[18px] bg-card ring-1 ring-black/[0.06] dark:ring-white/[0.08]">
+        <div className={cn(ROW_GRID, "hidden bg-muted/60 px-4 py-2.5 text-xs font-medium uppercase tracking-wide text-muted-foreground sm:grid")}>
+          <span>Service</span>
+          <span className="text-right">Duration</span>
+          <span className="text-right">Retail price</span>
+          <span className="text-right">Therapist cost</span>
+          <span className="text-right">Margin</span>
+        </div>
         {rows.map(({ service, options, active }) => {
           const categoryColor = service.category_id ? categoryColorById.get(service.category_id) : null;
+          const margin = marginPercent(active);
           return (
           <div
             key={service.id}
@@ -138,10 +157,10 @@ export function ServicesExplorer({
                 ? { background: `linear-gradient(90deg, ${categoryColor}26 0%, ${categoryColor}0d 60%, transparent 100%)` }
                 : undefined
             }
-            className="flex cursor-pointer flex-col gap-2 p-4 text-foreground transition-colors hover:brightness-95 sm:flex-row sm:items-center sm:justify-between"
+            className={cn(ROW_GRID, "grid cursor-pointer grid-cols-3 gap-x-3 gap-y-2 p-4 text-foreground transition-colors hover:brightness-95")}
           >
-            <div className="min-w-0">
-              <div className="flex items-center gap-2">
+            <div className="col-span-3 min-w-0 sm:col-span-1">
+              <div className="flex flex-wrap items-center gap-x-2">
                 <p className="font-medium">{service.name}</p>
                 {service.name_th && <p className="text-sm text-muted-foreground">({service.name_th})</p>}
                 {!service.is_active && (
@@ -155,8 +174,8 @@ export function ServicesExplorer({
               )}
             </div>
 
-            <div className="flex items-center gap-4">
-              {options.length > 1 && (
+            <div className="col-span-3 flex sm:col-span-1 sm:justify-end">
+              {options.length > 1 ? (
                 <div
                   className="flex items-center gap-1 rounded-full bg-muted p-0.5"
                   onClick={(e) => e.stopPropagation()}
@@ -179,10 +198,29 @@ export function ServicesExplorer({
                     </button>
                   ))}
                 </div>
+              ) : (
+                <span className="text-sm text-muted-foreground">{active.duration_minutes}m</span>
               )}
-              <span className="font-display w-20 shrink-0 text-right text-base">
-                {formatCents(active.price_cents)}
-              </span>
+            </div>
+
+            <div className="sm:text-right">
+              <p className="text-[11px] text-muted-foreground sm:hidden">Retail price</p>
+              <p className="font-display text-base">{formatCents(active.price_cents)}</p>
+            </div>
+            <div className="sm:text-right">
+              <p className="text-[11px] text-muted-foreground sm:hidden">Therapist cost</p>
+              <p className="text-sm">{active.payout_cents != null ? formatCents(active.payout_cents) : "—"}</p>
+            </div>
+            <div className="sm:text-right">
+              <p className="text-[11px] text-muted-foreground sm:hidden">Margin</p>
+              <p
+                className={cn(
+                  "text-sm font-medium",
+                  margin == null ? "text-muted-foreground" : margin < 0 ? "text-destructive" : "text-primary",
+                )}
+              >
+                {margin == null ? "—" : `${margin.toFixed(1)}%`}
+              </p>
             </div>
           </div>
           );
