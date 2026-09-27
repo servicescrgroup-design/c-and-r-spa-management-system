@@ -141,6 +141,9 @@ export function CheckoutCart({
   const [roomId, setRoomId] = useState<string | null>(null);
   const [bedId, setBedId] = useState<string | null>(null);
   const [addOns, setAddOns] = useState<CartAddOn[]>([]);
+  const [discountMode, setDiscountMode] = useState<"percent" | "fixed">("percent");
+  const [discountValue, setDiscountValue] = useState("");
+  const [discountReason, setDiscountReason] = useState("");
   const [cart, setCart] = useState<CartItem[]>([]);
   const [taxPercent, setTaxPercent] = useState("0");
   const [tip, setTip] = useState("0");
@@ -219,14 +222,20 @@ export function CheckoutCart({
     () => cart.reduce((sum, i) => sum + i.unitPriceCents * i.quantity, 0) + addOns.reduce((sum, a) => sum + a.priceCents, 0),
     [cart, addOns],
   );
-  const taxCents = Math.round((subtotalCents * (Number(taxPercent) || 0)) / 100);
+  const discountInput = Math.max(0, Number(discountValue) || 0);
+  const discountCents = Math.min(
+    subtotalCents,
+    discountMode === "percent" ? Math.round((subtotalCents * Math.min(discountInput, 100)) / 100) : Math.round(discountInput * 100),
+  );
+  const afterDiscountCents = subtotalCents - discountCents;
+  const taxCents = Math.round((afterDiscountCents * (Number(taxPercent) || 0)) / 100);
   const tipCents = Math.round((Number(tip) || 0) * 100);
   const cardFeeCents = Math.round((Number(cardFeeDollars) || 0) * 100);
-  const totalCents = subtotalCents + taxCents + tipCents + cardFeeCents;
+  const totalCents = afterDiscountCents + taxCents + tipCents + cardFeeCents;
 
   function applyCardFeePercent() {
     const pct = Number(cardFeePercent) || 0;
-    setCardFeeDollars(((subtotalCents * pct) / 100 / 100).toFixed(2));
+    setCardFeeDollars(((afterDiscountCents * pct) / 100 / 100).toFixed(2));
   }
 
   async function handleCheckout() {
@@ -252,6 +261,10 @@ export function CheckoutCart({
       roomId,
       bedId,
       addOns,
+      discountCents,
+      discountType: discountMode,
+      discountValue: discountInput,
+      discountReason,
     });
     setLoading(false);
     if (!result.ok) {
@@ -261,6 +274,8 @@ export function CheckoutCart({
     setReceipt({ total: totalCents, ref: result.customerRef ?? null });
     setCart([]);
     setAddOns([]);
+    setDiscountValue("");
+    setDiscountReason("");
     setRoomId(null);
     setBedId(null);
     setCustomerId("");
@@ -603,6 +618,62 @@ export function CheckoutCart({
             </p>
           </div>
 
+          <div className="space-y-2 rounded-md border border-border p-2">
+            <Label htmlFor="discountValue" className="text-xs">
+              Discount
+            </Label>
+            <div className="flex items-center gap-2">
+              <div className="flex shrink-0 rounded-full bg-muted p-0.5 text-sm">
+                {(["percent", "fixed"] as const).map((mode) => (
+                  <button
+                    key={mode}
+                    type="button"
+                    onClick={() => setDiscountMode(mode)}
+                    className={cn(
+                      "rounded-full px-3 py-1",
+                      discountMode === mode ? "bg-card font-medium shadow-sm" : "text-muted-foreground",
+                    )}
+                  >
+                    {mode === "percent" ? "%" : "฿"}
+                  </button>
+                ))}
+              </div>
+              <Input
+                id="discountValue"
+                type="number"
+                min="0"
+                max={discountMode === "percent" ? 100 : undefined}
+                step={discountMode === "percent" ? "1" : "0.01"}
+                value={discountValue}
+                onChange={(e) => setDiscountValue(e.target.value)}
+                placeholder={discountMode === "percent" ? "e.g. 10" : "e.g. 100"}
+              />
+            </div>
+            {discountMode === "percent" && (
+              <div className="flex flex-wrap gap-1.5">
+                {[5, 10, 15, 20].map((pct) => (
+                  <button
+                    key={pct}
+                    type="button"
+                    onClick={() => setDiscountValue(String(pct))}
+                    className="rounded-full border border-border px-2.5 py-0.5 text-xs hover:border-primary hover:text-primary"
+                  >
+                    {pct}%
+                  </button>
+                ))}
+              </div>
+            )}
+            {discountCents > 0 && (
+              <Input
+                aria-label="Discount reason"
+                value={discountReason}
+                onChange={(e) => setDiscountReason(e.target.value)}
+                placeholder="Reason (optional), e.g. regular customer"
+                className="h-9"
+              />
+            )}
+          </div>
+
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-1">
               <Label htmlFor="taxPercent" className="text-xs">Tax %</Label>
@@ -655,6 +726,12 @@ export function CheckoutCart({
               <span>Subtotal</span>
               <span>{formatCents(subtotalCents)}</span>
             </div>
+            {discountCents > 0 && (
+              <div className="flex justify-between text-primary">
+                <span>{`Discount${discountMode === "percent" ? ` (${Math.min(discountInput, 100)}%)` : ""}`}</span>
+                <span>-{formatCents(discountCents)}</span>
+              </div>
+            )}
             <div className="flex justify-between">
               <span>Tax</span>
               <span>{formatCents(taxCents)}</span>

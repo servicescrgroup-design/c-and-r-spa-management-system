@@ -55,6 +55,7 @@ function translateDates(text: string): string {
 
 /** English sentences with a value in the middle. */
 const PATTERNS: [RegExp, string][] = [
+  [/^Discount \((\d+(?:\.\d+)?)%\)$/, "ส่วนลด ($1%)"],
   [/^Delete (.+)\? This removes their account and can't be undone\.$/, "ลบ $1 หรือไม่? บัญชีจะถูกลบและกู้คืนไม่ได้"],
   [/^Delete (\d+) therapists?\? This can't be undone\.$/, "ลบหมอนวด $1 คนหรือไม่? กู้คืนไม่ได้"],
   [/^Remove "(.+)"\?$/, "ลบ \"$1\" หรือไม่?"],

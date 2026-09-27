@@ -171,6 +171,12 @@ export async function checkoutSale(input: {
   roomId?: string | null;
   bedId?: string | null;
   addOns?: CartAddOn[];
+  /** Whole-sale discount in satang, spread across the lines. */
+  discountCents?: number;
+  /** "percent" or "fixed", as the cashier entered it (for the record). */
+  discountType?: "percent" | "fixed";
+  discountValue?: number;
+  discountReason?: string;
 }): Promise<ActionResult & { transactionId?: string; customerRef?: string | null }> {
   const ctx = await requireStaffContext();
   if (input.items.length === 0) {
@@ -255,7 +261,24 @@ export async function checkoutSale(input: {
 
   const addOnCents = addOns.reduce((sum, a) => sum + a.priceCents, 0);
   const subtotalCents = input.items.reduce((sum, i) => sum + i.unitPriceCents * i.quantity, 0) + addOnCents;
-  const totalCents = subtotalCents + input.taxCents + input.tipCents + input.cardFeeCents;
+  const discountCents = Math.round(input.discountCents ?? 0);
+  if (!Number.isFinite(discountCents) || discountCents < 0) return { ok: false, error: "The discount can't be negative." };
+  if (discountCents > subtotalCents) return { ok: false, error: "The discount is bigger than the sale." };
+
+  // Spread the discount across every line in proportion to its price, so each
+  // line's revenue (and the ledger) is net of discount. Rounding goes to the last line.
+  const grossLines = [
+    ...input.items.map((i) => i.unitPriceCents * i.quantity),
+    ...addOns.map((a) => a.priceCents),
+  ];
+  const lineDiscounts = grossLines.map((g) => (subtotalCents > 0 ? Math.floor((discountCents * g) / subtotalCents) : 0));
+  const leftover = discountCents - lineDiscounts.reduce((a, b) => a + b, 0);
+  if (leftover > 0) {
+    const last = grossLines.findLastIndex((g, i) => g - lineDiscounts[i] >= leftover);
+    if (last >= 0) lineDiscounts[last] += leftover;
+  }
+
+  const totalCents = subtotalCents - discountCents + input.taxCents + input.tipCents + input.cardFeeCents;
   const paidCents = input.payments.reduce((sum, p) => sum + p.amountCents, 0);
 
   if (paidCents !== totalCents) {
@@ -278,6 +301,7 @@ export async function checkoutSale(input: {
       room_id: input.roomId ?? null,
       bed_id: input.bedId ?? null,
       subtotal_cents: subtotalCents,
+      discount_cents: discountCents,
       tax_cents: input.taxCents,
       tip_cents: input.tipCents,
       card_fee_cents: input.cardFeeCents,
@@ -301,7 +325,8 @@ export async function checkoutSale(input: {
         staff_id: item.staffId,
         quantity: item.quantity,
         unit_price_cents: item.unitPriceCents,
-        total_cents: item.unitPriceCents * item.quantity,
+        discount_cents: lineDiscounts[index],
+        total_cents: item.unitPriceCents * item.quantity - lineDiscounts[index],
         duration_minutes: item.itemType === "service" ? (item.durationMinutes ?? null) : null,
         payout_cents: item.itemType === "service" && item.staffId ? (item.payoutCents ?? 0) : 0,
       })
@@ -313,8 +338,9 @@ export async function checkoutSale(input: {
 
   if (addOns.length > 0) {
     const { error: addOnError } = await supabase.from("pos_transaction_items").insert(
-      addOns.map((a) => {
+      addOns.map((a, addOnIndex) => {
         const line = input.items[a.lineIndex];
+        const discount = lineDiscounts[input.items.length + addOnIndex];
         return {
           transaction_id: txn.id,
           item_type: "service" as const,
@@ -323,7 +349,8 @@ export async function checkoutSale(input: {
           staff_id: line.staffId,
           quantity: 1,
           unit_price_cents: a.priceCents,
-          total_cents: a.priceCents,
+          discount_cents: discount,
+          total_cents: a.priceCents - discount,
           duration_minutes: a.minutes,
           payout_cents: line.staffId ? a.payoutCents : 0,
         };
@@ -338,6 +365,16 @@ export async function checkoutSale(input: {
       const grantError = await grantPackageToCustomer(item.referenceId, input.customerId!, input.branchId, txn.id);
       if (grantError) return { ok: false, error: grantError };
     }
+  }
+
+  if (discountCents > 0) {
+    await supabase.from("pos_discounts").insert({
+      transaction_id: txn.id,
+      discount_type: input.discountType ?? "fixed",
+      value: input.discountType === "percent" ? (input.discountValue ?? 0) : discountCents / 100,
+      reason: input.discountReason?.trim() || null,
+      applied_by_staff_id: ctx.staffId,
+    });
   }
 
   const { error: paymentError } = await supabase.from("pos_payments").insert(

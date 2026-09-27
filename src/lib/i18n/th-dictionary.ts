@@ -1221,4 +1221,7 @@ export const TH: Record<string, string> = {
   "Remove room": "ลบห้อง",
   "New bed name": "ชื่อเตียงใหม่",
   "Add your first room or floor above.": "เพิ่มห้องหรือชั้นแรกด้านบน",
+  "Reason (optional), e.g. regular customer": "เหตุผล (ไม่บังคับ) เช่น ลูกค้าประจำ",
+  "e.g. 10": "เช่น 10",
+  "e.g. 100": "เช่น 100",
 };
