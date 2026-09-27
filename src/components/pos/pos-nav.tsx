@@ -47,12 +47,15 @@ export function PosNav({
   userLabel,
   locale,
   workingAt,
+  closeShiftHref,
 }: {
   canAccessAdmin: boolean;
   userLabel: string;
   locale: "en" | "th";
   /** "Store · Register" from the drawer this person opened, or null. */
   workingAt: string | null;
+  /** Link to close the drawer this person has open, or null. */
+  closeShiftHref: string | null;
 }) {
   const pathname = usePathname();
 
@@ -64,12 +67,19 @@ export function PosNav({
             <p className="text-[15px] font-semibold leading-tight tracking-tight">
               C&amp;R <span className="font-normal text-muted-foreground">Point of Sale</span>
             </p>
-            <Link
-              href="/pos/register"
-              className="block max-w-56 truncate text-[11px] leading-tight text-muted-foreground hover:text-foreground"
-            >
-              {workingAt ? <span data-no-translate>{workingAt}</span> : "No register open"}
-            </Link>
+            <div className="flex items-center gap-1.5 text-[11px] leading-tight">
+              <Link
+                href="/pos/register"
+                className="block max-w-56 truncate text-muted-foreground hover:text-foreground"
+              >
+                {workingAt ? <span data-no-translate>{workingAt}</span> : "No register open"}
+              </Link>
+              {closeShiftHref && (
+                <Link href={closeShiftHref} className="shrink-0 font-medium text-primary hover:underline">
+                  Close shift
+                </Link>
+              )}
+            </div>
           </div>
 
           <nav aria-label="POS sections" className="hidden rounded-full bg-muted p-0.5 sm:flex">

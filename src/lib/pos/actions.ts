@@ -76,8 +76,13 @@ export async function closeDrawer(formData: FormData): Promise<ActionResult> {
   const drawerSessionId = String(formData.get("drawerSessionId") ?? "");
   const countedDollars = Number(formData.get("countedAmount"));
   const countedBreakdownRaw = String(formData.get("countedBreakdown") ?? "");
+  const closedAtRaw = String(formData.get("closedAt") ?? "").trim();
 
   if (!drawerSessionId) return { ok: false, error: "No drawer session selected." };
+  // Bangkok wall-clock "YYYY-MM-DDTHH:MM"; blank means now.
+  const closedAt = closedAtRaw ? new Date(`${closedAtRaw}:00+07:00`) : new Date();
+  if (Number.isNaN(closedAt.getTime())) return { ok: false, error: "Enter a valid closing date and time." };
+  if (closedAt.getTime() > Date.now() + 60_000) return { ok: false, error: "The closing time can't be in the future." };
   if (!Number.isFinite(countedDollars) || countedDollars < 0) {
     return { ok: false, error: "Counted amount must be zero or more." };
   }
@@ -95,10 +100,12 @@ export async function closeDrawer(formData: FormData): Promise<ActionResult> {
 
   const { data: session } = await supabase
     .from("cash_drawer_sessions")
-    .select("id, opening_amount_cents, register_id")
+    .select("id, opening_amount_cents, register_id, opened_at, status")
     .eq("id", drawerSessionId)
     .single();
   if (!session) return { ok: false, error: "Drawer session not found." };
+  if (session.status !== "open") return { ok: false, error: "This shift is already closed." };
+  if (closedAt < new Date(session.opened_at)) return { ok: false, error: "The closing time is before the shift opened." };
 
   const { data: sales } = await supabase
     .from("pos_payments")
@@ -114,7 +121,7 @@ export async function closeDrawer(formData: FormData): Promise<ActionResult> {
     .from("cash_drawer_sessions")
     .update({
       closed_by_staff_id: ctx.staffId,
-      closed_at: new Date().toISOString(),
+      closed_at: closedAt.toISOString(),
       expected_amount_cents: expectedCents,
       counted_amount_cents: countedCents,
       counted_breakdown: countedBreakdown,

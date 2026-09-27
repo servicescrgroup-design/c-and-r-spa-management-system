@@ -1,12 +1,14 @@
 import Link from "next/link";
 import { getStaffBranches, getAllowedRegistersForBranch, getOpenDrawerSession } from "@/lib/pos/session";
 import { requireStaffContext } from "@/lib/auth/session";
+import { isOwner } from "@/lib/auth/roles";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { buttonVariants } from "@/components/ui/button";
 
 export default async function RegisterPage() {
   const ctx = await requireStaffContext();
   const branches = await getStaffBranches();
+  const canCloseOthers = isOwner(ctx) || ctx.roles.some((r) => r.role === "manager");
 
   const branchStatus = await Promise.all(
     branches.map(async (branch) => {
@@ -51,13 +53,23 @@ export default async function RegisterPage() {
                       )}
                     </div>
                     {drawer ? (
-                      mine ? (
-                        <Link href={`/pos/checkout?branchId=${branch.id}`} className={buttonVariants({ size: "sm" })}>
-                          Continue selling
-                        </Link>
-                      ) : (
-                        <span className="text-xs text-muted-foreground">Unavailable</span>
-                      )
+                      <div className="flex flex-wrap items-center justify-end gap-2">
+                        {mine ? (
+                          <Link href={`/pos/checkout?branchId=${branch.id}`} className={buttonVariants({ size: "sm" })}>
+                            Continue selling
+                          </Link>
+                        ) : (
+                          <span className="text-xs text-muted-foreground">Unavailable</span>
+                        )}
+                        {(mine || canCloseOthers) && (
+                          <Link
+                            href={`/pos/drawer?branchId=${branch.id}&registerId=${register.id}`}
+                            className={buttonVariants({ size: "sm", variant: "outline" })}
+                          >
+                            Close shift
+                          </Link>
+                        )}
+                      </div>
                     ) : (
                       <Link
                         href={`/pos/drawer?branchId=${branch.id}&registerId=${register.id}`}

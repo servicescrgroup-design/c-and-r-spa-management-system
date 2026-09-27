@@ -48,7 +48,7 @@ export default async function DrawerPage({
         <Card>
           <CardHeader>
             <CardTitle>
-              Close drawer &mdash; {branch.name} &middot; {register.name}
+              Close shift &mdash; {branch.name} &middot; {register.name}
             </CardTitle>
             <CardDescription>
               Opened with {formatCents(drawer.opening_amount_cents)}. Expected in drawer:{" "}
@@ -69,7 +69,7 @@ export default async function DrawerPage({
                 <span>Now: </span>
                 <LiveClock />
               </div>
-              <p className="text-xs text-muted-foreground">The closing time is saved when you close the drawer.</p>
+              <p className="text-xs text-muted-foreground">Pick the closing date and time below. It is saved when you close the shift.</p>
             </div>
           </CardHeader>
           <CardContent>

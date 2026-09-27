@@ -20,6 +20,9 @@ export default async function PosLayout({ children }: LayoutProps<"/pos">) {
       <PosNav canAccessAdmin={canAccessAdmin} userLabel={ctx.firstName || ctx.email}
         locale={locale}
         workingAt={working ? `${working.branch.name} · ${working.drawer.registerName}` : null}
+        closeShiftHref={
+          working ? `/pos/drawer?branchId=${working.branch.id}&registerId=${working.drawer.registerId}` : null
+        }
       />
       <main className="mx-auto w-full max-w-[1280px] flex-1 px-4 pb-28 pt-6 sm:px-6 sm:pb-12 sm:pt-8">{children}</main>
     </div>

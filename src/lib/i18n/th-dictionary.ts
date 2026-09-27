@@ -1154,4 +1154,8 @@ export const TH: Record<string, string> = {
   "Select all": "เลือกทั้งหมด",
   "all days worked": "ทุกวันที่ทำงาน",
   "days on guarantee": "วันที่ได้ประกันมือ",
+  "Closing date and time": "วันที่และเวลาปิด",
+  "Change this if you are closing the day late, e.g. last night at 22:00.": "เปลี่ยนเวลานี้หากปิดยอดช้า เช่น เมื่อคืน 22:00",
+  "Close shift and finalize the day": "ปิดกะและสรุปยอดประจำวัน",
+  "Pick the closing date and time below. It is saved when you close the shift.": "เลือกวันที่และเวลาปิดด้านล่าง ระบบจะบันทึกเมื่อปิดกะ",
 };
