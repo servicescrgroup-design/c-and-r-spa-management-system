@@ -1,27 +1,39 @@
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { redirect } from "next/navigation";
 import { getWorkingBranch } from "@/lib/pos/session";
+import { requireStaffContext } from "@/lib/auth/session";
+import { hasBranchRole, isOwner } from "@/lib/auth/roles";
 import { SalesList, type SaleRow } from "@/components/pos/sales-list";
+import { freelancerFromDescription, type RoomOption, type ServiceOption } from "@/lib/pos/sale-detail";
 
 function bangkokToday() {
   return new Date(Date.now() + 7 * 3600_000).toISOString().slice(0, 10);
 }
 
+const LOCKED_METHODS = new Set(["card_stripe", "gift_card", "store_credit", "package_credit"]);
+
 export default async function SalesPage({ searchParams }: PageProps<"/pos/sales">) {
   const sp = await searchParams;
   const working = await getWorkingBranch();
   if (!working) redirect("/pos/register");
+  const ctx = await requireStaffContext();
   const branchId = working.branch.id;
+  const canEdit = isOwner(ctx) || hasBranchRole(ctx, branchId, ["manager"]);
   const date = typeof sp.date === "string" && /^\d{4}-\d{2}-\d{2}$/.test(sp.date) ? sp.date : bangkokToday();
 
   const start = new Date(`${date}T00:00:00+07:00`);
   const end = new Date(start.getTime() + 24 * 3600_000);
   const supabase = await createServerSupabaseClient();
-  const [{ data: txns }, { data: profiles }] = await Promise.all([
+  const [{ data: txns }, { data: profiles }, { data: locks }] = await Promise.all([
     supabase
       .from("pos_transactions")
       .select(
-        "id, customer_ref, customer_name, created_at, total_cents, status, customer:customer_id(id, first_name, last_name), pos_transaction_items(description, item_type, staff_id, staff:staff_id(first_name))",
+        `id, customer_ref, customer_name, created_at, subtotal_cents, discount_cents, tax_cents, tip_cents, card_fee_cents,
+         total_cents, status, customer:customer_id(id, first_name, last_name),
+         pos_transaction_items(id, item_type, reference_id, description, duration_minutes, quantity, unit_price_cents,
+           discount_cents, total_cents, payout_cents, staff_id, room_id, bed_id, start_at, customer_name, is_add_on,
+           completed_at, staff:staff_id(first_name, last_name)),
+         pos_payments(method, amount_cents)`,
       )
       .eq("branch_id", branchId)
       .is("original_transaction_id", null)
@@ -29,36 +41,133 @@ export default async function SalesPage({ searchParams }: PageProps<"/pos/sales"
       .lt("created_at", end.toISOString())
       .order("created_at", { ascending: false }),
     supabase.from("therapist_profiles").select("staff_id, nickname"),
+    supabase.from("payroll_day_locks").select("work_date").eq("branch_id", branchId).eq("work_date", date),
   ]);
   const nick = new Map((profiles ?? []).map((p) => [p.staff_id, p.nickname]));
+  const txnIds = (txns ?? []).map((t) => t.id);
+  const { data: refunds } = txnIds.length
+    ? await supabase.from("pos_transactions").select("original_transaction_id").in("original_transaction_id", txnIds)
+    : { data: [] };
+  const refunded = new Set((refunds ?? []).map((r) => r.original_transaction_id));
+  const { data: edits } =
+    canEdit && txnIds.length
+      ? await supabase.from("pos_sale_edits").select("transaction_id").in("transaction_id", txnIds)
+      : { data: [] };
+  const editCount = new Map<string, number>();
+  for (const e of edits ?? []) editCount.set(e.transaction_id, (editCount.get(e.transaction_id) ?? 0) + 1);
+  const dayLocked = (locks ?? []).length > 0;
 
-  const sales: SaleRow[] = (txns ?? []).map((t) => ({
-    id: t.id,
-    ref: t.customer_ref,
-    createdAt: t.created_at,
-    customerName: t.customer_name,
-    customer: t.customer
-      ? { id: t.customer.id, name: `${t.customer.first_name} ${t.customer.last_name}`.trim() || "Customer" }
-      : null,
-    items: (t.pos_transaction_items ?? []).map((i) => i.description ?? i.item_type),
-    therapists: Array.from(
-      new Set(
-        (t.pos_transaction_items ?? [])
-          .filter((i) => i.staff_id)
-          .map((i) => nick.get(i.staff_id!) || i.staff?.first_name || ""),
-      ),
-    ).filter(Boolean),
-    totalCents: t.total_cents,
-    status: t.status,
-  }));
+  const sales: SaleRow[] = (txns ?? []).map((t) => {
+    const items = [...(t.pos_transaction_items ?? [])].sort((a, b) => a.id.localeCompare(b.id));
+    const payments = t.pos_payments ?? [];
+    const lockedReason = !canEdit
+      ? "Only an owner or manager can edit a sale."
+      : t.status !== "completed" || refunded.has(t.id)
+        ? "This sale was refunded or voided."
+        : dayLocked
+          ? "Payroll for this day is locked. Unlock it on the Payroll page to edit."
+          : payments.some((p) => LOCKED_METHODS.has(p.method))
+            ? "Paid by online card, gift card, store credit or package. Refund and ring it up again instead."
+            : null;
+    const staffLabel = (i: (typeof items)[number]) =>
+      i.staff_id ? nick.get(i.staff_id) || i.staff?.first_name || "Therapist" : null;
+    return {
+      id: t.id,
+      ref: t.customer_ref,
+      createdAt: t.created_at,
+      customerName: t.customer_name,
+      customer: t.customer
+        ? { id: t.customer.id, name: `${t.customer.first_name} ${t.customer.last_name}`.trim() || "Customer" }
+        : null,
+      items: items.filter((i) => !i.is_add_on).map((i) => i.description ?? i.item_type),
+      therapists: Array.from(new Set(items.map((i) => staffLabel(i) ?? freelancerFromDescription(i.description) ?? ""))).filter(Boolean),
+      totalCents: t.total_cents,
+      status: refunded.has(t.id) && t.status === "completed" ? "refunded" : t.status,
+      detail: {
+        subtotalCents: t.subtotal_cents,
+        discountCents: t.discount_cents,
+        taxCents: t.tax_cents,
+        tipCents: t.tip_cents,
+        cardFeeCents: t.card_fee_cents,
+        payments: payments.map((p) => ({ method: p.method, amountCents: p.amount_cents })),
+        lockedReason,
+        editCount: editCount.get(t.id) ?? 0,
+        lines: items.map((i) => ({
+          id: i.id,
+          itemType: i.item_type,
+          serviceId: i.item_type === "service" ? i.reference_id : null,
+          description: i.description ?? i.item_type,
+          minutes: i.duration_minutes,
+          quantity: i.quantity,
+          unitPriceCents: i.unit_price_cents,
+          discountCents: i.discount_cents,
+          totalCents: i.total_cents,
+          payoutCents: i.payout_cents,
+          staffId: i.staff_id,
+          staffName: staffLabel(i),
+          freelancerName: freelancerFromDescription(i.description),
+          roomId: i.room_id,
+          bedId: i.bed_id,
+          startAt: i.start_at,
+          customerName: i.customer_name,
+          isAddOn: i.is_add_on,
+          completedAt: i.completed_at,
+        })),
+      },
+    };
+  });
+
+  // Choices for the editor: the branch's services, therapists, rooms and beds.
+  let services: ServiceOption[] = [];
+  let therapists: { id: string; name: string }[] = [];
+  let rooms: RoomOption[] = [];
+  if (canEdit) {
+    const [{ data: serviceRows }, { data: therapistRoles }, { data: roomRows }, { data: bedRows }] = await Promise.all([
+      supabase
+        .from("services")
+        .select("id, name, default_price_cents, duration_minutes, service_price_options(duration_minutes, price_cents, payout_cents)")
+        .eq("is_active", true)
+        .order("name"),
+      supabase
+        .from("staff_branch_roles")
+        .select("staff_id, branch_id, staff:staff_id(first_name, last_name)")
+        .eq("role", "therapist")
+        .or(`branch_id.eq.${branchId},branch_id.is.null`),
+      supabase.from("branch_rooms").select("id, name").eq("branch_id", branchId).order("sort_order").order("name"),
+      supabase.from("room_beds").select("id, room_id, name").order("sort_order").order("name"),
+    ]);
+    services = (serviceRows ?? []).map((s) => ({
+      id: s.id,
+      name: s.name,
+      durations:
+        s.service_price_options.length > 0
+          ? [...s.service_price_options]
+              .sort((a, b) => a.duration_minutes - b.duration_minutes)
+              .map((o) => ({ minutes: o.duration_minutes, priceCents: o.price_cents, payoutCents: o.payout_cents }))
+          : [{ minutes: s.duration_minutes, priceCents: s.default_price_cents, payoutCents: 0 }],
+    }));
+    const seen = new Set<string>();
+    therapists = (therapistRoles ?? [])
+      .filter((r) => !seen.has(r.staff_id) && seen.add(r.staff_id))
+      .map((r) => ({
+        id: r.staff_id,
+        name: nick.get(r.staff_id) || `${r.staff?.first_name ?? ""} ${r.staff?.last_name ?? ""}`.trim() || "Therapist",
+      }))
+      .sort((a, b) => a.name.localeCompare(b.name));
+    rooms = (roomRows ?? []).map((r) => ({
+      id: r.id,
+      name: r.name,
+      beds: (bedRows ?? []).filter((b) => b.room_id === r.id).map((b) => ({ id: b.id, name: b.name })),
+    }));
+  }
 
   return (
-    <div className="mx-auto max-w-3xl space-y-6">
+    <div className="mx-auto max-w-4xl space-y-6">
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div>
           <h1 className="font-display text-3xl">Sales</h1>
           <p className="text-muted-foreground">
-            Every sale has a code. Add a name or link a customer here any time after the session.
+            Tap a sale to see each massage, who did it, where and when. Owners and managers can edit it, and every change is kept.
           </p>
         </div>
         <form className="flex items-center gap-2">
@@ -75,7 +184,7 @@ export default async function SalesPage({ searchParams }: PageProps<"/pos/sales"
         </form>
       </div>
 
-      <SalesList sales={sales} />
+      <SalesList sales={sales} services={services} therapists={therapists} rooms={rooms} />
     </div>
   );
 }

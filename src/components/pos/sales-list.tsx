@@ -6,6 +6,8 @@ import { setSaleCustomer, searchCustomers, createCustomerForSale, type CustomerM
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { formatCents, cn } from "@/lib/utils";
+import { SaleBreakdown, SaleEditForm, SaleHistory, type EditorChoices } from "@/components/pos/sale-detail-panel";
+import type { SaleDetail } from "@/lib/pos/sale-detail";
 
 export type SaleRow = {
   id: string;
@@ -17,7 +19,10 @@ export type SaleRow = {
   therapists: string[];
   totalCents: number;
   status: string;
+  detail: SaleDetail;
 };
+
+type View = "details" | "edit" | "history" | "name";
 
 function SaleEditor({ sale, onDone }: { sale: SaleRow; onDone: () => void }) {
   const router = useRouter();
@@ -120,7 +125,56 @@ function SaleEditor({ sale, onDone }: { sale: SaleRow; onDone: () => void }) {
   );
 }
 
-export function SalesList({ sales }: { sales: SaleRow[] }) {
+function SalePanel({ sale, choices, onClose }: { sale: SaleRow; choices: EditorChoices; onClose: () => void }) {
+  const [view, setView] = useState<View>("details");
+  const tabs: { id: View; label: string }[] = [
+    { id: "details", label: "Details" },
+    ...(sale.detail.lockedReason ? [] : [{ id: "edit" as const, label: "Edit sale" }]),
+    { id: "name", label: "Name / customer" },
+    ...(sale.detail.lockedReason === "Only an owner or manager can edit a sale."
+      ? []
+      : [{ id: "history" as const, label: `History${sale.detail.editCount ? ` (${sale.detail.editCount})` : ""}` }]),
+  ];
+  return (
+    <div className="mt-3 space-y-3">
+      <div className="flex flex-wrap gap-1.5">
+        {tabs.map((t) => (
+          <button
+            key={t.id}
+            type="button"
+            onClick={() => setView(t.id)}
+            className={cn(
+              "h-8 rounded-full px-3 text-sm",
+              view === t.id ? "bg-foreground text-background" : "bg-muted hover:bg-secondary",
+            )}
+          >
+            {t.label}
+          </button>
+        ))}
+      </div>
+      {view === "details" && (
+        <>
+          <SaleBreakdown detail={sale.detail} createdAt={sale.createdAt} totalCents={sale.totalCents} rooms={choices.rooms} />
+          {sale.detail.lockedReason && <p className="text-xs text-muted-foreground">{sale.detail.lockedReason}</p>}
+        </>
+      )}
+      {view === "edit" && (
+        <SaleEditForm
+          saleId={sale.id}
+          detail={sale.detail}
+          createdAt={sale.createdAt}
+          totalCents={sale.totalCents}
+          choices={choices}
+          onDone={() => setView("details")}
+        />
+      )}
+      {view === "history" && <SaleHistory saleId={sale.id} />}
+      {view === "name" && <SaleEditor sale={sale} onDone={onClose} />}
+    </div>
+  );
+}
+
+export function SalesList({ sales, ...choices }: { sales: SaleRow[] } & EditorChoices) {
   const [openId, setOpenId] = useState<string | null>(null);
 
   if (sales.length === 0) {
@@ -131,9 +185,15 @@ export function SalesList({ sales }: { sales: SaleRow[] }) {
     <ul className="divide-y divide-border overflow-hidden rounded-[18px] bg-card ring-1 ring-black/[0.05] dark:ring-white/[0.08]">
       {sales.map((s) => {
         const label = s.customer?.name ?? s.customerName;
+        const open = openId === s.id;
         return (
-          <li key={s.id} className="p-4">
-            <div className="flex flex-wrap items-start justify-between gap-3">
+          <li key={s.id} className={cn("p-4", open && "bg-muted/20")}>
+            <button
+              type="button"
+              onClick={() => setOpenId(open ? null : s.id)}
+              aria-expanded={open}
+              className="flex w-full flex-wrap items-start justify-between gap-3 text-left"
+            >
               <div className="min-w-0">
                 <p className="flex flex-wrap items-center gap-2">
                   <span className="rounded-md bg-muted px-2 py-0.5 font-mono text-xs tabular-nums">{s.ref ?? "—"}</span>
@@ -141,6 +201,11 @@ export function SalesList({ sales }: { sales: SaleRow[] }) {
                     {label ?? "No name"}
                   </span>
                   {s.customer && <span className="rounded-full bg-primary/10 px-2 py-0.5 text-[11px] text-primary">Customer</span>}
+                  {s.detail.editCount > 0 && (
+                    <span className="rounded-full bg-amber-500/15 px-2 py-0.5 text-[11px] text-amber-700 dark:text-amber-300">
+                      Edited
+                    </span>
+                  )}
                   {s.status !== "completed" && (
                     <span className="rounded-full bg-destructive/10 px-2 py-0.5 text-[11px] capitalize text-destructive">
                       {s.status.replace("_", " ")}
@@ -164,16 +229,10 @@ export function SalesList({ sales }: { sales: SaleRow[] }) {
               </div>
               <div className="flex items-center gap-3">
                 <span className="font-semibold tabular-nums">{formatCents(s.totalCents)}</span>
-                <Button type="button" size="sm" variant="secondary" onClick={() => setOpenId(openId === s.id ? null : s.id)}>
-                  {openId === s.id ? "Close" : label ? "Edit customer" : "Add name"}
-                </Button>
+                <span className="text-sm text-muted-foreground">{open ? "Close" : "View"}</span>
               </div>
-            </div>
-            {openId === s.id && (
-              <div className="mt-3">
-                <SaleEditor sale={s} onDone={() => setOpenId(null)} />
-              </div>
-            )}
+            </button>
+            {open && <SalePanel sale={s} choices={choices} onClose={() => setOpenId(null)} />}
           </li>
         );
       })}

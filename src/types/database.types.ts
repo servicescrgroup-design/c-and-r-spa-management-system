@@ -3710,6 +3710,16 @@ export type Database = {
         }
         Returns: undefined
       }
+      edit_pos_sale_full: {
+        Args: {
+          p_lines: Json
+          p_note?: string
+          p_payments: Json
+          p_tip_cents: number
+          p_transaction_id: string
+        }
+        Returns: undefined
+      }
       find_combo_options: {
         Args: { p_branch_id: string; p_service_ids: string[] }
         Returns: {
