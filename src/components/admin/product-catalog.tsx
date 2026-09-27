@@ -1,6 +1,7 @@
 "use client";
 
 import { resizeImage } from "@/lib/client/resize-image";
+import Link from "next/link";
 import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { setProductOrder, setBranchProductCarried, uploadProductImage } from "@/lib/admin/product-actions";
@@ -24,7 +25,7 @@ type InventoryRow = { branch_id: string; quantity_on_hand: number; reorder_thres
 
 type SortMode = "custom" | "name" | "price-asc" | "price-desc" | "quantity";
 
-function ProductImage({ product }: { product: Product }) {
+export function ProductImage({ product }: { product: Pick<Product, "id" | "image_url"> }) {
   const router = useRouter();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -181,18 +182,27 @@ export function ProductCatalog({
           >
             <CardHeader className="flex-row items-start gap-3 space-y-0">
               <ProductImage product={product} />
-              <div className="min-w-0 flex-1">
-                <CardTitle>{product.name}</CardTitle>
+              <Link href={`/admin/inventory/${product.id}`} draggable={false} className="group min-w-0 flex-1">
+                <CardTitle className="group-hover:text-primary">
+                  {product.name} <span className="text-base text-muted-foreground group-hover:text-primary">›</span>
+                </CardTitle>
                 <CardDescription>
                   SKU {product.sku}
                   {product.unit_amount ? ` · ${product.unit_amount} ${product.unit_label}` : ` · ${product.unit_label}`}
                   {" "}&middot; cost {formatCents(product.cost_cents)} &middot; retail{" "}
                   {formatCents(product.retail_price_cents)}
                 </CardDescription>
-              </div>
+              </Link>
               <div className="shrink-0 text-right text-sm">
                 <p className="text-xs text-muted-foreground">Total on hand</p>
                 <p className="font-display text-lg">{totalFor(product.id)}</p>
+                <Link
+                  href={`/admin/inventory/${product.id}`}
+                  draggable={false}
+                  className="mt-1 inline-block rounded-full bg-secondary px-3 py-1 text-xs font-medium hover:bg-primary hover:text-primary-foreground"
+                >
+                  View &amp; edit
+                </Link>
               </div>
             </CardHeader>
             <CardContent className="flex flex-wrap gap-2 text-sm">

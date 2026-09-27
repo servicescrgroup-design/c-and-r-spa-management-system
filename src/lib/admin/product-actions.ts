@@ -189,16 +189,16 @@ export type InventoryHistoryEntry = {
   staffName: string | null;
 };
 
-export async function getInventoryHistory(limit = 100): Promise<InventoryHistoryEntry[]> {
+export async function getInventoryHistory(limit = 100, productId?: string): Promise<InventoryHistoryEntry[]> {
   await requireStaffContext();
   const supabase = await createServerSupabaseClient();
-  const { data } = await supabase
+  let query = supabase
     .from("inventory_adjustments")
     .select(
       "id, created_at, quantity_delta, reason, notes, branch_id, product_id, branches:branch_id(name), products:product_id(name), staff:staff_id(first_name, last_name)",
-    )
-    .order("created_at", { ascending: false })
-    .limit(limit);
+    );
+  if (productId) query = query.eq("product_id", productId);
+  const { data } = await query.order("created_at", { ascending: false }).limit(limit);
 
   return (data ?? []).map((r) => ({
     id: r.id,
@@ -303,5 +303,124 @@ export async function setBranchProductCarried(branchId: string, productId: strin
   }
 
   revalidatePath("/admin/inventory");
+  return { ok: true };
+}
+
+export async function updateProduct(
+  productId: string,
+  input: {
+    name: string;
+    sku: string;
+    description: string;
+    costDollars: number;
+    priceDollars: number;
+    unitLabel: string;
+    unitAmount: number | null;
+    isActive: boolean;
+  },
+): Promise<ActionResult> {
+  const ctx = await requireStaffContext();
+  if (!canManageCatalog(ctx)) return { ok: false, error: "Only an owner or manager can edit products." };
+
+  const name = input.name.trim();
+  const sku = input.sku.trim();
+  if (!name) return { ok: false, error: "Product name is required." };
+  if (!sku) return { ok: false, error: "SKU is required." };
+  if (!Number.isFinite(input.costDollars) || input.costDollars < 0) {
+    return { ok: false, error: "Cost must be a non-negative number." };
+  }
+  if (!Number.isFinite(input.priceDollars) || input.priceDollars < 0) {
+    return { ok: false, error: "Retail price must be a non-negative number." };
+  }
+  if (input.unitAmount != null && (!Number.isFinite(input.unitAmount) || input.unitAmount <= 0)) {
+    return { ok: false, error: "Unit size must be a positive number." };
+  }
+
+  const supabase = await createServerSupabaseClient();
+  const { error } = await supabase
+    .from("products")
+    .update({
+      name,
+      sku,
+      description: input.description.trim() || null,
+      cost_cents: Math.round(input.costDollars * 100),
+      retail_price_cents: Math.round(input.priceDollars * 100),
+      unit_label: input.unitLabel.trim() || "piece",
+      unit_amount: input.unitAmount,
+      is_active: input.isActive,
+    })
+    .eq("id", productId);
+
+  if (error) return { ok: false, error: error.message };
+
+  revalidatePath("/admin/inventory");
+  revalidatePath(`/admin/inventory/${productId}`);
+  return { ok: true };
+}
+
+/** Sets stock on hand to an exact counted number by recording the
+ * difference as a count correction, so the history still explains it. */
+export async function setStockCount(input: {
+  branchId: string;
+  productId: string;
+  count: number;
+  notes: string;
+}): Promise<ActionResult> {
+  const ctx = await requireStaffContext();
+  if (!canManageCatalog(ctx)) return { ok: false, error: "Only an owner or manager can change stock." };
+  if (!Number.isInteger(input.count) || input.count < 0) {
+    return { ok: false, error: "Stock count must be a whole number, 0 or more." };
+  }
+
+  const supabase = await createServerSupabaseClient();
+  const { data: row } = await supabase
+    .from("branch_inventory")
+    .select("quantity_on_hand")
+    .eq("branch_id", input.branchId)
+    .eq("product_id", input.productId)
+    .maybeSingle();
+
+  const delta = input.count - (row?.quantity_on_hand ?? 0);
+  if (delta === 0) return { ok: false, error: "That is already the stock on hand." };
+
+  const { error } = await supabase.from("inventory_adjustments").insert({
+    branch_id: input.branchId,
+    product_id: input.productId,
+    staff_id: ctx.staffId,
+    quantity_delta: delta,
+    reason: "count_correction",
+    notes: input.notes.trim() || `Stock set to ${input.count}`,
+  });
+
+  if (error) return { ok: false, error: error.message };
+
+  revalidatePath("/admin/inventory");
+  revalidatePath(`/admin/inventory/${input.productId}`);
+  return { ok: true };
+}
+
+export async function setReorderThreshold(
+  branchId: string,
+  productId: string,
+  threshold: number,
+): Promise<ActionResult> {
+  const ctx = await requireStaffContext();
+  if (!canManageCatalog(ctx)) return { ok: false, error: "Only an owner or manager can change low-stock alerts." };
+  if (!Number.isInteger(threshold) || threshold < 0) {
+    return { ok: false, error: "Low-stock level must be a whole number, 0 or more." };
+  }
+
+  const supabase = await createServerSupabaseClient();
+  const { error } = await supabase
+    .from("branch_inventory")
+    .upsert(
+      { branch_id: branchId, product_id: productId, reorder_threshold: threshold },
+      { onConflict: "branch_id,product_id" },
+    );
+
+  if (error) return { ok: false, error: error.message };
+
+  revalidatePath("/admin/inventory");
+  revalidatePath(`/admin/inventory/${productId}`);
   return { ok: true };
 }
