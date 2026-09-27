@@ -4,7 +4,7 @@ import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { addFreelancer } from "@/lib/pos/sale-actions";
 import { checkoutSale, issueGiftCard, type CartAddOn, type CartItem, type PaymentMethod } from "@/lib/pos/actions";
-import { AddOnsEditor, RoomBedPicker, SellingGuide, TransportFeeBox, type PosRoom } from "@/components/pos/sale-extras";
+import { AddOnsEditor, RoomBedPicker, SellingGuide, type PosRoom } from "@/components/pos/sale-extras";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -20,13 +20,6 @@ type Therapist = { id: string; name: string; status: string | null; freeAt?: str
 const hhmm = (iso: string) =>
   new Intl.DateTimeFormat("en-GB", { timeZone: "Asia/Bangkok", hour: "2-digit", minute: "2-digit", hour12: false }).format(new Date(iso));
 
-/** Half-hour start times from now, e.g. 18:00, 18:30 … for the next few hours. */
-function startSlots(fromMs: number, count = 12): string[] {
-  const step = 30 * 60_000;
-  const first = Math.ceil((fromMs + 60_000) / step) * step;
-  return Array.from({ length: count }, (_, i) => new Date(first + i * step).toISOString());
-}
-
 /** A Bangkok "HH:MM" today (or tomorrow if already past) as ISO. */
 function todayAt(time: string): string {
   const date = new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Bangkok" }).format(new Date());
@@ -39,6 +32,11 @@ const STATUS_TEXT: Record<string, string> = {
   on_break: "On break",
   off_duty: "Off duty",
 };
+/** Free right now: clocked in, marked available and not still finishing a massage. */
+function isFreeNow(t: Therapist, nowMs: number): boolean {
+  return t.status === "available" && !(t.freeAt && new Date(t.freeAt).getTime() > nowMs);
+}
+
 type Customer = { id: string; first_name: string; last_name: string; email: string | null };
 type PaymentRow = { method: PaymentMethod; amount: string };
 
@@ -227,6 +225,7 @@ export function CheckoutCart({
               ...c,
               staffId: kind === "staff" ? id : null,
               freelanceSessionId: kind === "free" ? id : null,
+              transportCents: kind === "staff" ? c.transportCents : null,
               startAt: suggested ?? (c.startAt && new Date(c.startAt).getTime() > Date.now() ? c.startAt : null),
             }
           : c,
@@ -236,6 +235,10 @@ export function CheckoutCart({
 
   function setLineStart(index: number, startAt: string | null) {
     setCart((prev) => prev.map((c, i) => (i === index ? { ...c, startAt } : c)));
+  }
+
+  function setLineTransport(index: number, cents: number | null) {
+    setCart((prev) => prev.map((c, i) => (i === index ? { ...c, transportCents: cents } : c)));
   }
 
   function setLineCustomer(index: number, name: string) {
@@ -308,6 +311,25 @@ export function CheckoutCart({
   const tipCents = Math.round((Number(tip) || 0) * 100);
   const cardFeeCents = Math.round((Number(cardFeeDollars) || 0) * 100);
   const totalCents = afterDiscountCents + taxCents + tipCents + cardFeeCents;
+
+  // What this sale costs to deliver: each therapist's pay (ค่ามือ, add-ons included) and transport.
+  const workerName = (item: CartItem) =>
+    item.freelanceSessionId
+      ? (freelancers.find((f) => f.id === item.freelanceSessionId)?.name ?? "Freelancer")
+      : item.staffId
+        ? (therapists.find((t) => t.id === item.staffId)?.name ?? "Therapist")
+        : "No therapist yet";
+  const costLines: { kind: "pay" | "transport"; label: string; cents: number }[] = [];
+  cart.forEach((item, index) => {
+    if (item.itemType !== "service") return;
+    const pay =
+      (item.payoutCents ?? 0) * item.quantity +
+      addOns.filter((a) => a.lineIndex === index).reduce((n, a) => n + a.payoutCents, 0);
+    costLines.push({ kind: "pay", label: `${workerName(item)} · ${item.description}`, cents: pay });
+    if (item.transportCents) costLines.push({ kind: "transport", label: workerName(item), cents: item.transportCents });
+  });
+  const variableCostCents = costLines.reduce((n, c) => n + c.cents, 0);
+  const netProfitCents = afterDiscountCents - variableCostCents;
 
   function applyCardFeePercent() {
     const pct = Number(cardFeePercent) || 0;
@@ -598,21 +620,6 @@ export function CheckoutCart({
           </CardContent>
         </Card>
 
-        <Card>
-          <CardHeader>
-            <CardTitle>Transportation fee</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-2">
-            <TransportFeeBox
-              branchId={branchId}
-              therapists={therapists.filter((t) => t.status).map((t) => ({ id: t.id, name: t.name }))}
-              suggestedCents={transportFeeCents}
-            />
-            <p className="text-xs text-muted-foreground">
-              Paid in cash from this drawer and saved as an expense, not added to the therapist&apos;s payroll.
-            </p>
-          </CardContent>
-        </Card>
       </div>
 
       <Card className="h-fit lg:sticky lg:top-16 lg:self-start">
@@ -672,7 +679,7 @@ export function CheckoutCart({
                             .filter((t) => t.status)
                             .map((t) => (
                               <option key={t.id} value={`staff:${t.id}`}>
-                                {t.name} · {STATUS_TEXT[t.status!] ?? t.status}
+                                {isFreeNow(t, Date.now()) ? "🟢" : "🔴"} {t.name} · {STATUS_TEXT[t.status!] ?? t.status}
                                 {t.freeAt && new Date(t.freeAt).getTime() > Date.now() ? ` · free at ${hhmm(t.freeAt)}` : ""}
                               </option>
                             ))}
@@ -684,7 +691,7 @@ export function CheckoutCart({
                             .filter((t) => !t.status)
                             .map((t) => (
                               <option key={t.id} value={`staff:${t.id}`}>
-                                {t.name}
+                                🔴 {t.name} · not checked in
                               </option>
                             ))}
                         </optgroup>
@@ -692,7 +699,7 @@ export function CheckoutCart({
                       <optgroup label="Freelancers today">
                         {freelancers.map((f) => (
                           <option key={f.id} value={`free:${f.id}`}>
-                            {f.name} · Freelancer
+                            🟢 {f.name} · Freelancer
                           </option>
                         ))}
                         <option value="new-freelancer">+ Add a freelancer...</option>
@@ -724,9 +731,20 @@ export function CheckoutCart({
                           Freelancer
                         </span>
                       ) : item.staffId ? (
-                        <span className="shrink-0 rounded-full bg-primary/10 px-2 py-0.5 text-[11px] font-medium text-primary">
-                          Store therapist
-                        </span>
+                        (() => {
+                          const t = therapists.find((x) => x.id === item.staffId);
+                          const free = t ? isFreeNow(t, Date.now()) : false;
+                          return (
+                            <span className="inline-flex shrink-0 items-center gap-1.5 rounded-full bg-primary/10 px-2 py-0.5 text-[11px] font-medium text-primary">
+                              <span
+                                aria-hidden
+                                className={cn("size-2 rounded-full", free ? "bg-green-500" : "bg-red-500")}
+                              />
+                              <span className="sr-only">{free ? "Available" : "Not available"}</span>
+                              Store therapist
+                            </span>
+                          );
+                        })()
                       ) : null}
                       <Input
                         aria-label="Guest name for this massage"
@@ -736,6 +754,35 @@ export function CheckoutCart({
                         className="h-8 text-xs"
                       />
                     </div>
+
+                    {item.staffId && !item.freelanceSessionId && (
+                      <div className="flex items-center gap-2 text-xs">
+                        <label className="flex shrink-0 cursor-pointer items-center gap-1.5">
+                          <input
+                            type="checkbox"
+                            checked={item.transportCents != null}
+                            onChange={(e) => setLineTransport(i, e.target.checked ? transportFeeCents : null)}
+                            className="size-4 accent-[var(--color-primary)]"
+                          />
+                          Transport
+                        </label>
+                        {item.transportCents != null && (
+                          <>
+                            <Input
+                              type="number"
+                              min="0"
+                              step="1"
+                              aria-label="Transport amount in baht"
+                              value={item.transportCents ? item.transportCents / 100 : ""}
+                              onChange={(e) => setLineTransport(i, Math.max(0, Math.round((Number(e.target.value) || 0) * 100)))}
+                              placeholder="฿"
+                              className="h-8 w-24 text-xs"
+                            />
+                            <span className="text-muted-foreground">paid from the drawer</span>
+                          </>
+                        )}
+                      </div>
+                    )}
 
                     <select
                       aria-label="Room and bed for this massage"
@@ -778,41 +825,32 @@ export function CheckoutCart({
 
                     {(() => {
                       const startIso = item.startAt ?? null;
-                      const slots = startSlots(Date.now());
-                      const custom = startIso && !slots.includes(startIso);
                       const endIso = new Date(
                         (startIso ? new Date(startIso).getTime() : Date.now()) +
                           ((item.durationMinutes ?? 60) + addOns.filter((a) => a.lineIndex === i).reduce((n, a) => n + a.minutes, 0)) * 60_000,
                       ).toISOString();
                       return (
-                        <div className="flex items-center gap-2">
-                          <select
+                        <div className="flex items-center gap-2 text-xs">
+                          <span className="shrink-0 text-muted-foreground">Start</span>
+                          <Input
+                            type="time"
                             aria-label="Start time"
-                            value={startIso ? (custom ? "custom" : startIso) : ""}
-                            onChange={(e) => {
-                              if (e.target.value === "custom") return setLineStart(i, todayAt(hhmm(new Date(Date.now() + 15 * 60_000).toISOString())));
-                              setLineStart(i, e.target.value || null);
-                            }}
-                            className="h-8 flex-1 rounded-lg border border-border bg-card px-2 text-xs"
-                          >
-                            <option value="">Starts now</option>
-                            {slots.map((iso) => (
-                              <option key={iso} value={iso}>
-                                Starts {hhmm(iso)}
-                              </option>
-                            ))}
-                            <option value="custom">Other time...</option>
-                          </select>
-                          {custom && (
-                            <Input
-                              type="time"
-                              aria-label="Custom start time"
-                              value={hhmm(startIso!)}
-                              onChange={(e) => e.target.value && setLineStart(i, todayAt(e.target.value))}
-                              className="h-8 w-24 text-xs"
-                            />
+                            value={startIso ? hhmm(startIso) : ""}
+                            onChange={(e) => setLineStart(i, e.target.value ? todayAt(e.target.value) : null)}
+                            className="h-8 w-28 text-xs"
+                          />
+                          {startIso ? (
+                            <button
+                              type="button"
+                              onClick={() => setLineStart(i, null)}
+                              className="shrink-0 text-primary hover:underline"
+                            >
+                              Now
+                            </button>
+                          ) : (
+                            <span className="shrink-0 text-muted-foreground">now</span>
                           )}
-                          <span className="shrink-0 text-[11px] text-muted-foreground">until {hhmm(endIso)}</span>
+                          <span className="ml-auto shrink-0 text-[11px] text-muted-foreground">until {hhmm(endIso)}</span>
                         </div>
                       );
                     })()}
@@ -993,6 +1031,37 @@ export function CheckoutCart({
               <span>{formatCents(totalCents)}</span>
             </div>
           </div>
+
+          {costLines.length > 0 && (
+            <div className="space-y-1 rounded-xl bg-muted/50 p-3 text-sm">
+              <p className="text-xs font-medium text-muted-foreground">Variable cost for this sale</p>
+              {costLines.map((c, k) => (
+                <div key={k} className="flex justify-between gap-3">
+                  <span className="min-w-0 truncate">
+                    <span className="text-muted-foreground">{c.kind === "pay" ? "Therapist pay" : "Transport"} · </span>
+                    <span data-no-translate>{c.label}</span>
+                  </span>
+                  <span className="shrink-0 tabular-nums">{formatCents(c.cents)}</span>
+                </div>
+              ))}
+              <div className="flex justify-between border-t border-border pt-1 font-medium">
+                <span>Total variable cost</span>
+                <span className="tabular-nums">{formatCents(variableCostCents)}</span>
+              </div>
+              <div
+                className={cn(
+                  "flex justify-between text-base font-semibold",
+                  netProfitCents < 0 ? "text-destructive" : "text-primary",
+                )}
+              >
+                <span>Net profit</span>
+                <span className="tabular-nums">{formatCents(netProfitCents)}</span>
+              </div>
+              <p className="text-[11px] text-muted-foreground">
+                Sales after discount minus therapist pay and transport. Tax, tip and card fee are left out.
+              </p>
+            </div>
+          )}
 
           {error && <p className="text-sm text-destructive">{error}</p>}
           <Button

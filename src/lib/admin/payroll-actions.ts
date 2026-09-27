@@ -86,7 +86,7 @@ export type GuaranteeDay = {
   branchName: string;
   workDate: string;
   serviceHours: number;
-  jobs: { description: string; durationMinutes: number | null; payoutCents: number }[];
+  jobs: { description: string; durationMinutes: number | null; payoutCents: number; transportCents: number }[];
   earnedCents: number;
   guaranteeCents: number;
   topupCents: number;
@@ -120,7 +120,7 @@ export async function getGuaranteeDays(
       .lte("work_date", endDate),
     supabase
       .from("pos_transaction_items")
-      .select("description, duration_minutes, payout_cents, completed_at, reference_id, item_type, pos_transactions!inner(branch_id)")
+      .select("id, description, duration_minutes, payout_cents, completed_at, reference_id, item_type, pos_transactions!inner(branch_id)")
       .eq("staff_id", staffId)
       .in("pos_transactions.branch_id", branchIds)
       .not("completed_at", "is", null)
@@ -137,6 +137,7 @@ export async function getGuaranteeDays(
     : { data: [] };
   const serviceName = new Map((services ?? []).map((s) => [s.id, s.name]));
 
+  const transportByItem = await transportForItems((items ?? []).map((i) => i.id));
   const branchInfo = new Map((branchRows ?? []).map((b) => [b.id, b]));
   const waived = new Set((waivers ?? []).map((w) => `${w.branch_id}:${w.work_date}`));
 
@@ -159,6 +160,7 @@ export async function getGuaranteeDays(
           description: (j.reference_id && serviceName.get(j.reference_id)) || j.description,
           durationMinutes: j.duration_minutes,
           payoutCents: j.payout_cents,
+          transportCents: transportByItem.get(j.id) ?? 0,
         })),
         earnedCents: r.payoutCents,
         guaranteeCents: profile?.guarantee_override_cents ?? info?.payroll_guarantee_cents ?? 0,
@@ -215,12 +217,31 @@ export async function setGuaranteeWaived(
   return { ok: true };
 }
 
+/** Transport paid from the drawer per massage, keyed by sale line. */
+async function transportForItems(itemIds: string[]): Promise<Map<string, number>> {
+  const map = new Map<string, number>();
+  if (itemIds.length === 0) return map;
+  const supabase = await createServerSupabaseClient();
+  const { data } = await supabase
+    .from("expenses")
+    .select("pos_transaction_item_id, amount_cents")
+    .in("pos_transaction_item_id", itemIds);
+  for (const row of data ?? []) {
+    if (row.pos_transaction_item_id) {
+      map.set(row.pos_transaction_item_id, (map.get(row.pos_transaction_item_id) ?? 0) + row.amount_cents);
+    }
+  }
+  return map;
+}
+
 export type StaffDayJob = {
   id: string;
   description: string;
   durationMinutes: number | null;
   payoutCents: number;
   completedAt: string | null;
+  /** Transport paid from the drawer for this job; shown for reference, not part of pay. */
+  transportCents: number;
 };
 
 /** The drill-down behind a daily payroll row: each completed job plus a synthetic
@@ -250,12 +271,15 @@ export async function getStaffDayJobs(
   const days = await getPayrollDays(branchId, workDate, workDate);
   const row = days.find((d) => d.staffId === staffId);
 
+  const transportByItem = await transportForItems(jobs.map((j) => j.id));
+
   return {
     jobs: jobs.map((j) => ({
       id: j.id,
       description: j.description,
       durationMinutes: j.duration_minutes,
       payoutCents: j.payout_cents,
+      transportCents: transportByItem.get(j.id) ?? 0,
       completedAt: j.completed_at,
     })),
     guaranteeTopupCents: row?.guaranteeTopupCents ?? 0,

@@ -157,6 +157,8 @@ export type CartItem = {
   bedId?: string | null;
   /** Services only: a later start (ISO), e.g. when the therapist finishes their current massage. Empty = now. */
   startAt?: string | null;
+  /** Services only: transport paid to this store therapist from the drawer for this massage, in satang. */
+  transportCents?: number | null;
 };
 
 export type PaymentMethod = "cash" | "bank_transfer" | "card_manual";
@@ -190,6 +192,15 @@ export async function checkoutSale(input: {
   const ctx = await requireStaffContext();
   if (input.items.length === 0) {
     return { ok: false, error: "Add at least one item to the sale." };
+  }
+  for (const item of input.items) {
+    if (!item.transportCents) continue;
+    if (item.itemType !== "service" || !item.staffId || item.freelanceSessionId) {
+      return { ok: false, error: "Transport can only be paid to a store therapist on a massage." };
+    }
+    if (!Number.isFinite(item.transportCents) || item.transportCents < 0) {
+      return { ok: false, error: "Transport must be an amount of 0 or more." };
+    }
   }
   const addOns = input.addOns ?? [];
   for (const a of addOns) {
@@ -511,9 +522,22 @@ export async function checkoutSale(input: {
     await supabase.from("freelance_sessions").update({ jobs_today: f.jobs_today + jobs }).eq("id", f.id);
   }
 
+  // Transport paid from the drawer, saved as an expense tied to its massage.
+  for (const [index, item] of input.items.entries()) {
+    if (!item.transportCents || !item.staffId) continue;
+    const { error: feeError } = await supabase.rpc("record_transportation_fee", {
+      p_branch_id: input.branchId,
+      p_staff_id: item.staffId,
+      p_amount_cents: Math.round(item.transportCents),
+      p_item_id: itemIdByLine.get(index),
+    });
+    if (feeError) return { ok: false, error: `Sale saved but the transport fee wasn't: ${feeError.message}` };
+  }
+
   revalidatePath("/pos/queue");
   revalidatePath("/pos/checkout");
   revalidatePath("/pos/sales");
+  revalidatePath("/admin/expenses");
   return { ok: true, transactionId: txn.id, customerRef: txn.customer_ref };
 }
 

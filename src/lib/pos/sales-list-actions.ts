@@ -251,3 +251,21 @@ export async function getSaleHistory(transactionId: string): Promise<SaleHistory
     };
   });
 }
+
+/** Deletes a bill and any refund made against it. A copy stays in the audit log. */
+export async function deleteSale(transactionId: string, reason: string): Promise<ActionResult> {
+  await requireStaffContext();
+  const supabase = await createServerSupabaseClient();
+  const { error } = await supabase.rpc("delete_pos_sale", {
+    p_transaction_id: transactionId,
+    p_reason: reason.trim() || undefined,
+  });
+  if (error) return { ok: false, error: error.message };
+  revalidatePath("/pos/sales");
+  revalidatePath("/pos/queue");
+  revalidatePath("/pos/refunds");
+  revalidatePath("/admin/scheduling");
+  revalidatePath("/admin/payroll");
+  revalidatePath("/admin/accounting");
+  return { ok: true };
+}

@@ -21,6 +21,8 @@ export type SaleLine = {
   customerName: string | null;
   isAddOn: boolean;
   completedAt: string | null;
+  /** Transport paid from the drawer for this massage. */
+  transportCents: number;
 };
 
 export type SalePayment = { method: string; amountCents: number };
@@ -35,6 +37,8 @@ export type SaleDetail = {
   payments: SalePayment[];
   /** Why this sale can't be edited, or null when it can. */
   lockedReason: string | null;
+  /** Owners and managers can delete a bill, refunded or not, unless payroll is locked or it used a card/credit. */
+  canDelete: boolean;
   editCount: number;
 };
 
@@ -110,3 +114,13 @@ export function bangkokTime(value: Date | string): string {
 export function bangkokDate(value: Date | string): string {
   return new Date(new Date(value).getTime() + 7 * 3600_000).toISOString().slice(0, 10);
 }
+
+export type DeletedSale = {
+  id: string;
+  ref: string | null;
+  totalCents: number;
+  saleAt: string | null;
+  deletedAt: string;
+  deletedBy: string;
+  reason: string | null;
+};

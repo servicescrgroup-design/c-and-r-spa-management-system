@@ -57,6 +57,7 @@ function translateDates(text: string): string {
 const PATTERNS: [RegExp, string][] = [
   [/^Next walk-in (\d{2}:\d{2})$/, "คิวถัดไป $1"],
   [/^Guest (\d+)$/, "แขก $1"],
+  [/^Transport (฿[\d,.]+|THB [\d,.]+)$/, "ค่าเดินทาง $1"],
   [/^History \((\d+)\)$/, "ประวัติ ($1)"],
   [/^(\d+) min$/, "$1 นาที"],
   [/^Starts (\d{2}:\d{2})$/, "เริ่ม $1"],

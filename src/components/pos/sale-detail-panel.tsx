@@ -107,6 +107,9 @@ export function SaleBreakdown({
                   </td>
                   <td className="px-3 py-2.5">
                     <TherapistTag line={g.main} />
+                    {g.main.transportCents > 0 && (
+                      <p className="text-xs text-muted-foreground">Transport {formatCents(g.main.transportCents)}</p>
+                    )}
                   </td>
                   <td className="px-3 py-2.5">
                     {place ? <span data-no-translate>{place}</span> : <span className="text-muted-foreground">Not set</span>}

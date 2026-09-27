@@ -2,12 +2,12 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { setSaleCustomer, searchCustomers, createCustomerForSale, type CustomerMatch } from "@/lib/pos/sales-list-actions";
+import { setSaleCustomer, searchCustomers, createCustomerForSale, deleteSale, type CustomerMatch } from "@/lib/pos/sales-list-actions";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { formatCents, cn } from "@/lib/utils";
 import { SaleBreakdown, SaleEditForm, SaleHistory, type EditorChoices } from "@/components/pos/sale-detail-panel";
-import type { SaleDetail } from "@/lib/pos/sale-detail";
+import { bangkokTime, type DeletedSale, type SaleDetail } from "@/lib/pos/sale-detail";
 
 export type SaleRow = {
   id: string;
@@ -22,7 +22,7 @@ export type SaleRow = {
   detail: SaleDetail;
 };
 
-type View = "details" | "edit" | "history" | "name";
+type View = "details" | "edit" | "history" | "name" | "delete";
 
 function SaleEditor({ sale, onDone }: { sale: SaleRow; onDone: () => void }) {
   const router = useRouter();
@@ -125,7 +125,43 @@ function SaleEditor({ sale, onDone }: { sale: SaleRow; onDone: () => void }) {
   );
 }
 
-function SalePanel({ sale, choices, onClose }: { sale: SaleRow; choices: EditorChoices; onClose: () => void }) {
+function DeleteConfirm({ sale, onCancel }: { sale: SaleRow; onCancel: () => void }) {
+  const router = useRouter();
+  const [reason, setReason] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  async function confirm() {
+    setBusy(true);
+    setError(null);
+    const result = await deleteSale(sale.id, reason).catch(() => ({ ok: false as const, error: "Couldn't delete. Try again." }));
+    setBusy(false);
+    if (!result.ok) return setError(result.error);
+    router.refresh();
+  }
+
+  return (
+    <div className="space-y-3 rounded-xl bg-destructive/5 p-4 ring-1 ring-destructive/20">
+      <p className="text-sm font-medium">Delete bill {sale.ref ?? ""} ({formatCents(sale.totalCents)})?</p>
+      <p className="text-sm text-muted-foreground">
+        The sale{sale.status !== "completed" ? " and its refund" : ""} will be removed from sales, reports, the books and therapist pay.
+        Products go back into stock. A copy is kept under &quot;Deleted bills&quot; at the bottom of this page.
+      </p>
+      <Input value={reason} onChange={(e) => setReason(e.target.value)} placeholder="Reason, e.g. Test sale or entered twice" className="h-10" />
+      <div className="flex flex-wrap gap-2">
+        <Button type="button" size="sm" variant="destructive" disabled={busy} onClick={confirm}>
+          {busy ? "Deleting..." : "Delete bill"}
+        </Button>
+        <Button type="button" size="sm" variant="ghost" disabled={busy} onClick={onCancel}>
+          Cancel
+        </Button>
+      </div>
+      {error && <p className="text-sm text-destructive">{error}</p>}
+    </div>
+  );
+}
+
+function SalePanel({ sale, choices }: { sale: SaleRow; choices: EditorChoices }) {
   const [view, setView] = useState<View>("details");
   const tabs: { id: View; label: string }[] = [
     { id: "details", label: "Details" },
@@ -137,7 +173,7 @@ function SalePanel({ sale, choices, onClose }: { sale: SaleRow; choices: EditorC
   ];
   return (
     <div className="mt-3 space-y-3">
-      <div className="flex flex-wrap gap-1.5">
+      <div className="flex flex-wrap items-center gap-1.5">
         {tabs.map((t) => (
           <button
             key={t.id}
@@ -151,6 +187,18 @@ function SalePanel({ sale, choices, onClose }: { sale: SaleRow; choices: EditorC
             {t.label}
           </button>
         ))}
+        {sale.detail.canDelete && (
+          <button
+            type="button"
+            onClick={() => setView("delete")}
+            className={cn(
+              "ml-auto h-8 rounded-full px-3 text-sm text-destructive",
+              view === "delete" ? "bg-destructive/15" : "hover:bg-destructive/10",
+            )}
+          >
+            Delete bill
+          </button>
+        )}
       </div>
       {view === "details" && (
         <>
@@ -169,13 +217,22 @@ function SalePanel({ sale, choices, onClose }: { sale: SaleRow; choices: EditorC
         />
       )}
       {view === "history" && <SaleHistory saleId={sale.id} />}
-      {view === "name" && <SaleEditor sale={sale} onDone={onClose} />}
+      {view === "name" && <SaleEditor sale={sale} onDone={() => setView("details")} />}
+      {view === "delete" && <DeleteConfirm sale={sale} onCancel={() => setView("details")} />}
     </div>
   );
 }
 
 export function SalesList({ sales, ...choices }: { sales: SaleRow[] } & EditorChoices) {
-  const [openId, setOpenId] = useState<string | null>(null);
+  // Every sale starts open; tap its header to fold it away.
+  const [collapsed, setCollapsed] = useState<Set<string>>(() => new Set());
+  const toggle = (id: string) =>
+    setCollapsed((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
 
   if (sales.length === 0) {
     return <p className="rounded-2xl bg-card p-6 text-sm text-muted-foreground">No sales on this day yet.</p>;
@@ -185,12 +242,12 @@ export function SalesList({ sales, ...choices }: { sales: SaleRow[] } & EditorCh
     <ul className="divide-y divide-border overflow-hidden rounded-[18px] bg-card ring-1 ring-black/[0.05] dark:ring-white/[0.08]">
       {sales.map((s) => {
         const label = s.customer?.name ?? s.customerName;
-        const open = openId === s.id;
+        const open = !collapsed.has(s.id);
         return (
-          <li key={s.id} className={cn("p-4", open && "bg-muted/20")}>
+          <li key={s.id} className="p-4">
             <button
               type="button"
-              onClick={() => setOpenId(open ? null : s.id)}
+              onClick={() => toggle(s.id)}
               aria-expanded={open}
               className="flex w-full flex-wrap items-start justify-between gap-3 text-left"
             >
@@ -229,13 +286,50 @@ export function SalesList({ sales, ...choices }: { sales: SaleRow[] } & EditorCh
               </div>
               <div className="flex items-center gap-3">
                 <span className="font-semibold tabular-nums">{formatCents(s.totalCents)}</span>
-                <span className="text-sm text-muted-foreground">{open ? "Close" : "View"}</span>
+                <span className="text-sm text-muted-foreground">{open ? "Hide" : "Show"}</span>
               </div>
             </button>
-            {open && <SalePanel sale={s} choices={choices} onClose={() => setOpenId(null)} />}
+            {open && <SalePanel sale={s} choices={choices} />}
           </li>
         );
       })}
     </ul>
+  );
+}
+
+/** Bills deleted from this day, kept for the record. */
+export function DeletedSales({ deleted }: { deleted: DeletedSale[] }) {
+  return (
+    <section className="space-y-2">
+      <h2 className="text-sm font-semibold text-muted-foreground">Deleted bills</h2>
+      <ul className="divide-y divide-border overflow-hidden rounded-[18px] bg-card text-sm ring-1 ring-black/[0.05] dark:ring-white/[0.08]">
+        {deleted.map((d) => (
+          <li key={d.id} className="flex flex-wrap items-center justify-between gap-2 px-4 py-3">
+            <div className="min-w-0">
+              <p className="flex flex-wrap items-center gap-2">
+                <span className="rounded-md bg-muted px-2 py-0.5 font-mono text-xs tabular-nums line-through">{d.ref ?? "—"}</span>
+                <span className="text-muted-foreground">
+                  Sale at {d.saleAt ? bangkokTime(d.saleAt) : "—"} · deleted{" "}
+                  {new Date(d.deletedAt).toLocaleString("en-GB", {
+                    day: "numeric",
+                    month: "short",
+                    hour: "2-digit",
+                    minute: "2-digit",
+                    timeZone: "Asia/Bangkok",
+                  })}{" "}
+                  by <span data-no-translate>{d.deletedBy}</span>
+                </span>
+              </p>
+              {d.reason && (
+                <p className="mt-0.5 italic text-muted-foreground" data-no-translate>
+                  “{d.reason}”
+                </p>
+              )}
+            </div>
+            <span className="tabular-nums text-muted-foreground line-through">{formatCents(d.totalCents)}</span>
+          </li>
+        ))}
+      </ul>
+    </section>
   );
 }

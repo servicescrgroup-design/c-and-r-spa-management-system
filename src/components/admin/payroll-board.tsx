@@ -84,6 +84,9 @@ function JobsDrillDown({ jobs, guaranteeTopupCents }: { jobs: StaffDayJob[]; gua
           <span>
             {j.description}
             {j.durationMinutes ? ` · ${j.durationMinutes} min` : ""}
+            {j.transportCents > 0 && (
+              <span className="text-muted-foreground"> · transport {formatCents(j.transportCents)} (paid from drawer)</span>
+            )}
           </span>
           <span>{formatCents(j.payoutCents)}</span>
         </li>
@@ -395,6 +398,9 @@ function GuaranteeDays({
                               <span data-no-translate>
                                 {j.description}
                                 {j.durationMinutes ? ` · ${j.durationMinutes} min` : ""}
+                                {j.transportCents > 0 && (
+                                  <span className="text-muted-foreground"> · transport {formatCents(j.transportCents)}</span>
+                                )}
                               </span>
                               <span className="shrink-0 text-muted-foreground">{formatCents(j.payoutCents)}</span>
                             </li>

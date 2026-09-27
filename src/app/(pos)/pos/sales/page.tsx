@@ -3,8 +3,8 @@ import { redirect } from "next/navigation";
 import { getWorkingBranch } from "@/lib/pos/session";
 import { requireStaffContext } from "@/lib/auth/session";
 import { hasBranchRole, isOwner } from "@/lib/auth/roles";
-import { SalesList, type SaleRow } from "@/components/pos/sales-list";
-import { freelancerFromDescription, type RoomOption, type ServiceOption } from "@/lib/pos/sale-detail";
+import { SalesList, DeletedSales, type SaleRow } from "@/components/pos/sales-list";
+import { freelancerFromDescription, type DeletedSale, type RoomOption, type ServiceOption } from "@/lib/pos/sale-detail";
 
 function bangkokToday() {
   return new Date(Date.now() + 7 * 3600_000).toISOString().slice(0, 10);
@@ -56,6 +56,17 @@ export default async function SalesPage({ searchParams }: PageProps<"/pos/sales"
   const editCount = new Map<string, number>();
   for (const e of edits ?? []) editCount.set(e.transaction_id, (editCount.get(e.transaction_id) ?? 0) + 1);
   const dayLocked = (locks ?? []).length > 0;
+  const allItemIds = (txns ?? []).flatMap((t) => (t.pos_transaction_items ?? []).map((i) => i.id));
+  const { data: fees } =
+    canEdit && allItemIds.length
+      ? await supabase.from("expenses").select("pos_transaction_item_id, amount_cents").in("pos_transaction_item_id", allItemIds)
+      : { data: [] };
+  const transportByItem = new Map<string, number>();
+  for (const f of fees ?? []) {
+    if (f.pos_transaction_item_id) {
+      transportByItem.set(f.pos_transaction_item_id, (transportByItem.get(f.pos_transaction_item_id) ?? 0) + f.amount_cents);
+    }
+  }
 
   const sales: SaleRow[] = (txns ?? []).map((t) => {
     const items = [...(t.pos_transaction_items ?? [])].sort((a, b) => a.id.localeCompare(b.id));
@@ -91,6 +102,8 @@ export default async function SalesPage({ searchParams }: PageProps<"/pos/sales"
         cardFeeCents: t.card_fee_cents,
         payments: payments.map((p) => ({ method: p.method, amountCents: p.amount_cents })),
         lockedReason,
+        canDelete:
+          canEdit && !dayLocked && !payments.some((p) => LOCKED_METHODS.has(p.method)),
         editCount: editCount.get(t.id) ?? 0,
         lines: items.map((i) => ({
           id: i.id,
@@ -112,10 +125,38 @@ export default async function SalesPage({ searchParams }: PageProps<"/pos/sales"
           customerName: i.customer_name,
           isAddOn: i.is_add_on,
           completedAt: i.completed_at,
+          transportCents: transportByItem.get(i.id) ?? 0,
         })),
       },
     };
   });
+
+  // Bills deleted from this day, newest first.
+  let deleted: DeletedSale[] = [];
+  if (canEdit) {
+    const { data: rows } = await supabase
+      .from("audit_log")
+      .select("id, created_at, detail, staff:staff_id(first_name, last_name)")
+      .eq("entity_type", "pos_transaction")
+      .eq("action", "delete")
+      .eq("branch_id", branchId)
+      .gte("detail->transaction->>created_at", start.toISOString())
+      .lt("detail->transaction->>created_at", end.toISOString())
+      .order("created_at", { ascending: false });
+    deleted = (rows ?? []).map((r) => {
+      const detail = (r.detail ?? {}) as { reason?: string | null; transaction?: Record<string, unknown> };
+      const txn = detail.transaction ?? {};
+      return {
+        id: r.id,
+        ref: typeof txn.customer_ref === "string" ? txn.customer_ref : null,
+        totalCents: Number(txn.total_cents ?? 0),
+        saleAt: typeof txn.created_at === "string" ? txn.created_at : null,
+        deletedAt: r.created_at,
+        deletedBy: `${r.staff?.first_name ?? ""} ${r.staff?.last_name ?? ""}`.trim() || "Staff",
+        reason: detail.reason ?? null,
+      };
+    });
+  }
 
   // Choices for the editor: the branch's services, therapists, rooms and beds.
   let services: ServiceOption[] = [];
@@ -167,7 +208,7 @@ export default async function SalesPage({ searchParams }: PageProps<"/pos/sales"
         <div>
           <h1 className="font-display text-3xl">Sales</h1>
           <p className="text-muted-foreground">
-            Tap a sale to see each massage, who did it, where and when. Owners and managers can edit it, and every change is kept.
+            Each sale shows its massages, who did them, where and when. Owners and managers can edit or delete a bill, and every change is kept.
           </p>
         </div>
         <form className="flex items-center gap-2">
@@ -185,6 +226,8 @@ export default async function SalesPage({ searchParams }: PageProps<"/pos/sales"
       </div>
 
       <SalesList sales={sales} services={services} therapists={therapists} rooms={rooms} />
+
+      {deleted.length > 0 && <DeletedSales deleted={deleted} />}
     </div>
   );
 }

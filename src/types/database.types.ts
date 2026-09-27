@@ -1029,6 +1029,7 @@ export type Database = {
           journal_entry_id: string | null
           org_id: string
           payment_method: string
+          pos_transaction_item_id: string | null
           receipt_url: string | null
           staff_id: string | null
           status: string
@@ -1048,6 +1049,7 @@ export type Database = {
           journal_entry_id?: string | null
           org_id: string
           payment_method: string
+          pos_transaction_item_id?: string | null
           receipt_url?: string | null
           staff_id?: string | null
           status?: string
@@ -1067,6 +1069,7 @@ export type Database = {
           journal_entry_id?: string | null
           org_id?: string
           payment_method?: string
+          pos_transaction_item_id?: string | null
           receipt_url?: string | null
           staff_id?: string | null
           status?: string
@@ -1114,6 +1117,13 @@ export type Database = {
             columns: ["org_id"]
             isOneToOne: false
             referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "expenses_pos_transaction_item_id_fkey"
+            columns: ["pos_transaction_item_id"]
+            isOneToOne: false
+            referencedRelation: "pos_transaction_items"
             referencedColumns: ["id"]
           },
           {
@@ -3692,6 +3702,10 @@ export type Database = {
         Returns: string
       }
       delete_expense: { Args: { p_expense_id: string }; Returns: undefined }
+      delete_pos_sale: {
+        Args: { p_reason?: string; p_transaction_id: string }
+        Returns: undefined
+      }
       drawer_cash_paid_out: {
         Args: { p_drawer_session_id: string }
         Returns: number
@@ -3785,6 +3799,7 @@ export type Database = {
         Args: {
           p_amount_cents: number
           p_branch_id: string
+          p_item_id?: string
           p_staff_id: string
         }
         Returns: string
