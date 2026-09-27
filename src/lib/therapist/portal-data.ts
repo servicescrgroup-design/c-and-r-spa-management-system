@@ -1,6 +1,7 @@
 import "server-only";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { requireStaffContext } from "@/lib/auth/session";
+import { hasBranchRole, isOwner } from "@/lib/auth/roles";
 
 function bangkokDateString(date: Date): string {
   return new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Bangkok" }).format(date);
@@ -14,8 +15,30 @@ function startOfWeekBangkok(): Date {
   return new Date(new Date(`${todayStr}T00:00:00+07:00`).getTime() - diffDays * 86_400_000);
 }
 
+export type TherapistPortalData = Awaited<ReturnType<typeof loadTherapistPortal>>;
+
+/** The signed-in therapist's own screen. */
 export async function getTherapistPortalData() {
   const ctx = await requireStaffContext();
+  return loadTherapistPortal(ctx.staffId, `${ctx.firstName} ${ctx.lastName}`.trim());
+}
+
+/** The same screen for one therapist, opened by an owner or a manager of a branch they work at. */
+export async function getTherapistPortalDataFor(staffId: string): Promise<TherapistPortalData | null> {
+  const ctx = await requireStaffContext();
+  const supabase = await createServerSupabaseClient();
+  const [{ data: staff }, { data: roles }] = await Promise.all([
+    supabase.from("staff").select("first_name, last_name").eq("id", staffId).maybeSingle(),
+    supabase.from("staff_branch_roles").select("branch_id").eq("staff_id", staffId).eq("role", "therapist"),
+  ]);
+  if (!staff) return null;
+  const allowed =
+    isOwner(ctx) || (roles ?? []).some((r) => (r.branch_id ? hasBranchRole(ctx, r.branch_id, ["manager"]) : false));
+  if (!allowed) return null;
+  return loadTherapistPortal(staffId, `${staff.first_name} ${staff.last_name}`.trim());
+}
+
+async function loadTherapistPortal(staffId: string, name: string) {
   const supabase = await createServerSupabaseClient();
 
   const todayStr = bangkokDateString(new Date());
@@ -25,23 +48,24 @@ export async function getTherapistPortalData() {
     supabase
       .from("therapist_clock_sessions")
       .select("id, branch_id, status, clock_in_at, clock_out_at, queue_position, jobs_today, branch:branch_id(name)")
-      .eq("staff_id", ctx.staffId)
+      .eq("staff_id", staffId)
       .eq("work_date", todayStr),
     supabase
       .from("staff_schedules")
       .select("id, day_of_week, start_time, end_time, branch:branch_id(name)")
+      .eq("staff_id", staffId)
       .order("day_of_week"),
     supabase
       .from("pos_transaction_items")
       .select("id, description, payout_cents, duration_minutes, completed_at")
-      .eq("staff_id", ctx.staffId)
+      .eq("staff_id", staffId)
       .not("completed_at", "is", null)
       .gte("completed_at", weekStart.toISOString())
       .order("completed_at", { ascending: false }),
     supabase
       .from("therapist_deposit_ledger")
       .select("entry_type, amount_cents")
-      .eq("staff_id", ctx.staffId),
+      .eq("staff_id", staffId),
   ]);
 
   const todayItems = (items ?? []).filter((i) => bangkokDateString(new Date(i.completed_at!)) === todayStr);
@@ -54,7 +78,7 @@ export async function getTherapistPortalData() {
   );
 
   return {
-    name: `${ctx.firstName} ${ctx.lastName}`.trim(),
+    name,
     sessions: sessions ?? [],
     schedules: schedules ?? [],
     jobsToday: todayItems,

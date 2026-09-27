@@ -73,6 +73,11 @@ function StaffCard({
           </p>
         )}
         {isTherapist && <p>Therapist · {therapistBranches.join(", ") || "no branch"}</p>}
+        {isTherapist && (
+          <Link href={`/admin/therapists/${staff.id}`} className="inline-block text-accent hover:underline">
+            Earnings and their screen &rarr;
+          </Link>
+        )}
         {!admin && !isTherapist && <p>No role assigned</p>}
         <div className="flex gap-3">
           <StaffRoleEditor

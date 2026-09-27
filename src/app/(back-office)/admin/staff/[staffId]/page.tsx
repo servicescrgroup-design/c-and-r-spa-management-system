@@ -63,6 +63,11 @@ export default async function StaffDetailPage({ params }: PageProps<"/admin/staf
           {staff.first_name} {staff.last_name}
         </h1>
         <p className="text-muted-foreground">{staff.email}</p>
+        {(branchRoles ?? []).length > 0 && (
+          <Link href={`/admin/therapists/${staff.id}`} className="mt-1 inline-block text-sm text-accent hover:underline">
+            Earnings and their screen &rarr;
+          </Link>
+        )}
         <div className="mt-2">
           <StaffAccountEditor staffId={staff.id} firstName={staff.first_name} lastName={staff.last_name} email={staff.email} />
         </div>
