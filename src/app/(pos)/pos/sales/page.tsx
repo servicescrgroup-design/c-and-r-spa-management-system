@@ -1,6 +1,7 @@
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { redirect } from "next/navigation";
-import { getWorkingBranch } from "@/lib/pos/session";
+import Link from "next/link";
+import { getStaffBranches, getWorkingBranch } from "@/lib/pos/session";
 import { requireStaffContext } from "@/lib/auth/session";
 import { hasBranchRole, isOwner } from "@/lib/auth/roles";
 import { SalesList, DeletedSales, type SaleRow } from "@/components/pos/sales-list";
@@ -14,10 +15,13 @@ const LOCKED_METHODS = new Set(["card_stripe", "gift_card", "store_credit", "pac
 
 export default async function SalesPage({ searchParams }: PageProps<"/pos/sales">) {
   const sp = await searchParams;
-  const working = await getWorkingBranch();
-  if (!working) redirect("/pos/register");
+  // Any store you work at, with or without an open drawer. Defaults to your open drawer's store.
+  const [branches, working] = await Promise.all([getStaffBranches(), getWorkingBranch()]);
+  if (branches.length === 0) redirect("/pos/register");
+  const wanted = typeof sp.branchId === "string" ? sp.branchId : null;
+  const branch = branches.find((b) => b.id === wanted) ?? branches.find((b) => b.id === working?.branch.id) ?? branches[0];
   const ctx = await requireStaffContext();
-  const branchId = working.branch.id;
+  const branchId = branch.id;
   const canEdit = isOwner(ctx) || hasBranchRole(ctx, branchId, ["manager"]);
   const date = typeof sp.date === "string" && /^\d{4}-\d{2}-\d{2}$/.test(sp.date) ? sp.date : bangkokToday();
 
@@ -212,6 +216,7 @@ export default async function SalesPage({ searchParams }: PageProps<"/pos/sales"
           </p>
         </div>
         <form className="flex items-center gap-2">
+          <input type="hidden" name="branchId" value={branchId} />
           <input
             type="date"
             name="date"
@@ -224,6 +229,25 @@ export default async function SalesPage({ searchParams }: PageProps<"/pos/sales"
           </button>
         </form>
       </div>
+
+      {branches.length > 1 && (
+        <div className="flex flex-wrap gap-2">
+          {branches.map((b) => (
+            <Link
+              key={b.id}
+              href={`/pos/sales?branchId=${b.id}&date=${date}`}
+              className={
+                b.id === branchId
+                  ? "h-9 rounded-full bg-foreground px-4 text-sm leading-9 text-background"
+                  : "h-9 rounded-full bg-muted px-4 text-sm leading-9 hover:bg-secondary"
+              }
+              data-no-translate
+            >
+              {b.name}
+            </Link>
+          ))}
+        </div>
+      )}
 
       <SalesList sales={sales} services={services} therapists={therapists} rooms={rooms} />
 

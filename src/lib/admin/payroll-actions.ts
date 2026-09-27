@@ -120,9 +120,8 @@ export async function getGuaranteeDays(
       .lte("work_date", endDate),
     supabase
       .from("pos_transaction_items")
-      .select("id, description, duration_minutes, payout_cents, completed_at, reference_id, item_type, pos_transactions!inner(branch_id)")
+      .select("id, description, duration_minutes, payout_cents, completed_at, reference_id, item_type")
       .eq("staff_id", staffId)
-      .in("pos_transactions.branch_id", branchIds)
       .not("completed_at", "is", null)
       // A day's jobs can finish just after midnight UTC; pad the window and filter by local date below.
       .gte("completed_at", `${startDate}T00:00:00+07:00`)
@@ -147,9 +146,8 @@ export async function getGuaranteeDays(
       const info = branchInfo.get(r.branchId);
       const tz = info?.timezone ?? "Asia/Bangkok";
       const dayJobs = (items ?? []).filter(
-        (i) =>
-          i.pos_transactions.branch_id === r.branchId &&
-          new Intl.DateTimeFormat("en-CA", { timeZone: tz }).format(new Date(i.completed_at!)) === r.workDate,
+        // One store per day: the day's jobs belong to that day's check-in.
+        (i) => new Intl.DateTimeFormat("en-CA", { timeZone: tz }).format(new Date(i.completed_at!)) === r.workDate,
       );
       return {
         branchId: r.branchId,
@@ -259,10 +257,13 @@ export async function getStaffDayJobs(
 
   const { data: items } = await supabase
     .from("pos_transaction_items")
-    .select("id, description, duration_minutes, payout_cents, completed_at, pos_transactions!inner(branch_id)")
+    .select("id, description, duration_minutes, payout_cents, completed_at")
     .eq("staff_id", staffId)
-    .eq("pos_transactions.branch_id", branchId)
-    .not("completed_at", "is", null);
+    // A therapist works at one store a day, so every job that day belongs to
+    // this check-in, whichever store's register sold it (same as payroll).
+    .not("completed_at", "is", null)
+    .gte("completed_at", `${workDate}T00:00:00+07:00`)
+    .lte("completed_at", `${workDate}T23:59:59+07:00`);
 
   const jobs = (items ?? []).filter(
     (i) => new Intl.DateTimeFormat("en-CA", { timeZone: timezone }).format(new Date(i.completed_at!)) === workDate,
