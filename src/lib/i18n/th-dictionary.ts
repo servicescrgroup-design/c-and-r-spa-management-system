@@ -1214,4 +1214,11 @@ export const TH: Record<string, string> = {
   "Room:": "ห้อง:",
   "Extra time": "เวลาเสริม",
   "Extra": "เสริม",
+  "+ Add room": "+ เพิ่มห้อง",
+  "New room or floor": "ห้องหรือชั้นใหม่",
+  "Drag the tabs or the bed boxes to change their order.": "ลากแท็บหรือกล่องเตียงเพื่อเปลี่ยนลำดับ",
+  "Rename room": "เปลี่ยนชื่อห้อง",
+  "Remove room": "ลบห้อง",
+  "New bed name": "ชื่อเตียงใหม่",
+  "Add your first room or floor above.": "เพิ่มห้องหรือชั้นแรกด้านบน",
 };

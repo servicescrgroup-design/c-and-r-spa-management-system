@@ -110,7 +110,7 @@ export default async function SchedulingPage({ searchParams }: PageProps<"/admin
           </CardContent>
         </Card>
 
-        <Card>
+        <Card className="lg:col-span-2">
           <CardHeader>
             <CardTitle>Rooms &amp; beds</CardTitle>
             <CardDescription>Foot chairs only take foot massage; oil and Thai beds cover more.</CardDescription>

@@ -26,8 +26,14 @@ export async function getRoomsWithBeds(branchId: string): Promise<RoomWithBeds[]
   const supabase = await createServerSupabaseClient();
 
   const [{ data: rooms }, { data: beds }] = await Promise.all([
-    supabase.from("branch_rooms").select("id, name").eq("branch_id", branchId).eq("is_active", true).order("name"),
-    supabase.from("room_beds").select("id, room_id, name, bed_type").eq("is_active", true),
+    supabase
+      .from("branch_rooms")
+      .select("id, name")
+      .eq("branch_id", branchId)
+      .eq("is_active", true)
+      .order("sort_order")
+      .order("name"),
+    supabase.from("room_beds").select("id, room_id, name, bed_type").eq("is_active", true).order("sort_order").order("name"),
   ]);
 
   const bedsByRoom = new Map<string, RoomWithBeds["beds"]>();
@@ -46,7 +52,16 @@ export async function createRoom(branchId: string, name: string): Promise<Action
   if (!name.trim()) return { ok: false, error: "Room name is required." };
 
   const supabase = await createServerSupabaseClient();
-  const { error } = await supabase.from("branch_rooms").insert({ branch_id: branchId, name: name.trim() });
+  const { data: last } = await supabase
+    .from("branch_rooms")
+    .select("sort_order")
+    .eq("branch_id", branchId)
+    .order("sort_order", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  const { error } = await supabase
+    .from("branch_rooms")
+    .insert({ branch_id: branchId, name: name.trim(), sort_order: (last?.sort_order ?? 0) + 1 });
   if (error) return { ok: false, error: error.message };
 
   revalidatePath("/admin/scheduling");
@@ -59,10 +74,73 @@ export async function createBed(roomId: string, name: string, bedType: BedType):
   if (!name.trim()) return { ok: false, error: "Bed name is required." };
 
   const supabase = await createServerSupabaseClient();
-  const { error } = await supabase.from("room_beds").insert({ room_id: roomId, name: name.trim(), bed_type: bedType });
+  const { data: last } = await supabase
+    .from("room_beds")
+    .select("sort_order")
+    .eq("room_id", roomId)
+    .order("sort_order", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  const { error } = await supabase
+    .from("room_beds")
+    .insert({ room_id: roomId, name: name.trim(), bed_type: bedType, sort_order: (last?.sort_order ?? 0) + 1 });
   if (error) return { ok: false, error: error.message };
 
   revalidatePath("/admin/scheduling");
+  return { ok: true };
+}
+
+/** Saves a drag-and-drop order for rooms (table "branch_rooms") or beds ("room_beds"). */
+export async function reorderRoomsOrBeds(kind: "rooms" | "beds", orderedIds: string[]): Promise<ActionResult> {
+  const ctx = await requireStaffContext();
+  if (!canManage(ctx)) return { ok: false, error: "Only an owner or manager can reorder rooms and beds." };
+
+  const supabase = await createServerSupabaseClient();
+  const table = kind === "rooms" ? "branch_rooms" : "room_beds";
+  for (const [index, id] of orderedIds.entries()) {
+    const { error } = await supabase.from(table).update({ sort_order: index + 1 }).eq("id", id);
+    if (error) return { ok: false, error: error.message };
+  }
+
+  revalidatePath("/admin/scheduling");
+  revalidatePath("/pos/checkout");
+  return { ok: true };
+}
+
+export async function renameRoomOrBed(kind: "rooms" | "beds", id: string, name: string): Promise<ActionResult> {
+  const ctx = await requireStaffContext();
+  if (!canManage(ctx)) return { ok: false, error: "Only an owner or manager can rename rooms and beds." };
+  if (!name.trim()) return { ok: false, error: "Name is required." };
+
+  const supabase = await createServerSupabaseClient();
+  const { error } = await supabase
+    .from(kind === "rooms" ? "branch_rooms" : "room_beds")
+    .update({ name: name.trim() })
+    .eq("id", id);
+  if (error) return { ok: false, error: error.message };
+
+  revalidatePath("/admin/scheduling");
+  return { ok: true };
+}
+
+/** Hides a bed (or a room and its beds). Past bookings keep pointing at it. */
+export async function removeRoomOrBed(kind: "rooms" | "beds", id: string): Promise<ActionResult> {
+  const ctx = await requireStaffContext();
+  if (!canManage(ctx)) return { ok: false, error: "Only an owner or manager can remove rooms and beds." };
+
+  const supabase = await createServerSupabaseClient();
+  if (kind === "rooms") {
+    const { error: bedsError } = await supabase.from("room_beds").update({ is_active: false }).eq("room_id", id);
+    if (bedsError) return { ok: false, error: bedsError.message };
+  }
+  const { error } = await supabase
+    .from(kind === "rooms" ? "branch_rooms" : "room_beds")
+    .update({ is_active: false })
+    .eq("id", id);
+  if (error) return { ok: false, error: error.message };
+
+  revalidatePath("/admin/scheduling");
+  revalidatePath("/pos/checkout");
   return { ok: true };
 }
 
