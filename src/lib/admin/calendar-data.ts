@@ -35,6 +35,15 @@ export type CalendarEvent = {
   discountCents: number;
   paymentMethod: string | null;
   splitPayment: boolean;
+  /** Appointments only: a deposit taken when booking. */
+  deposit: {
+    status: string;
+    amountCents: number;
+    method: string | null;
+    paidAt: string | null;
+    note: string | null;
+    cardToken: string;
+  } | null;
 };
 
 export type CalendarBranch = { id: string; name: string; rooms: { id: string; name: string }[] };
@@ -96,7 +105,7 @@ export async function getCalendarDay(date: string, view: CalendarView = "day"): 
       supabase
         .from("appointments")
         .select(
-          "id, branch_id, status, start_at, end_at, bed_id, discount_cents, payment_method, customer:customer_id(first_name, last_name), appointment_services(service_id, staff_id, sort_order, price_cents, duration_minutes, service:service_id(name), staff:staff_id(first_name, last_name))",
+          "id, branch_id, status, start_at, end_at, bed_id, discount_cents, payment_method, deposit_status, deposit_amount_cents, deposit_method, deposit_paid_at, deposit_note, deposit_card_token, customer:customer_id(first_name, last_name), appointment_services(service_id, staff_id, sort_order, price_cents, duration_minutes, service:service_id(name), staff:staff_id(first_name, last_name))",
         )
         .in("branch_id", branchIds)
         .not("status", "in", "(cancelled,no_show)")
@@ -156,6 +165,14 @@ export async function getCalendarDay(date: string, view: CalendarView = "day"): 
       discountCents: a.discount_cents,
       paymentMethod: a.payment_method,
       splitPayment: false,
+      deposit: {
+        status: a.deposit_status,
+        amountCents: a.deposit_amount_cents ?? 0,
+        method: a.deposit_method,
+        paidAt: a.deposit_paid_at,
+        note: a.deposit_note,
+        cardToken: a.deposit_card_token,
+      },
     });
   }
 
@@ -202,6 +219,7 @@ export async function getCalendarDay(date: string, view: CalendarView = "day"): 
         discountCents: main.discount_cents,
         paymentMethod: t.pos_payments?.[0]?.method ?? null,
         splitPayment: (t.pos_payments?.length ?? 0) > 1,
+        deposit: null,
       });
     }
   }

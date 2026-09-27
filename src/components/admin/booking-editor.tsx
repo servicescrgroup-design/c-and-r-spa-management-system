@@ -15,6 +15,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { formatCents, cn } from "@/lib/utils";
+import { BookingDepositSection } from "@/components/admin/booking-deposit-section";
 
 const PAYMENT_OPTIONS = [
   { value: "cash", label: "Cash" },
@@ -360,6 +361,10 @@ export function BookingEditor({
                 </p>
               )}
             </div>
+
+            {!isWalkIn && event.appointmentId && event.deposit && (
+              <BookingDepositSection appointmentId={event.appointmentId} deposit={event.deposit} netCents={netCents} />
+            )}
 
             <div className="space-y-1.5">
               <Label htmlFor="be-therapist">Therapist</Label>

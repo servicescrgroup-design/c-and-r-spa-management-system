@@ -161,7 +161,14 @@ export type Database = {
           created_by_staff_id: string | null
           customer_id: string
           deposit_amount_cents: number | null
+          deposit_card_token: string
+          deposit_method:
+            | Database["public"]["Enums"]["pos_payment_method"]
+            | null
+          deposit_note: string | null
+          deposit_paid_at: string | null
           deposit_payment_ref: string | null
+          deposit_received_by_staff_id: string | null
           deposit_status: Database["public"]["Enums"]["deposit_status"]
           discount_cents: number
           end_at: string
@@ -182,7 +189,14 @@ export type Database = {
           created_by_staff_id?: string | null
           customer_id: string
           deposit_amount_cents?: number | null
+          deposit_card_token?: string
+          deposit_method?:
+            | Database["public"]["Enums"]["pos_payment_method"]
+            | null
+          deposit_note?: string | null
+          deposit_paid_at?: string | null
           deposit_payment_ref?: string | null
+          deposit_received_by_staff_id?: string | null
           deposit_status?: Database["public"]["Enums"]["deposit_status"]
           discount_cents?: number
           end_at: string
@@ -203,7 +217,14 @@ export type Database = {
           created_by_staff_id?: string | null
           customer_id?: string
           deposit_amount_cents?: number | null
+          deposit_card_token?: string
+          deposit_method?:
+            | Database["public"]["Enums"]["pos_payment_method"]
+            | null
+          deposit_note?: string | null
+          deposit_paid_at?: string | null
           deposit_payment_ref?: string | null
+          deposit_received_by_staff_id?: string | null
           deposit_status?: Database["public"]["Enums"]["deposit_status"]
           discount_cents?: number
           end_at?: string
@@ -244,6 +265,13 @@ export type Database = {
             columns: ["customer_id"]
             isOneToOne: false
             referencedRelation: "customers"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "appointments_deposit_received_by_staff_id_fkey"
+            columns: ["deposit_received_by_staff_id"]
+            isOneToOne: false
+            referencedRelation: "staff"
             referencedColumns: ["id"]
           },
           {
@@ -3584,6 +3612,7 @@ export type Database = {
           staff_id: string
         }[]
       }
+      get_deposit_card: { Args: { p_token: string }; Returns: Json }
       issue_gift_card: {
         Args: {
           p_amount_cents: number

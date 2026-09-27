@@ -1,6 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { validateDeposit, type DepositInput } from "@/lib/deposits/shared";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { requireStaffContext } from "@/lib/auth/session";
 import { isOwner } from "@/lib/auth/roles";
@@ -134,10 +135,15 @@ export async function createStaffAppointment(input: {
   durationMinutes: number;
   priceCents: number;
   startAt: string;
-}): Promise<ActionResult & { appointmentId?: string }> {
+  deposit?: DepositInput | null;
+}): Promise<ActionResult & { appointmentId?: string; depositCardToken?: string }> {
   const ctx = await requireStaffContext();
   if (input.serviceIds.length === 0) return { ok: false, error: "Select at least one service." };
   if (!input.customer.name.trim()) return { ok: false, error: "Customer name is required." };
+  if (input.deposit) {
+    const problem = validateDeposit(input.deposit);
+    if (problem) return { ok: false, error: problem };
+  }
 
   const supabase = await createServerSupabaseClient();
   const { data: org } = await supabase.from("organizations").select("id").limit(1).single();
@@ -192,8 +198,18 @@ export async function createStaffAppointment(input: {
       start_at: startAt.toISOString(),
       end_at: endAt.toISOString(),
       bed_id: input.bedId,
+      ...(input.deposit
+        ? {
+            deposit_status: "paid" as const,
+            deposit_amount_cents: input.deposit.amountCents,
+            deposit_method: input.deposit.method,
+            deposit_paid_at: input.deposit.paidAt ?? new Date().toISOString(),
+            deposit_received_by_staff_id: ctx.staffId,
+            deposit_note: input.deposit.note.trim() || null,
+          }
+        : {}),
     })
-    .select("id")
+    .select("id, deposit_card_token")
     .single();
   if (apptError || !appointment) return { ok: false, error: apptError?.message ?? "Could not create appointment." };
 
@@ -215,5 +231,5 @@ export async function createStaffAppointment(input: {
   }
 
   revalidatePath("/admin/scheduling");
-  return { ok: true, appointmentId: appointment.id };
+  return { ok: true, appointmentId: appointment.id, depositCardToken: appointment.deposit_card_token };
 }

@@ -9,6 +9,8 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { formatCents, cn } from "@/lib/utils";
+import { DepositFields, draftToDepositInput, emptyDepositDraft, type DepositDraft } from "@/components/admin/deposit-fields";
+import { depositCardPath } from "@/lib/deposits/shared";
 
 type Service = { id: string; name: string; category_id: string | null };
 type Category = { id: string; name: string };
@@ -48,6 +50,8 @@ export function NewAppointmentModal({
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  const [deposit, setDeposit] = useState<DepositDraft>(emptyDepositDraft);
+  const [depositCardToken, setDepositCardToken] = useState<string | null>(null);
 
   useEffect(() => {
     if (open) getRoomsWithBeds(branchId).then(setRooms);
@@ -118,11 +122,14 @@ export function NewAppointmentModal({
       durationMinutes: active.durationMinutes,
       priceCents: active.priceCents,
       startAt: startAtISO,
+      deposit: deposit.enabled ? draftToDepositInput(deposit) : null,
     });
     setLoading(false);
     if (!result.ok) return setError(result.error);
 
+    const withDeposit = deposit.enabled;
     setSuccess("Appointment created.");
+    setDeposit(emptyDepositDraft());
     setName("");
     setEmail("");
     setPhone("");
@@ -132,7 +139,15 @@ export function NewAppointmentModal({
     setBedId(null);
     setStaffId(null);
     router.refresh();
-    setTimeout(() => setOpen(false), 800);
+    // With a deposit, stay open so the deposit card can be printed or sent.
+    if (withDeposit && result.depositCardToken) setDepositCardToken(result.depositCardToken);
+    else setTimeout(() => setOpen(false), 800);
+  }
+
+  function close() {
+    setOpen(false);
+    setDepositCardToken(null);
+    setSuccess(null);
   }
 
   if (!open) {
@@ -144,11 +159,32 @@ export function NewAppointmentModal({
       <div className="max-h-[90vh] w-full max-w-2xl overflow-y-auto rounded-[18px] bg-card ring-1 ring-black/[0.06] dark:ring-white/[0.08] p-6 shadow-xl">
         <div className="mb-4 flex items-center justify-between">
           <h2 className="font-display text-2xl font-medium">New appointment</h2>
-          <button type="button" onClick={() => setOpen(false)} className="text-muted-foreground hover:text-foreground">
+          <button type="button" onClick={close} className="text-muted-foreground hover:text-foreground">
             &times;
           </button>
         </div>
 
+        {depositCardToken ? (
+          <div className="space-y-4 text-center">
+            <p className="text-lg font-medium text-primary">Appointment created with a deposit.</p>
+            <p className="text-sm text-muted-foreground">
+              Open the deposit card to print it, save it as a PDF, or send it to the customer.
+            </p>
+            <div className="flex flex-wrap justify-center gap-2">
+              <a
+                href={depositCardPath(depositCardToken)}
+                target="_blank"
+                rel="noreferrer"
+                className="inline-flex h-10 items-center rounded-full bg-primary px-5 text-sm font-medium text-primary-foreground"
+              >
+                Open deposit card
+              </a>
+              <Button type="button" variant="ghost" onClick={close}>
+                Done
+              </Button>
+            </div>
+          </div>
+        ) : (
         <div className="space-y-5">
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-2">
@@ -350,6 +386,13 @@ export function NewAppointmentModal({
             </div>
           )}
 
+          {active && (
+            <div className="space-y-2">
+              <Label>Deposit</Label>
+              <DepositFields draft={deposit} onChange={setDeposit} totalCents={active.priceCents} />
+            </div>
+          )}
+
           {error && <p className="text-sm text-destructive">{error}</p>}
           {success && <p className="text-sm text-primary">{success}</p>}
 
@@ -357,11 +400,12 @@ export function NewAppointmentModal({
             <Button type="button" disabled={loading} onClick={handleSubmit}>
               {loading ? "Creating..." : "Create appointment"}
             </Button>
-            <Button type="button" variant="outline" onClick={() => setOpen(false)}>
+            <Button type="button" variant="outline" onClick={close}>
               Cancel
             </Button>
           </div>
         </div>
+        )}
       </div>
     </div>
   );
