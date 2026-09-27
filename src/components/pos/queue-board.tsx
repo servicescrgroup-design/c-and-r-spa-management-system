@@ -457,7 +457,13 @@ export function QueueBoard({
                           </option>
                         ))}
                       </select>
-                      {q.endsAt && <EndsAt iso={q.endsAt} />}
+                      {q.endsAt ? (
+                        <EndsAt iso={q.endsAt} />
+                      ) : (
+                        q.status === "in_service" && (
+                          <p className="text-[11px] text-muted-foreground">No sale linked yet. Complete job when done.</p>
+                        )
+                      )}
                       {q.nextBookedAt && (
                         <p className="mt-0.5 text-[11px] font-medium text-accent">Next walk-in {clock(q.nextBookedAt)}</p>
                       )}

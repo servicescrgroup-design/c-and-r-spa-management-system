@@ -1374,4 +1374,5 @@ export const TH: Record<string, string> = {
   "Apply to selected": "ใช้กับที่เลือก",
   "Clear": "ล้าง",
   "New amounts are rounded to whole baht. Every change is kept in each service's edit history.": "ยอดใหม่ปัดเป็นบาทเต็ม ทุกการแก้ไขบันทึกไว้ในประวัติของแต่ละบริการ",
+  "No sale linked yet. Complete job when done.": "ยังไม่ได้ผูกกับบิล กดเสร็จงานเมื่อนวดเสร็จ",
 };

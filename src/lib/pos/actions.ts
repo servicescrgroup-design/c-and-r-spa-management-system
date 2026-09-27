@@ -238,8 +238,8 @@ export async function checkoutSale(input: {
   const { data: openSessions } = staffIds.length
     ? await supabase
         .from("therapist_clock_sessions")
-        .select("id, staff_id, status, staff:staff_id(first_name)")
-        .eq("branch_id", input.branchId)
+        // A therapist has one check-in a day, at either store, and the queue is shared.
+        .select("id, staff_id, status, active_item_id, staff:staff_id(first_name)")
         .in("staff_id", staffIds)
         .is("clock_out_at", null)
     : { data: [] };
@@ -500,7 +500,8 @@ export async function checkoutSale(input: {
   // for later are started on time by the database scheduler.
   for (const staffId of staffIds) {
     const sess = sessionByStaff.get(staffId);
-    if (!sess || sess.status === "in_service") continue;
+    // "In service" with no massage linked (set by hand on the Queue) still takes this one.
+    if (!sess || (sess.status === "in_service" && sess.active_item_id)) continue;
     const firstLine = serviceLines
       .filter(({ item }) => item.staffId === staffId)
       .sort((a, b) => lineStart.get(a.index)!.getTime() - lineStart.get(b.index)!.getTime())[0];
