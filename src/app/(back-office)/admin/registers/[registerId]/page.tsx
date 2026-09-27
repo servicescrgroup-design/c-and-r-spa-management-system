@@ -36,6 +36,11 @@ export default async function RegisterDetailPage({ params }: PageProps<"/admin/r
         .order("created_at", { ascending: false })
     : { data: [] };
 
+  const openSession = (sessions ?? []).find((s) => s.status === "open");
+  const { data: openPaidOut } = openSession
+    ? await supabase.rpc("drawer_cash_paid_out", { p_drawer_session_id: openSession.id })
+    : { data: 0 };
+
   const shifts: Shift[] = (sessions ?? []).map((s) => {
     const sales = (transactions ?? []).filter((t) => t.drawer_session_id === s.id);
     const byMethod: Record<string, number> = {};
@@ -52,6 +57,7 @@ export default async function RegisterDetailPage({ params }: PageProps<"/admin/r
       countedCents: s.counted_amount_cents,
       varianceCents: s.variance_cents,
       cashTakenCents: byMethod.cash ?? 0,
+      paidOutCents: s.id === openSession?.id ? (openPaidOut ?? 0) : 0,
       takenByMethod: byMethod,
       sales: sales.map((t) => ({
         id: t.id,

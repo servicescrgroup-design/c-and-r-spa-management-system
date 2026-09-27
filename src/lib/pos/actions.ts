@@ -5,6 +5,7 @@ import { redirect } from "next/navigation";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { requireStaffContext } from "@/lib/auth/session";
 import { isOwner } from "@/lib/auth/roles";
+import { getStaffConflicts } from "@/lib/admin/calendar-data";
 
 type ActionResult = { ok: true } | { ok: false; error: string };
 
@@ -114,7 +115,8 @@ export async function closeDrawer(formData: FormData): Promise<ActionResult> {
     .eq("method", "cash");
 
   const cashSalesCents = (sales ?? []).reduce((sum, p) => sum + p.amount_cents, 0);
-  const expectedCents = session.opening_amount_cents + cashSalesCents;
+  const { data: paidOut } = await supabase.rpc("drawer_cash_paid_out", { p_drawer_session_id: drawerSessionId });
+  const expectedCents = session.opening_amount_cents + cashSalesCents - (paidOut ?? 0);
   const countedCents = Math.round(countedDollars * 100);
 
   const { error } = await supabase
@@ -152,6 +154,9 @@ export type PaymentMethod = "cash" | "bank_transfer" | "card_manual";
 
 export type PaymentSplit = { method: PaymentMethod; amountCents: number };
 
+/** Extra time or treatment added to one of the cart's service lines. */
+export type CartAddOn = { lineIndex: number; description: string; minutes: number; priceCents: number; payoutCents: number };
+
 export async function checkoutSale(input: {
   branchId: string;
   drawerSessionId: string;
@@ -163,10 +168,20 @@ export async function checkoutSale(input: {
   customerId: string | null;
   /** Optional quick name for a walk-in; the sale always gets a reference like CR1-27-09-26-01. */
   customerName?: string | null;
+  roomId?: string | null;
+  bedId?: string | null;
+  addOns?: CartAddOn[];
 }): Promise<ActionResult & { transactionId?: string; customerRef?: string | null }> {
   const ctx = await requireStaffContext();
   if (input.items.length === 0) {
     return { ok: false, error: "Add at least one item to the sale." };
+  }
+  const addOns = input.addOns ?? [];
+  for (const a of addOns) {
+    const line = input.items[a.lineIndex];
+    if (!line || line.itemType !== "service") return { ok: false, error: "An add-on isn't attached to a massage." };
+    if (!a.description.trim()) return { ok: false, error: "Give each add-on a name." };
+    if (a.minutes < 0 || a.priceCents < 0 || a.payoutCents < 0) return { ok: false, error: "Add-on amounts can't be negative." };
   }
   const hasPackage = input.items.some((i) => i.itemType === "package");
   if (hasPackage && !input.customerId) {
@@ -188,7 +203,58 @@ export async function checkoutSale(input: {
   const { data: org } = await supabase.from("organizations").select("id").limit(1).single();
   if (!org) return { ok: false, error: "No organization found." };
 
-  const subtotalCents = input.items.reduce((sum, i) => sum + i.unitPriceCents * i.quantity, 0);
+  // Therapists on this sale who are checked in here start their job now, so
+  // they can't already be in another service or due at a booking.
+  const serviceLines = input.items
+    .map((item, index) => ({ item, index }))
+    .filter(({ item }) => item.itemType === "service" && item.staffId);
+  const staffIds = Array.from(new Set(serviceLines.map(({ item }) => item.staffId!)));
+  const { data: openSessions } = staffIds.length
+    ? await supabase
+        .from("therapist_clock_sessions")
+        .select("id, staff_id, status, staff:staff_id(first_name)")
+        .eq("branch_id", input.branchId)
+        .in("staff_id", staffIds)
+        .is("clock_out_at", null)
+    : { data: [] };
+  const sessionByStaff = new Map((openSessions ?? []).map((sess) => [sess.staff_id, sess]));
+  for (const sess of openSessions ?? []) {
+    if (sess.status === "in_service") {
+      return { ok: false, error: `${sess.staff?.first_name ?? "That therapist"} is still in a service. Finish it on the Queue first.` };
+    }
+  }
+  const minutesByStaff = new Map<string, number>();
+  for (const { item, index } of serviceLines) {
+    const extra = addOns.filter((a) => a.lineIndex === index).reduce((sum, a) => sum + a.minutes, 0);
+    minutesByStaff.set(item.staffId!, (minutesByStaff.get(item.staffId!) ?? 0) + (item.durationMinutes ?? 60) + extra);
+  }
+  // Each therapist must be free for their whole job (massages plus add-ons).
+  const now = new Date();
+  for (const staffId of staffIds) {
+    const end = new Date(now.getTime() + (minutesByStaff.get(staffId) ?? 60) * 60_000).toISOString();
+    const reason = (await getStaffConflicts([staffId], now.toISOString(), end)).get(staffId);
+    if (reason) return { ok: false, error: `A therapist on this sale isn't free: ${reason}.` };
+  }
+
+  if (input.bedId || input.roomId) {
+    if (input.bedId) {
+      const { data: bed } = await supabase.from("room_beds").select("id, room_id").eq("id", input.bedId).maybeSingle();
+      if (!bed || (input.roomId && bed.room_id !== input.roomId)) return { ok: false, error: "That bed isn't in the chosen room." };
+      input.roomId = bed.room_id;
+      const { data: taken } = await supabase
+        .from("therapist_clock_sessions")
+        .select("id")
+        .eq("current_bed_id", input.bedId)
+        .is("clock_out_at", null)
+        .limit(1);
+      if ((taken ?? []).length > 0) return { ok: false, error: "That bed is already in use. Pick another one." };
+    }
+    const { data: room } = await supabase.from("branch_rooms").select("id, branch_id").eq("id", input.roomId!).maybeSingle();
+    if (!room || room.branch_id !== input.branchId) return { ok: false, error: "That room isn't at this store." };
+  }
+
+  const addOnCents = addOns.reduce((sum, a) => sum + a.priceCents, 0);
+  const subtotalCents = input.items.reduce((sum, i) => sum + i.unitPriceCents * i.quantity, 0) + addOnCents;
   const totalCents = subtotalCents + input.taxCents + input.tipCents + input.cardFeeCents;
   const paidCents = input.payments.reduce((sum, p) => sum + p.amountCents, 0);
 
@@ -209,6 +275,8 @@ export async function checkoutSale(input: {
       customer_id: input.customerId,
       customer_name: input.customerName?.trim() || null,
       staff_id: ctx.staffId,
+      room_id: input.roomId ?? null,
+      bed_id: input.bedId ?? null,
       subtotal_cents: subtotalCents,
       tax_cents: input.taxCents,
       tip_cents: input.tipCents,
@@ -220,21 +288,49 @@ export async function checkoutSale(input: {
 
   if (txnError || !txn) return { ok: false, error: txnError?.message ?? "Could not create sale." };
 
-  const { error: itemsError } = await supabase.from("pos_transaction_items").insert(
-    input.items.map((item) => ({
-      transaction_id: txn.id,
-      item_type: item.itemType,
-      reference_id: item.referenceId,
-      description: item.description,
-      staff_id: item.staffId,
-      quantity: item.quantity,
-      unit_price_cents: item.unitPriceCents,
-      total_cents: item.unitPriceCents * item.quantity,
-      duration_minutes: item.itemType === "service" ? (item.durationMinutes ?? null) : null,
-      payout_cents: item.itemType === "service" && item.staffId ? (item.payoutCents ?? 0) : 0,
-    })),
-  );
-  if (itemsError) return { ok: false, error: itemsError.message };
+  // One insert per line so each massage's item id is known for the queue.
+  const itemIdByLine = new Map<number, string>();
+  for (const [index, item] of input.items.entries()) {
+    const { data: row, error: itemError } = await supabase
+      .from("pos_transaction_items")
+      .insert({
+        transaction_id: txn.id,
+        item_type: item.itemType,
+        reference_id: item.referenceId,
+        description: item.description,
+        staff_id: item.staffId,
+        quantity: item.quantity,
+        unit_price_cents: item.unitPriceCents,
+        total_cents: item.unitPriceCents * item.quantity,
+        duration_minutes: item.itemType === "service" ? (item.durationMinutes ?? null) : null,
+        payout_cents: item.itemType === "service" && item.staffId ? (item.payoutCents ?? 0) : 0,
+      })
+      .select("id")
+      .single();
+    if (itemError || !row) return { ok: false, error: itemError?.message ?? "Could not save the sale." };
+    itemIdByLine.set(index, row.id);
+  }
+
+  if (addOns.length > 0) {
+    const { error: addOnError } = await supabase.from("pos_transaction_items").insert(
+      addOns.map((a) => {
+        const line = input.items[a.lineIndex];
+        return {
+          transaction_id: txn.id,
+          item_type: "service" as const,
+          reference_id: line.referenceId,
+          description: `Add-on · ${a.description.trim()}`,
+          staff_id: line.staffId,
+          quantity: 1,
+          unit_price_cents: a.priceCents,
+          total_cents: a.priceCents,
+          duration_minutes: a.minutes,
+          payout_cents: line.staffId ? a.payoutCents : 0,
+        };
+      }),
+    );
+    if (addOnError) return { ok: false, error: addOnError.message };
+  }
 
   for (const item of input.items) {
     if (item.itemType !== "package") continue;
@@ -258,6 +354,24 @@ export async function checkoutSale(input: {
   });
   if (postError) return { ok: false, error: `Sale saved but posting failed: ${postError.message}` };
 
+  // Put each checked-in therapist into service on their first massage of this sale.
+  for (const staffId of staffIds) {
+    const sess = sessionByStaff.get(staffId);
+    if (!sess) continue;
+    const firstLine = serviceLines.find(({ item }) => item.staffId === staffId)!;
+    const { error: queueError } = await supabase
+      .from("therapist_clock_sessions")
+      .update({
+        status: "in_service",
+        active_item_id: itemIdByLine.get(firstLine.index) ?? null,
+        current_room_id: input.roomId ?? null,
+        current_bed_id: input.bedId ?? null,
+      })
+      .eq("id", sess.id);
+    if (queueError) return { ok: false, error: `Sale saved but the queue wasn't updated: ${queueError.message}` };
+  }
+
+  revalidatePath("/pos/queue");
   revalidatePath("/pos/checkout");
   revalidatePath("/pos/sales");
   return { ok: true, transactionId: txn.id, customerRef: txn.customer_ref };

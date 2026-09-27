@@ -448,18 +448,21 @@ export type Database = {
           id: string
           is_active: boolean
           name: string
+          sort_order: number
         }
         Insert: {
           branch_id: string
           id?: string
           is_active?: boolean
           name: string
+          sort_order?: number
         }
         Update: {
           branch_id?: string
           id?: string
           is_active?: boolean
           name?: string
+          sort_order?: number
         }
         Relationships: [
           {
@@ -1020,12 +1023,14 @@ export type Database = {
           created_at: string
           created_by_staff_id: string
           description: string | null
+          drawer_session_id: string | null
           expense_date: string
           id: string
           journal_entry_id: string | null
           org_id: string
           payment_method: string
           receipt_url: string | null
+          staff_id: string | null
           status: string
           tax_cents: number
           vendor_id: string | null
@@ -1037,12 +1042,14 @@ export type Database = {
           created_at?: string
           created_by_staff_id: string
           description?: string | null
+          drawer_session_id?: string | null
           expense_date?: string
           id?: string
           journal_entry_id?: string | null
           org_id: string
           payment_method: string
           receipt_url?: string | null
+          staff_id?: string | null
           status?: string
           tax_cents?: number
           vendor_id?: string | null
@@ -1054,12 +1061,14 @@ export type Database = {
           created_at?: string
           created_by_staff_id?: string
           description?: string | null
+          drawer_session_id?: string | null
           expense_date?: string
           id?: string
           journal_entry_id?: string | null
           org_id?: string
           payment_method?: string
           receipt_url?: string | null
+          staff_id?: string | null
           status?: string
           tax_cents?: number
           vendor_id?: string | null
@@ -1087,6 +1096,13 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "expenses_drawer_session_id_fkey"
+            columns: ["drawer_session_id"]
+            isOneToOne: false
+            referencedRelation: "cash_drawer_sessions"
+            referencedColumns: ["id"]
+          },
+          {
             foreignKeyName: "expenses_journal_entry_id_fkey"
             columns: ["journal_entry_id"]
             isOneToOne: false
@@ -1098,6 +1114,13 @@ export type Database = {
             columns: ["org_id"]
             isOneToOne: false
             referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "expenses_staff_id_fkey"
+            columns: ["staff_id"]
+            isOneToOne: false
+            referencedRelation: "staff"
             referencedColumns: ["id"]
           },
           {
@@ -2069,6 +2092,7 @@ export type Database = {
       pos_transactions: {
         Row: {
           appointment_id: string | null
+          bed_id: string | null
           branch_id: string
           card_fee_cents: number
           combo_id: string | null
@@ -2092,6 +2116,7 @@ export type Database = {
         }
         Insert: {
           appointment_id?: string | null
+          bed_id?: string | null
           branch_id: string
           card_fee_cents?: number
           combo_id?: string | null
@@ -2115,6 +2140,7 @@ export type Database = {
         }
         Update: {
           appointment_id?: string | null
+          bed_id?: string | null
           branch_id?: string
           card_fee_cents?: number
           combo_id?: string | null
@@ -2142,6 +2168,13 @@ export type Database = {
             columns: ["appointment_id"]
             isOneToOne: false
             referencedRelation: "appointments"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "pos_transactions_bed_id_fkey"
+            columns: ["bed_id"]
+            isOneToOne: false
+            referencedRelation: "room_beds"
             referencedColumns: ["id"]
           },
           {
@@ -2311,6 +2344,7 @@ export type Database = {
           is_active: boolean
           name: string
           room_id: string
+          sort_order: number
         }
         Insert: {
           bed_type?: Database["public"]["Enums"]["bed_type"]
@@ -2318,6 +2352,7 @@ export type Database = {
           is_active?: boolean
           name: string
           room_id: string
+          sort_order?: number
         }
         Update: {
           bed_type?: Database["public"]["Enums"]["bed_type"]
@@ -2325,6 +2360,7 @@ export type Database = {
           is_active?: boolean
           name?: string
           room_id?: string
+          sort_order?: number
         }
         Relationships: [
           {
@@ -3229,6 +3265,7 @@ export type Database = {
           clock_out_at: string | null
           clocked_in_by_staff_id: string | null
           clocked_out_by_staff_id: string | null
+          current_bed_id: string | null
           current_room_id: string | null
           id: string
           jobs_today: number
@@ -3245,6 +3282,7 @@ export type Database = {
           clock_out_at?: string | null
           clocked_in_by_staff_id?: string | null
           clocked_out_by_staff_id?: string | null
+          current_bed_id?: string | null
           current_room_id?: string | null
           id?: string
           jobs_today?: number
@@ -3261,6 +3299,7 @@ export type Database = {
           clock_out_at?: string | null
           clocked_in_by_staff_id?: string | null
           clocked_out_by_staff_id?: string | null
+          current_bed_id?: string | null
           current_room_id?: string | null
           id?: string
           jobs_today?: number
@@ -3296,6 +3335,13 @@ export type Database = {
             columns: ["clocked_out_by_staff_id"]
             isOneToOne: false
             referencedRelation: "staff"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "therapist_clock_sessions_current_bed_id_fkey"
+            columns: ["current_bed_id"]
+            isOneToOne: false
+            referencedRelation: "room_beds"
             referencedColumns: ["id"]
           },
           {
@@ -3616,6 +3662,10 @@ export type Database = {
         Returns: string
       }
       delete_expense: { Args: { p_expense_id: string }; Returns: undefined }
+      drawer_cash_paid_out: {
+        Args: { p_drawer_session_id: string }
+        Returns: number
+      }
       edit_pos_sale: {
         Args: {
           p_discount_cents: number
@@ -3690,6 +3740,14 @@ export type Database = {
           p_provider_ref: string
         }
         Returns: undefined
+      }
+      record_transportation_fee: {
+        Args: {
+          p_amount_cents: number
+          p_branch_id: string
+          p_staff_id: string
+        }
+        Returns: string
       }
       set_payroll_day_lock: {
         Args: { p_branch_id: string; p_locked: boolean; p_work_date: string }

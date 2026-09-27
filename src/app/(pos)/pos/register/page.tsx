@@ -56,7 +56,7 @@ export default async function RegisterPage() {
                       <div className="flex flex-wrap items-center justify-end gap-2">
                         {mine ? (
                           <Link href={`/pos/checkout?branchId=${branch.id}`} className={buttonVariants({ size: "sm" })}>
-                            Continue selling
+                            Sell
                           </Link>
                         ) : (
                           <span className="text-xs text-muted-foreground">Unavailable</span>

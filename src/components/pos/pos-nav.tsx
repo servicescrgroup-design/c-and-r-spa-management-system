@@ -18,7 +18,7 @@ const TABS = [
     icon: <path d="M4 5h12M4 10h12M4 15h8" />,
   },
   {
-    href: "/pos/sale",
+    href: "/pos/checkout",
     label: "New sale",
     icon: <path d="M10 4v12M4 10h12" />,
   },

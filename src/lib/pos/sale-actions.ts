@@ -306,10 +306,23 @@ export async function completeJob(branchId: string, sessionId: string): Promise<
   if (!session || session.branch_id !== branchId) return { ok: false, error: "Session not found." };
 
   if (session.active_item_id) {
-    await supabase
+    const completedAt = new Date().toISOString();
+    await supabase.from("pos_transaction_items").update({ completed_at: completedAt }).eq("id", session.active_item_id);
+    // Add-ons on the same sale for this therapist finish with the main job, so their minutes count too.
+    const { data: main } = await supabase
       .from("pos_transaction_items")
-      .update({ completed_at: new Date().toISOString() })
-      .eq("id", session.active_item_id);
+      .select("transaction_id, staff_id")
+      .eq("id", session.active_item_id)
+      .maybeSingle();
+    if (main?.staff_id) {
+      await supabase
+        .from("pos_transaction_items")
+        .update({ completed_at: completedAt })
+        .eq("transaction_id", main.transaction_id)
+        .eq("staff_id", main.staff_id)
+        .eq("item_type", "service")
+        .is("completed_at", null);
+    }
   }
 
   const { data: branch } = await supabase.from("branches").select("queue_send_to_back").eq("id", branchId).single();
@@ -327,6 +340,7 @@ export async function completeJob(branchId: string, sessionId: string): Promise<
     .update({
       status: "available",
       current_room_id: null,
+      current_bed_id: null,
       active_item_id: null,
       jobs_today: session.jobs_today + 1,
       ...(nextPosition !== undefined ? { queue_position: nextPosition } : {}),
@@ -565,22 +579,16 @@ export async function addTransportationFee(input: {
     return { ok: false, error: "Enter an amount greater than zero." };
   }
 
+  // A transportation fee is a business expense paid in cash from the drawer, not therapist pay.
   const supabase = await createServerSupabaseClient();
-  const { data: branch } = await supabase.from("branches").select("timezone").eq("id", input.branchId).single();
-  const workDate = workDateFor(branch?.timezone ?? "Asia/Bangkok");
-
-  const { error } = await supabase.from("payroll_adjustments").insert({
-    staff_id: input.staffId,
-    branch_id: input.branchId,
-    work_date: workDate,
-    type: "bonus",
-    amount_cents: Math.round(input.amountDollars * 100),
-    reason: "Transportation fee",
-    created_by_staff_id: ctx.staffId,
+  const { error } = await supabase.rpc("record_transportation_fee", {
+    p_branch_id: input.branchId,
+    p_staff_id: input.staffId,
+    p_amount_cents: Math.round(input.amountDollars * 100),
   });
   if (error) return { ok: false, error: error.message };
 
-  revalidatePath("/pos/sale");
-  revalidatePath("/admin/payroll");
+  revalidatePath("/pos/checkout");
+  revalidatePath("/admin/expenses");
   return { ok: true };
 }

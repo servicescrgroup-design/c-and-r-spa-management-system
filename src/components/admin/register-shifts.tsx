@@ -22,6 +22,8 @@ export type Shift = {
   countedCents: number | null;
   varianceCents: number | null;
   cashTakenCents: number;
+  /** Open shift only: cash paid out of the drawer, e.g. transportation fees. */
+  paidOutCents: number;
   takenByMethod: Record<string, number>;
   sales: {
     id: string;
@@ -66,7 +68,7 @@ function OpenShift({ shift }: { shift: Shift }) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const expected = shift.openingCents + shift.cashTakenCents;
+  const expected = shift.openingCents + shift.cashTakenCents - shift.paidOutCents;
   const variance = counted.trim() ? cents(counted) - expected : null;
 
   async function submit() {
@@ -105,6 +107,9 @@ function OpenShift({ shift }: { shift: Shift }) {
         <Stat label="Expected in drawer" value={formatCents(expected)} />
         <Stat label="Sales" value={String(shift.sales.length)} />
       </div>
+      {shift.paidOutCents > 0 && (
+        <p className="text-sm text-muted-foreground">Paid out of the drawer: {formatCents(shift.paidOutCents)} (transportation fees)</p>
+      )}
       {otherMethods.length > 0 && (
         <p className="text-sm text-muted-foreground">
           Other payments:{" "}

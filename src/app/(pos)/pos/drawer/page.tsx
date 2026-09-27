@@ -41,7 +41,8 @@ export default async function DrawerPage({
       .eq("pos_transactions.drawer_session_id", drawer.id)
       .eq("method", "cash");
     const cashSalesCents = (sales ?? []).reduce((sum, p) => sum + p.amount_cents, 0);
-    const expectedCents = drawer.opening_amount_cents + cashSalesCents;
+    const { data: paidOut } = await supabase.rpc("drawer_cash_paid_out", { p_drawer_session_id: drawer.id });
+    const expectedCents = drawer.opening_amount_cents + cashSalesCents - (paidOut ?? 0);
 
     return (
       <div className="mx-auto max-w-sm space-y-6">
@@ -51,8 +52,9 @@ export default async function DrawerPage({
               Close shift &mdash; {branch.name} &middot; {register.name}
             </CardTitle>
             <CardDescription>
-              Opened with {formatCents(drawer.opening_amount_cents)}. Expected in drawer:{" "}
-              {formatCents(expectedCents)}.
+              Opened with {formatCents(drawer.opening_amount_cents)}
+              {(paidOut ?? 0) > 0 && <> &middot; paid out {formatCents(paidOut ?? 0)} (transportation fees)</>}. Expected in
+              drawer: {formatCents(expectedCents)}.
             </CardDescription>
             <div className="mt-2 space-y-1 rounded-xl bg-muted p-3 text-sm">
               <p>

@@ -8,14 +8,17 @@ import { isOwner } from "@/lib/auth/roles";
 type ActionResult = { ok: true } | { ok: false; error: string };
 type Supabase = Awaited<ReturnType<typeof createServerSupabaseClient>>;
 
-/** Cash taken in a shift (refunds are negative payments, so they net out). */
+/** Net cash in a shift: cash payments (refunds are negative, so they net out) minus cash paid out. */
 async function cashTakenCents(supabase: Supabase, sessionId: string) {
   const { data } = await supabase
     .from("pos_payments")
     .select("amount_cents, pos_transactions!inner(drawer_session_id)")
     .eq("pos_transactions.drawer_session_id", sessionId)
     .eq("method", "cash");
-  return (data ?? []).reduce((sum, p) => sum + p.amount_cents, 0);
+  const taken = (data ?? []).reduce((sum, p) => sum + p.amount_cents, 0);
+  // Cash paid out of the drawer (e.g. transportation fees) leaves it too.
+  const { data: paidOut } = await supabase.rpc("drawer_cash_paid_out", { p_drawer_session_id: sessionId });
+  return taken - (paidOut ?? 0);
 }
 
 function parseTime(iso: string, label: string): Date | string {

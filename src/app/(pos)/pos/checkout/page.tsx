@@ -39,6 +39,9 @@ export default async function CheckoutPage({
     { data: therapistRoles },
     { data: profiles },
     { data: sessions },
+    { data: rooms },
+    { data: beds },
+    { data: branchRow },
   ] = await Promise.all([
     supabase
       .from("services")
@@ -71,10 +74,31 @@ export default async function CheckoutPage({
     supabase.from("therapist_profiles").select("staff_id, nickname"),
     supabase
       .from("therapist_clock_sessions")
-      .select("staff_id, status")
+      .select("staff_id, status, current_room_id, current_bed_id")
       .eq("branch_id", activeBranchId)
       .is("clock_out_at", null),
+    supabase
+      .from("branch_rooms")
+      .select("id, name")
+      .eq("branch_id", activeBranchId)
+      .eq("is_active", true)
+      .order("sort_order")
+      .order("name"),
+    supabase.from("room_beds").select("id, room_id, name, bed_type").eq("is_active", true).order("sort_order").order("name"),
+    supabase.from("branches").select("transportation_fee_cents").eq("id", activeBranchId).single(),
   ]);
+
+  const roomList = (rooms ?? []).map((r) => ({
+    id: r.id,
+    name: r.name,
+    beds: (beds ?? []).filter((b) => b.room_id === r.id).map((b) => ({ id: b.id, name: b.name, bedType: b.bed_type })),
+  }));
+  const inService = (sessions ?? []).filter((s) => s.status === "in_service");
+  const busyBedIds = inService.map((s) => s.current_bed_id).filter((id): id is string => Boolean(id));
+  // A room with no beds counts as one space; it's busy when someone is in it.
+  const busyRoomIds = inService
+    .filter((s) => s.current_room_id && !s.current_bed_id)
+    .map((s) => s.current_room_id!);
 
   // Staff logins are never customers.
   const staffIds = new Set((staffRows ?? []).map((s) => s.id));
@@ -123,6 +147,10 @@ export default async function CheckoutPage({
       products={products ?? []}
       packages={packages ?? []}
       customers={customerList}
+      rooms={roomList}
+      busyBedIds={busyBedIds}
+      busyRoomIds={busyRoomIds}
+      transportFeeCents={branchRow?.transportation_fee_cents ?? 0}
     />
   );
 }

@@ -88,7 +88,7 @@ export function SaleFlow({
       amountDollars: transportFeeDollars,
     });
     setTransportFeeLoading(false);
-    setTransportFeeMessage(result.ok ? "Transportation fee added to their payroll." : result.error);
+    setTransportFeeMessage(result.ok ? "Transportation fee recorded as an expense, paid from the drawer." : result.error);
   }
 
   function toggleService(id: string) {
@@ -377,7 +377,7 @@ export function SaleFlow({
                   disabled={transportFeeLoading || transportFeeDollars <= 0}
                   onClick={handleAddTransportFee}
                 >
-                  {transportFeeLoading ? "Adding..." : "Add fee to their payroll"}
+                  {transportFeeLoading ? "Saving..." : "Pay fee from drawer (expense)"}
                 </Button>
                 {transportFeeMessage && <p className="w-full text-xs text-muted-foreground">{transportFeeMessage}</p>}
               </div>

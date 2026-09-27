@@ -33,8 +33,14 @@ export default async function SalePage() {
   return (
     <div className="max-w-3xl space-y-6">
       <div>
-        <h1 className="font-display text-3xl font-medium tracking-tight">New sale</h1>
-        <p className="text-muted-foreground">Select services, confirm the therapist, then check out.</p>
+        <h1 className="font-display text-3xl font-medium tracking-tight">Freelancer sale</h1>
+        <p className="text-muted-foreground">
+          Use this only for freelancers (paid in cash on the spot). For your own therapists, use{" "}
+          <a href="/pos/checkout" className="text-primary hover:underline">
+            New sale
+          </a>
+          .
+        </p>
       </div>
 
       <SaleFlow

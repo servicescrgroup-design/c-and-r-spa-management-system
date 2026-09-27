@@ -2,7 +2,8 @@
 
 import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
-import { checkoutSale, issueGiftCard, type CartItem, type PaymentMethod } from "@/lib/pos/actions";
+import { checkoutSale, issueGiftCard, type CartAddOn, type CartItem, type PaymentMethod } from "@/lib/pos/actions";
+import { AddOnsEditor, RoomBedPicker, SellingGuide, TransportFeeBox, type PosRoom } from "@/components/pos/sale-extras";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -117,6 +118,10 @@ export function CheckoutCart({
   products,
   packages,
   customers,
+  rooms,
+  busyBedIds,
+  busyRoomIds,
+  transportFeeCents,
 }: {
   branchId: string;
   branchName: string;
@@ -127,8 +132,15 @@ export function CheckoutCart({
   products: CatalogItem[];
   packages: CatalogItem[];
   customers: Customer[];
+  rooms: PosRoom[];
+  busyBedIds: string[];
+  busyRoomIds: string[];
+  transportFeeCents: number;
 }) {
   const router = useRouter();
+  const [roomId, setRoomId] = useState<string | null>(null);
+  const [bedId, setBedId] = useState<string | null>(null);
+  const [addOns, setAddOns] = useState<CartAddOn[]>([]);
   const [cart, setCart] = useState<CartItem[]>([]);
   const [taxPercent, setTaxPercent] = useState("0");
   const [tip, setTip] = useState("0");
@@ -188,12 +200,24 @@ export function CheckoutCart({
 
   function removeItem(index: number) {
     setCart((prev) => prev.filter((_, i) => i !== index));
+    // Add-ons follow their massage: drop the removed line's, shift the rest.
+    setAddOns((prev) =>
+      prev.filter((a) => a.lineIndex !== index).map((a) => (a.lineIndex > index ? { ...a, lineIndex: a.lineIndex - 1 } : a)),
+    );
   }
+
+  const serviceLines = cart
+    .map((item, index) => ({ item, index }))
+    .filter(({ item }) => item.itemType === "service")
+    .map(({ item, index }) => {
+      const who = therapists.find((t) => t.id === item.staffId)?.name.split(" (")[0];
+      return { index, label: `${index + 1}. ${item.description}${who ? ` · ${who}` : ""}` };
+    });
 
   const hasPackageInCart = cart.some((c) => c.itemType === "package");
   const subtotalCents = useMemo(
-    () => cart.reduce((sum, i) => sum + i.unitPriceCents * i.quantity, 0),
-    [cart],
+    () => cart.reduce((sum, i) => sum + i.unitPriceCents * i.quantity, 0) + addOns.reduce((sum, a) => sum + a.priceCents, 0),
+    [cart, addOns],
   );
   const taxCents = Math.round((subtotalCents * (Number(taxPercent) || 0)) / 100);
   const tipCents = Math.round((Number(tip) || 0) * 100);
@@ -225,6 +249,9 @@ export function CheckoutCart({
           : payments.map((p) => ({ method: p.method, amountCents: Math.round((Number(p.amount) || 0) * 100) })),
       customerId: customerId || null,
       customerName: customerId ? null : customerName.trim() || null,
+      roomId,
+      bedId,
+      addOns,
     });
     setLoading(false);
     if (!result.ok) {
@@ -233,6 +260,9 @@ export function CheckoutCart({
     }
     setReceipt({ total: totalCents, ref: result.customerRef ?? null });
     setCart([]);
+    setAddOns([]);
+    setRoomId(null);
+    setBedId(null);
     setCustomerId("");
     setCustomerName("");
     setPayments([{ method: "cash", amount: "0" }]);
@@ -289,13 +319,22 @@ export function CheckoutCart({
       <div className="space-y-6 lg:col-span-2">
         <div className="flex items-start justify-between">
           <div>
-            <h1 className="text-2xl font-semibold">{branchName} &mdash; Checkout</h1>
-            <p className="text-muted-foreground">Tap a service, product, or package to add it.</p>
+            <h1 className="font-display text-3xl font-medium tracking-tight">Sell</h1>
+            <p className="text-muted-foreground">
+              <span data-no-translate>{branchName}</span> &middot; tap a massage, product or package to add it to the cart.
+            </p>
           </div>
-          <Button variant="outline" size="sm" onClick={() => setShowGiftCard(true)}>
-            Sell gift card
-          </Button>
+          <div className="flex flex-wrap items-center justify-end gap-2">
+            <a href="/pos/sale" className="text-sm text-primary hover:underline">
+              Freelancer sale
+            </a>
+            <Button variant="outline" size="sm" onClick={() => setShowGiftCard(true)}>
+              Sell gift card
+            </Button>
+          </div>
         </div>
+
+        <SellingGuide />
 
         {categories.length > 0 && (
           <div className="space-y-2">
@@ -403,9 +442,53 @@ export function CheckoutCart({
             </div>
           </div>
         )}
+
+        <Card>
+          <CardHeader>
+            <CardTitle>Room and bed</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <RoomBedPicker
+              rooms={rooms}
+              busyBedIds={busyBedIds}
+              busyRoomIds={busyRoomIds}
+              roomId={roomId}
+              bedId={bedId}
+              onChange={(r, b) => {
+                setRoomId(r);
+                setBedId(b);
+              }}
+            />
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle>Add-ons</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <AddOnsEditor lines={serviceLines} addOns={addOns} setAddOns={setAddOns} />
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle>Transportation fee</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-2">
+            <TransportFeeBox
+              branchId={branchId}
+              therapists={therapists.filter((t) => t.status).map((t) => ({ id: t.id, name: t.name }))}
+              suggestedCents={transportFeeCents}
+            />
+            <p className="text-xs text-muted-foreground">
+              Paid in cash from this drawer and saved as an expense, not added to the therapist&apos;s payroll.
+            </p>
+          </CardContent>
+        </Card>
       </div>
 
-      <Card className="h-fit">
+      <Card className="h-fit lg:sticky lg:top-16 lg:self-start">
         <CardHeader>
           <CardTitle>Cart</CardTitle>
         </CardHeader>
@@ -427,6 +510,17 @@ export function CheckoutCart({
                     </button>
                   </div>
                 </div>
+                {addOns
+                  .filter((a) => a.lineIndex === i)
+                  .map((a, j) => (
+                    <div key={j} className="flex justify-between pl-4 text-xs text-muted-foreground">
+                      <span>
+                        + <span data-no-translate>{a.description}</span>
+                        {a.minutes ? ` · ${a.minutes} min` : ""}
+                      </span>
+                      <span>{formatCents(a.priceCents)}</span>
+                    </div>
+                  ))}
                 {item.itemType === "service" && (
                   <select
                     aria-label="Therapist"
@@ -466,6 +560,17 @@ export function CheckoutCart({
             ))}
             {cart.length === 0 && <p className="text-sm text-muted-foreground">Cart is empty.</p>}
           </div>
+
+          {cart.some((c) => c.itemType === "service") && (
+            <p className="rounded-lg bg-muted/60 px-3 py-2 text-xs text-muted-foreground">
+              Room:{" "}
+              <span className="font-medium text-foreground" data-no-translate>
+                {roomId
+                  ? `${rooms.find((r) => r.id === roomId)?.name ?? ""}${bedId ? ` · ${rooms.flatMap((r) => r.beds).find((b) => b.id === bedId)?.name ?? ""}` : ""}`
+                  : "None"}
+              </span>
+            </p>
+          )}
 
           <div className="space-y-1">
             <Label htmlFor="customerId" className="text-xs">
