@@ -129,6 +129,21 @@ function SkillsEditor({
   );
 }
 
+/** "ends 19:22 · 12 min left", ticking each minute. The job finishes itself at that time. */
+function EndsAt({ iso }: { iso: string }) {
+  const [now, setNow] = useState(() => Date.now());
+  useEffect(() => {
+    const id = window.setInterval(() => setNow(Date.now()), 30_000);
+    return () => window.clearInterval(id);
+  }, []);
+  const left = Math.ceil((new Date(iso).getTime() - now) / 60_000);
+  return (
+    <p suppressHydrationWarning className={cn("mt-1 text-[11px] leading-tight", left <= 5 ? "font-medium text-highlight" : "text-muted-foreground")}>
+      ends {clock(iso)} · {left > 0 ? `${left} min left` : "finishing now"}
+    </p>
+  );
+}
+
 function CheckInEditor({ entry, onClose }: { entry: CombinedQueueEntry; onClose: () => void }) {
   const router = useRouter();
   const [time, setTime] = useState(clock(entry.clockInAt));
@@ -226,6 +241,12 @@ export function QueueBoard({
   const [error, setError] = useState<string | null>(null);
   const [editing, setEditing] = useState<{ staffId: string; name: string } | null>(null);
   const [timeEntry, setTimeEntry] = useState<CombinedQueueEntry | null>(null);
+
+  // Pull fresh data every 30 seconds so finished massages drop back to Available on their own.
+  useEffect(() => {
+    const id = window.setInterval(() => router.refresh(), 30_000);
+    return () => window.clearInterval(id);
+  }, [router]);
   const [freelancerName, setFreelancerName] = useState("");
   const [freelancerBranch, setFreelancerBranch] = useState(branches[0]?.id ?? "");
   const [filter, setFilter] = useState<string>("all");
@@ -436,6 +457,7 @@ export function QueueBoard({
                           </option>
                         ))}
                       </select>
+                      {q.endsAt && <EndsAt iso={q.endsAt} />}
                     </td>
                     <td className="px-2 py-3 text-center tabular-nums">{q.jobsToday}</td>
                     <td className="px-4 py-3">

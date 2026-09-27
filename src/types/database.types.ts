@@ -3624,6 +3624,7 @@ export type Database = {
       }
     }
     Functions: {
+      auto_complete_finished_jobs: { Args: never; Returns: number }
       claim_owner_account: {
         Args: { p_first_name: string; p_last_name: string }
         Returns: undefined

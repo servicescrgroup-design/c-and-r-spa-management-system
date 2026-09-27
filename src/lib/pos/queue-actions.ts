@@ -120,6 +120,8 @@ export type CombinedQueueEntry = {
   /** When the check-in button was pressed (clockInAt may be a typed time). */
   recordedAt: string | null;
   checkedInBy: string | null;
+  /** In service: when the massage (plus add-ons) is due to finish. */
+  endsAt: string | null;
 };
 
 export type ClockInCandidate = {
@@ -142,10 +144,13 @@ export async function getCombinedQueueData(branchIds: string[]) {
   const workDate = workDateFor("Asia/Bangkok");
   if (branchIds.length === 0) return { workDate, queue: [] as CombinedQueueEntry[], candidates: [] as ClockInCandidate[] };
 
+  // Finish any massage whose time is up before showing the queue (the database also does this every minute).
+  await supabase.rpc("auto_complete_finished_jobs");
+
   const [{ data: sessions }, { data: roles }, { data: profiles }] = await Promise.all([
     supabase
       .from("therapist_clock_sessions")
-      .select("id, staff_id, branch_id, status, clock_in_at, clock_out_at, clock_in_recorded_at, queue_position, jobs_today, staff:staff_id(first_name, last_name), checked_in_by:clocked_in_by_staff_id(first_name, last_name)")
+      .select("id, staff_id, branch_id, status, active_item_id, clock_in_at, clock_out_at, clock_in_recorded_at, queue_position, jobs_today, staff:staff_id(first_name, last_name), checked_in_by:clocked_in_by_staff_id(first_name, last_name)")
       .eq("work_date", workDate)
       .in("branch_id", branchIds)
       .order("queue_position"),
@@ -162,6 +167,32 @@ export async function getCombinedQueueData(branchIds: string[]) {
     .filter((s) => !s.clock_out_at)
     .sort((a, b) => a.queue_position - b.queue_position || a.clock_in_at.localeCompare(b.clock_in_at));
 
+  // End time of each running massage: sale time plus that therapist's minutes on the sale.
+  const activeItemIds = open.map((s) => s.active_item_id).filter((id): id is string => Boolean(id));
+  const endsBySession = new Map<string, string>();
+  if (activeItemIds.length > 0) {
+    const { data: mains } = await supabase
+      .from("pos_transaction_items")
+      .select("id, transaction_id, staff_id, pos_transactions!inner(created_at)")
+      .in("id", activeItemIds);
+    const txnIds = (mains ?? []).map((m) => m.transaction_id);
+    const { data: lines } = txnIds.length
+      ? await supabase
+          .from("pos_transaction_items")
+          .select("transaction_id, staff_id, duration_minutes, item_type")
+          .in("transaction_id", txnIds)
+      : { data: [] };
+    for (const s of open) {
+      const main = (mains ?? []).find((m) => m.id === s.active_item_id);
+      if (!main) continue;
+      const minutes =
+        (lines ?? [])
+          .filter((l) => l.transaction_id === main.transaction_id && l.staff_id === s.staff_id && l.item_type === "service")
+          .reduce((sum, l) => sum + (l.duration_minutes ?? 0), 0) || 60;
+      endsBySession.set(s.id, new Date(new Date(main.pos_transactions.created_at).getTime() + minutes * 60_000).toISOString());
+    }
+  }
+
   const queue: CombinedQueueEntry[] = open
     .map((s) => ({
       sessionId: s.id,
@@ -175,6 +206,7 @@ export async function getCombinedQueueData(branchIds: string[]) {
       jobsToday: s.jobs_today,
       recordedAt: s.clock_in_recorded_at,
       checkedInBy: s.checked_in_by ? `${s.checked_in_by.first_name} ${s.checked_in_by.last_name}`.trim() : null,
+      endsAt: s.status === "in_service" ? (endsBySession.get(s.id) ?? null) : null,
     }))
     .map((entry, i) => ({ ...entry, queueNumber: i + 1 }));
 
