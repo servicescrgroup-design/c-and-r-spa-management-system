@@ -6,15 +6,18 @@ import { createServerSupabaseClient } from "@/lib/supabase/server";
 
 type ActionResult = { ok: true } | { ok: false; error: string };
 
+// "local" signs out only this browser. The default ("global") ends the account's
+// session on every device, so signing out on the store laptop kicked the owner
+// out on their own computer too.
 export async function signOutStaff(): Promise<void> {
   const supabase = await createServerSupabaseClient();
-  await supabase.auth.signOut();
+  await supabase.auth.signOut({ scope: "local" });
   redirect("/auth/staff-login");
 }
 
 export async function signOutCustomer(): Promise<void> {
   const supabase = await createServerSupabaseClient();
-  await supabase.auth.signOut();
+  await supabase.auth.signOut({ scope: "local" });
   redirect("/auth/customer-login");
 }
 
