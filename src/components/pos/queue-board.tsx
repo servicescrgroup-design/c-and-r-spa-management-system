@@ -6,6 +6,7 @@ import {
   clockIn,
   clockOut,
   removeCheckIn,
+  clearTodayShift,
   reorderCombinedQueue,
   setTherapistStatus,
   getTherapistSkillIds,
@@ -462,6 +463,22 @@ export function QueueBoard({
                         <p className="text-xs text-muted-foreground">
                           Worked at <span data-no-translate>{branchName.get(c.todayBranchId)}</span> today
                           {c.clockedOutAt ? ` · out ${clock(c.clockedOutAt)}` : ""}
+                          {c.todayJobs === 0 && (
+                            <>
+                              {" · "}
+                              <button
+                                type="button"
+                                disabled={busy === c.staffId}
+                                onClick={() => {
+                                  if (!window.confirm(`Clear ${c.nickname ?? c.name}'s shift from today? It had no jobs. They can then check in at either store.`)) return;
+                                  run(c.staffId, () => clearTodayShift(c.staffId));
+                                }}
+                                className="font-medium text-accent hover:underline"
+                              >
+                                Clear today&apos;s shift
+                              </button>
+                            </>
+                          )}
                         </p>
                       )}
                     </div>

@@ -1232,4 +1232,5 @@ export const TH: Record<string, string> = {
   "Freelancer": "ฟรีแลนซ์",
   "Store therapist": "หมอนวดร้าน",
   "Guest name (optional)": "ชื่อลูกค้า (ไม่บังคับ)",
+  "Clear today's shift": "ล้างกะวันนี้",
 };

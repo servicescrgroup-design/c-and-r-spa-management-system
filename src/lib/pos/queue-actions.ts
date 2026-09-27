@@ -131,6 +131,8 @@ export type ClockInCandidate = {
   /** Set when they already worked today: they may only check back in here. */
   todayBranchId: string | null;
   clockedOutAt: string | null;
+  /** Jobs across today's finished shifts; 0 means the shift can be cleared. */
+  todayJobs: number;
 };
 
 /** Both stores' queues in one list, plus who can still check in and where. */
@@ -177,11 +179,14 @@ export async function getCombinedQueueData(branchIds: string[]) {
     .map((entry, i) => ({ ...entry, queueNumber: i + 1 }));
 
   const openStaff = new Set(open.map((s) => s.staff_id));
-  const workedToday = new Map<string, { branchId: string; clockOutAt: string | null }>();
+  const workedToday = new Map<string, { branchId: string; clockOutAt: string | null; jobs: number }>();
   for (const s of sessions ?? []) {
     const prev = workedToday.get(s.staff_id);
+    const jobs = (prev?.jobs ?? 0) + s.jobs_today;
     if (!prev || (s.clock_out_at ?? "") > (prev.clockOutAt ?? "")) {
-      workedToday.set(s.staff_id, { branchId: s.branch_id, clockOutAt: s.clock_out_at });
+      workedToday.set(s.staff_id, { branchId: s.branch_id, clockOutAt: s.clock_out_at, jobs });
+    } else {
+      prev.jobs = jobs;
     }
   }
 
@@ -201,6 +206,7 @@ export async function getCombinedQueueData(branchIds: string[]) {
       branchIds: [r.branch_id],
       todayBranchId: today?.branchId ?? null,
       clockedOutAt: today?.clockOutAt ?? null,
+      todayJobs: today?.jobs ?? 0,
     });
   }
   const candidates = Array.from(byStaff.values()).sort((a, b) =>
@@ -420,6 +426,65 @@ export async function reorderCombinedQueue(orderedSessionIds: string[]): Promise
       entity_type: "queue",
       detail: { order: orderedSessionIds },
     });
+  }
+
+  revalidatePath("/pos/queue");
+  return { ok: true };
+}
+
+/** Clears a therapist's finished shift(s) from today when it had no jobs and
+ * no sales (a mistake or a test), so they can check in at either store again. */
+export async function clearTodayShift(staffId: string): Promise<ActionResult> {
+  const ctx = await requireStaffContext();
+  const supabase = await createServerSupabaseClient();
+  const workDate = workDateFor("Asia/Bangkok");
+
+  const { data: sessions } = await supabase
+    .from("therapist_clock_sessions")
+    .select("id, branch_id, jobs_today, clock_in_at, clock_out_at, clocked_in_by_staff_id")
+    .eq("staff_id", staffId)
+    .eq("work_date", workDate);
+  if (!sessions || sessions.length === 0) return { ok: false, error: "No shift today to clear." };
+
+  for (const sess of sessions) {
+    if (!canOperateQueue(ctx, sess.branch_id)) return { ok: false, error: "Not authorized to manage the queue here." };
+    if (!sess.clock_out_at) return { ok: false, error: "They're still checked in. Use Remove in the queue instead." };
+    if (sess.jobs_today > 0) return { ok: false, error: "They did jobs today, so the shift stays. They can check back in at the same store." };
+  }
+
+  // Sales count too, even if a job was never marked complete.
+  const { data: sold } = await supabase
+    .from("pos_transaction_items")
+    .select("id, pos_transactions!inner(created_at)")
+    .eq("staff_id", staffId)
+    .gte("pos_transactions.created_at", `${workDate}T00:00:00+07:00`)
+    .limit(1);
+  if ((sold ?? []).length > 0) {
+    return { ok: false, error: "They have a sale today, so the shift stays. They can check back in at the same store." };
+  }
+
+  const { error } = await supabase.from("therapist_clock_sessions").delete().in("id", sessions.map((x) => x.id));
+  if (error) return { ok: false, error: error.message };
+
+  const { data: org } = await supabase.from("organizations").select("id").limit(1).single();
+  if (org) {
+    await supabase.from("audit_log").insert(
+      sessions.map((sess) => ({
+        org_id: org.id,
+        branch_id: sess.branch_id,
+        staff_id: ctx.staffId,
+        action: "clock_in_removed",
+        entity_type: "therapist_clock_session",
+        entity_id: sess.id,
+        detail: {
+          therapist: staffId,
+          reason: "Cleared a shift with no jobs",
+          clock_in_at: sess.clock_in_at,
+          clock_out_at: sess.clock_out_at,
+          checked_in_by: sess.clocked_in_by_staff_id,
+        },
+      })),
+    );
   }
 
   revalidatePath("/pos/queue");
