@@ -155,6 +155,8 @@ export type CartItem = {
   /** Services only: where this massage happens. */
   roomId?: string | null;
   bedId?: string | null;
+  /** Services only: a later start (ISO), e.g. when the therapist finishes their current massage. Empty = now. */
+  startAt?: string | null;
 };
 
 export type PaymentMethod = "cash" | "bank_transfer" | "card_manual";
@@ -231,23 +233,42 @@ export async function checkoutSale(input: {
         .is("clock_out_at", null)
     : { data: [] };
   const sessionByStaff = new Map((openSessions ?? []).map((sess) => [sess.staff_id, sess]));
-  for (const sess of openSessions ?? []) {
-    if (sess.status === "in_service") {
-      return { ok: false, error: `${sess.staff?.first_name ?? "That therapist"} is still in a service. Finish it on the Queue first.` };
-    }
-  }
-  const minutesByStaff = new Map<string, number>();
+
+  // Each massage runs from its start for its minutes plus its add-ons. Several
+  // massages for one therapist that all start "now" run back to back.
+  const now = new Date();
+  const lineStart = new Map<number, Date>();
+  const lineEnd = new Map<number, Date>();
+  const cursorByStaff = new Map<string, Date>();
   for (const { item, index } of serviceLines) {
     const extra = addOns.filter((a) => a.lineIndex === index).reduce((sum, a) => sum + a.minutes, 0);
-    minutesByStaff.set(item.staffId!, (minutesByStaff.get(item.staffId!) ?? 0) + (item.durationMinutes ?? 60) + extra);
+    let start = item.startAt ? new Date(item.startAt) : null;
+    if (start && Number.isNaN(start.getTime())) return { ok: false, error: "A start time isn't valid." };
+    if (start && start.getTime() < now.getTime() - 5 * 60_000) return { ok: false, error: "A start time is in the past. Choose Now or a later time." };
+    if (!start || start < now) start = cursorByStaff.get(item.staffId!) ?? now;
+    const end = new Date(start.getTime() + ((item.durationMinutes ?? 60) + extra) * 60_000);
+    lineStart.set(index, start);
+    lineEnd.set(index, end);
+    if (!item.startAt) cursorByStaff.set(item.staffId!, end);
   }
-  // Each therapist must be free for their whole job (massages plus add-ons).
-  const now = new Date();
-  for (const staffId of staffIds) {
-    const end = new Date(now.getTime() + (minutesByStaff.get(staffId) ?? 60) * 60_000).toISOString();
-    const reason = (await getStaffConflicts([staffId], now.toISOString(), end)).get(staffId);
-    if (reason) return { ok: false, error: `A therapist on this sale isn't free: ${reason}.` };
+  // Each therapist must be free for each massage's own time slot.
+  for (const { item, index } of serviceLines) {
+    const reason = (await getStaffConflicts([item.staffId!], lineStart.get(index)!.toISOString(), lineEnd.get(index)!.toISOString())).get(item.staffId!);
+    if (reason) {
+      const who = sessionByStaff.get(item.staffId!)?.staff?.first_name ?? "A therapist";
+      return { ok: false, error: `${who} isn't free at that time: ${reason}. Pick a later start or another therapist.` };
+    }
   }
+  // Two massages on this sale for the same therapist can't overlap either.
+  for (const a of serviceLines) {
+    for (const b of serviceLines) {
+      if (a.index >= b.index || a.item.staffId !== b.item.staffId) continue;
+      if (lineStart.get(a.index)! < lineEnd.get(b.index)! && lineStart.get(b.index)! < lineEnd.get(a.index)!) {
+        return { ok: false, error: "The same therapist has two massages at overlapping times on this sale." };
+      }
+    }
+  }
+  const startsLater = (index: number) => (lineStart.get(index)?.getTime() ?? 0) > now.getTime() + 2 * 60_000;
 
   // Freelancers must be today's, at this branch.
   const freelanceIds = Array.from(
@@ -384,6 +405,7 @@ export async function checkoutSale(input: {
         customer_name: item.itemType === "service" ? item.customerName?.trim() || null : null,
         room_id: item.itemType === "service" ? (item.roomId ?? null) : null,
         bed_id: item.itemType === "service" ? (item.bedId ?? null) : null,
+        start_at: item.itemType === "service" && item.staffId ? (lineStart.get(index)?.toISOString() ?? null) : null,
         quantity: item.quantity,
         unit_price_cents: item.unitPriceCents,
         discount_cents: lineDiscounts[index],
@@ -417,6 +439,8 @@ export async function checkoutSale(input: {
           customer_name: line.customerName?.trim() || null,
           room_id: line.roomId ?? null,
           bed_id: line.bedId ?? null,
+          is_add_on: true,
+          start_at: line.staffId ? (lineStart.get(a.lineIndex)?.toISOString() ?? null) : null,
           quantity: 1,
           unit_price_cents: a.priceCents,
           discount_cents: discount,
@@ -461,11 +485,15 @@ export async function checkoutSale(input: {
   });
   if (postError) return { ok: false, error: `Sale saved but posting failed: ${postError.message}` };
 
-  // Put each checked-in therapist into service on their first massage of this sale.
+  // Therapists whose massage starts now go into service now. Massages booked
+  // for later are started on time by the database scheduler.
   for (const staffId of staffIds) {
     const sess = sessionByStaff.get(staffId);
-    if (!sess) continue;
-    const firstLine = serviceLines.find(({ item }) => item.staffId === staffId)!;
+    if (!sess || sess.status === "in_service") continue;
+    const firstLine = serviceLines
+      .filter(({ item }) => item.staffId === staffId)
+      .sort((a, b) => lineStart.get(a.index)!.getTime() - lineStart.get(b.index)!.getTime())[0];
+    if (!firstLine || startsLater(firstLine.index)) continue;
     const { error: queueError } = await supabase
       .from("therapist_clock_sessions")
       .update({

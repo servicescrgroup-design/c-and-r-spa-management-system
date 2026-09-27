@@ -458,6 +458,9 @@ export function QueueBoard({
                         ))}
                       </select>
                       {q.endsAt && <EndsAt iso={q.endsAt} />}
+                      {q.nextBookedAt && (
+                        <p className="mt-0.5 text-[11px] font-medium text-accent">Next walk-in {clock(q.nextBookedAt)}</p>
+                      )}
                     </td>
                     <td className="px-2 py-3 text-center tabular-nums">{q.jobsToday}</td>
                     <td className="px-4 py-3">

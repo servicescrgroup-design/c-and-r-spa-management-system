@@ -122,6 +122,8 @@ export type CombinedQueueEntry = {
   checkedInBy: string | null;
   /** In service: when the massage (plus add-ons) is due to finish. */
   endsAt: string | null;
+  /** The next walk-in already paid for a later start, if any. */
+  nextBookedAt: string | null;
 };
 
 export type ClockInCandidate = {
@@ -173,13 +175,13 @@ export async function getCombinedQueueData(branchIds: string[]) {
   if (activeItemIds.length > 0) {
     const { data: mains } = await supabase
       .from("pos_transaction_items")
-      .select("id, transaction_id, staff_id, pos_transactions!inner(created_at)")
+      .select("id, transaction_id, staff_id, start_at, pos_transactions!inner(created_at)")
       .in("id", activeItemIds);
     const txnIds = (mains ?? []).map((m) => m.transaction_id);
     const { data: lines } = txnIds.length
       ? await supabase
           .from("pos_transaction_items")
-          .select("transaction_id, staff_id, duration_minutes, item_type")
+          .select("transaction_id, staff_id, duration_minutes, item_type, start_at")
           .in("transaction_id", txnIds)
       : { data: [] };
     for (const s of open) {
@@ -187,11 +189,33 @@ export async function getCombinedQueueData(branchIds: string[]) {
       if (!main) continue;
       const minutes =
         (lines ?? [])
-          .filter((l) => l.transaction_id === main.transaction_id && l.staff_id === s.staff_id && l.item_type === "service")
+          .filter(
+            (l) =>
+              l.transaction_id === main.transaction_id &&
+              l.staff_id === s.staff_id &&
+              l.item_type === "service" &&
+              (l.start_at ?? null) === (main.start_at ?? null),
+          )
           .reduce((sum, l) => sum + (l.duration_minutes ?? 0), 0) || 60;
-      endsBySession.set(s.id, new Date(new Date(main.pos_transactions.created_at).getTime() + minutes * 60_000).toISOString());
+      endsBySession.set(s.id, new Date(new Date(main.start_at ?? main.pos_transactions.created_at).getTime() + minutes * 60_000).toISOString());
     }
   }
+
+  // Walk-ins paid for a later start, per therapist.
+  const openStaffIds = open.map((s) => s.staff_id);
+  const { data: booked } = openStaffIds.length
+    ? await supabase
+        .from("pos_transaction_items")
+        .select("staff_id, start_at")
+        .in("staff_id", openStaffIds)
+        .eq("item_type", "service")
+        .eq("is_add_on", false)
+        .is("completed_at", null)
+        .gt("start_at", new Date().toISOString())
+        .order("start_at")
+    : { data: [] };
+  const nextByStaff = new Map<string, string>();
+  for (const b of booked ?? []) if (b.staff_id && b.start_at && !nextByStaff.has(b.staff_id)) nextByStaff.set(b.staff_id, b.start_at);
 
   const queue: CombinedQueueEntry[] = open
     .map((s) => ({
@@ -207,6 +231,7 @@ export async function getCombinedQueueData(branchIds: string[]) {
       recordedAt: s.clock_in_recorded_at,
       checkedInBy: s.checked_in_by ? `${s.checked_in_by.first_name} ${s.checked_in_by.last_name}`.trim() : null,
       endsAt: s.status === "in_service" ? (endsBySession.get(s.id) ?? null) : null,
+      nextBookedAt: nextByStaff.get(s.staff_id) ?? null,
     }))
     .map((entry, i) => ({ ...entry, queueNumber: i + 1 }));
 

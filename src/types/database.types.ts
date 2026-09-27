@@ -2019,12 +2019,14 @@ export type Database = {
           freelance_session_id: string | null
           freelancer_paid: boolean
           id: string
+          is_add_on: boolean
           item_type: Database["public"]["Enums"]["pos_item_type"]
           payout_cents: number
           quantity: number
           reference_id: string | null
           room_id: string | null
           staff_id: string | null
+          start_at: string | null
           tax_cents: number
           total_cents: number
           transaction_id: string
@@ -2041,12 +2043,14 @@ export type Database = {
           freelance_session_id?: string | null
           freelancer_paid?: boolean
           id?: string
+          is_add_on?: boolean
           item_type: Database["public"]["Enums"]["pos_item_type"]
           payout_cents?: number
           quantity?: number
           reference_id?: string | null
           room_id?: string | null
           staff_id?: string | null
+          start_at?: string | null
           tax_cents?: number
           total_cents: number
           transaction_id: string
@@ -2063,12 +2067,14 @@ export type Database = {
           freelance_session_id?: string | null
           freelancer_paid?: boolean
           id?: string
+          is_add_on?: boolean
           item_type?: Database["public"]["Enums"]["pos_item_type"]
           payout_cents?: number
           quantity?: number
           reference_id?: string | null
           room_id?: string | null
           staff_id?: string | null
+          start_at?: string | null
           tax_cents?: number
           total_cents?: number
           transaction_id?: string

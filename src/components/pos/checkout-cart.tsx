@@ -15,7 +15,23 @@ type CatalogItem = { id: string; name: string; default_price_cents?: number; ret
 type ServiceDuration = { minutes: number; priceCents: number; payoutCents: number };
 type ServiceItem = { id: string; name: string; category_id: string | null; default_price_cents: number; durations: ServiceDuration[] };
 type Category = { id: string; name: string; background_color: string | null };
-type Therapist = { id: string; name: string; status: string | null };
+type Therapist = { id: string; name: string; status: string | null; freeAt?: string | null };
+
+const hhmm = (iso: string) =>
+  new Intl.DateTimeFormat("en-GB", { timeZone: "Asia/Bangkok", hour: "2-digit", minute: "2-digit", hour12: false }).format(new Date(iso));
+
+/** Half-hour start times from now, e.g. 18:00, 18:30 … for the next few hours. */
+function startSlots(fromMs: number, count = 12): string[] {
+  const step = 30 * 60_000;
+  const first = Math.ceil((fromMs + 60_000) / step) * step;
+  return Array.from({ length: count }, (_, i) => new Date(first + i * step).toISOString());
+}
+
+/** A Bangkok "HH:MM" today (or tomorrow if already past) as ISO. */
+function todayAt(time: string): string {
+  const date = new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Bangkok" }).format(new Date());
+  return new Date(`${date}T${time}:00+07:00`).toISOString();
+}
 
 const STATUS_TEXT: Record<string, string> = {
   available: "Available",
@@ -198,13 +214,28 @@ export function CheckoutCart({
       return;
     }
     const [kind, id] = value.split(":");
+    // A therapist still busy gets this massage booked for when they're free.
+    const freeAt = kind === "staff" ? therapists.find((t) => t.id === id)?.freeAt : null;
+    const suggested =
+      freeAt && new Date(freeAt).getTime() > Date.now() + 2 * 60_000
+        ? new Date(Math.ceil(new Date(freeAt).getTime() / (5 * 60_000)) * 5 * 60_000).toISOString()
+        : null;
     setCart((prev) =>
       prev.map((c, i) =>
         i === index
-          ? { ...c, staffId: kind === "staff" ? id : null, freelanceSessionId: kind === "free" ? id : null }
+          ? {
+              ...c,
+              staffId: kind === "staff" ? id : null,
+              freelanceSessionId: kind === "free" ? id : null,
+              startAt: suggested ?? (c.startAt && new Date(c.startAt).getTime() > Date.now() ? c.startAt : null),
+            }
           : c,
       ),
     );
+  }
+
+  function setLineStart(index: number, startAt: string | null) {
+    setCart((prev) => prev.map((c, i) => (i === index ? { ...c, startAt } : c)));
   }
 
   function setLineCustomer(index: number, name: string) {
@@ -642,6 +673,7 @@ export function CheckoutCart({
                             .map((t) => (
                               <option key={t.id} value={`staff:${t.id}`}>
                                 {t.name} · {STATUS_TEXT[t.status!] ?? t.status}
+                                {t.freeAt && new Date(t.freeAt).getTime() > Date.now() ? ` · free at ${hhmm(t.freeAt)}` : ""}
                               </option>
                             ))}
                         </optgroup>
@@ -743,6 +775,47 @@ export function CheckoutCart({
                         ),
                       )}
                     </select>
+
+                    {(() => {
+                      const startIso = item.startAt ?? null;
+                      const slots = startSlots(Date.now());
+                      const custom = startIso && !slots.includes(startIso);
+                      const endIso = new Date(
+                        (startIso ? new Date(startIso).getTime() : Date.now()) +
+                          ((item.durationMinutes ?? 60) + addOns.filter((a) => a.lineIndex === i).reduce((n, a) => n + a.minutes, 0)) * 60_000,
+                      ).toISOString();
+                      return (
+                        <div className="flex items-center gap-2">
+                          <select
+                            aria-label="Start time"
+                            value={startIso ? (custom ? "custom" : startIso) : ""}
+                            onChange={(e) => {
+                              if (e.target.value === "custom") return setLineStart(i, todayAt(hhmm(new Date(Date.now() + 15 * 60_000).toISOString())));
+                              setLineStart(i, e.target.value || null);
+                            }}
+                            className="h-8 flex-1 rounded-lg border border-border bg-card px-2 text-xs"
+                          >
+                            <option value="">Starts now</option>
+                            {slots.map((iso) => (
+                              <option key={iso} value={iso}>
+                                Starts {hhmm(iso)}
+                              </option>
+                            ))}
+                            <option value="custom">Other time...</option>
+                          </select>
+                          {custom && (
+                            <Input
+                              type="time"
+                              aria-label="Custom start time"
+                              value={hhmm(startIso!)}
+                              onChange={(e) => e.target.value && setLineStart(i, todayAt(e.target.value))}
+                              className="h-8 w-24 text-xs"
+                            />
+                          )}
+                          <span className="shrink-0 text-[11px] text-muted-foreground">until {hhmm(endIso)}</span>
+                        </div>
+                      );
+                    })()}
                   </div>
                 )}
               </div>

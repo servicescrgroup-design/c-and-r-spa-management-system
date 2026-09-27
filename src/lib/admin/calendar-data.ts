@@ -115,7 +115,7 @@ export async function getCalendarDay(date: string, view: CalendarView = "day"): 
       supabase
         .from("pos_transactions")
         .select(
-          "id, branch_id, room_id, created_at, status, customer_ref, customer_name, customer:customer_id(id, first_name, last_name), pos_payments(method), pos_transaction_items(id, item_type, reference_id, description, staff_id, duration_minutes, completed_at, unit_price_cents, discount_cents, customer_name, room_id, staff:staff_id(first_name, last_name))",
+          "id, branch_id, room_id, created_at, status, customer_ref, customer_name, customer:customer_id(id, first_name, last_name), pos_payments(method), pos_transaction_items(id, item_type, reference_id, description, staff_id, duration_minutes, completed_at, unit_price_cents, discount_cents, customer_name, room_id, start_at, staff:staff_id(first_name, last_name))",
         )
         .in("branch_id", branchIds)
         .is("original_transaction_id", null)
@@ -189,7 +189,8 @@ export async function getCalendarDay(date: string, view: CalendarView = "day"): 
     for (const [key, items] of groups) {
       const main = items.find((i) => /^(Service|Combo|Freelance)/.test(i.description ?? "")) ?? items[0];
       const minutes = items.reduce((sum, i) => sum + (i.duration_minutes ?? 0), 0) || main.duration_minutes || 60;
-      const startMs = new Date(t.created_at).getTime();
+      // Walk-ins paid now for a later start sit at their booked time.
+      const startMs = new Date(main.start_at ?? t.created_at).getTime();
       const plannedEnd = startMs + minutes * 60_000;
       const endMs = main.completed_at ? Math.max(startMs + 5 * 60_000, new Date(main.completed_at).getTime()) : plannedEnd;
       const freelancer = key.startsWith("freelance:") ? key.slice("freelance:".length) : null;
@@ -277,22 +278,36 @@ export async function getStaffConflicts(
     if (!conflicts.has(row.staff_id)) conflicts.set(row.staff_id, `Booked ${hhmm(row.start_at)}–${hhmm(row.end_at)}`);
   }
 
-  const activeItemIds = (busySessions ?? [])
-    .map((s) => s.active_item_id)
-    .filter((id): id is string => Boolean(id) && id !== excludeItemId);
-  if (activeItemIds.length > 0) {
-    const { data: items } = await supabase
-      .from("pos_transaction_items")
-      .select("id, staff_id, duration_minutes, transaction:transaction_id(created_at)")
-      .in("id", activeItemIds);
-    for (const item of items ?? []) {
-      if (!item.staff_id || !item.transaction) continue;
-      const jobStart = new Date(item.transaction.created_at).getTime();
-      // A job that has run past its planned time still blocks until it's completed.
-      const jobEnd = Math.max(jobStart + (item.duration_minutes ?? 60) * 60_000, Date.now());
-      if (jobStart < new Date(endAt).getTime() && jobEnd > new Date(startAt).getTime() && !conflicts.has(item.staff_id)) {
-        conflicts.set(item.staff_id, `In service until about ${hhmm(new Date(jobEnd).toISOString())}`);
-      }
+  // Walk-in jobs: the one running now, plus any paid for a later start. Each
+  // blocks from its start for its minutes (add-ons included).
+  const activeItemIds = new Set(
+    (busySessions ?? []).map((s) => s.active_item_id).filter((id): id is string => Boolean(id)),
+  );
+  const { data: pending } = await supabase
+    .from("pos_transaction_items")
+    .select("id, transaction_id, staff_id, duration_minutes, start_at, is_add_on, transaction:transaction_id(created_at)")
+    .in("staff_id", staffIds)
+    .eq("item_type", "service")
+    .is("completed_at", null)
+    .gte("transaction.created_at", new Date(Date.now() - 24 * 3600_000).toISOString());
+  const rows = (pending ?? []).filter((i) => i.transaction);
+  for (const item of rows) {
+    if (item.is_add_on || !item.staff_id || item.id === excludeItemId) continue;
+    const isActive = activeItemIds.has(item.id);
+    if (!isActive && !item.start_at) continue; // an old unfinished line that was never started
+    const startMs = new Date(item.start_at ?? item.transaction!.created_at).getTime();
+    const minutes = rows
+      .filter((r) => r.transaction_id === item.transaction_id && r.staff_id === item.staff_id && (r.start_at ?? null) === (item.start_at ?? null))
+      .reduce((sum, r) => sum + (r.duration_minutes ?? 0), 0) || 60;
+    // A job running past its planned time still blocks until it's completed.
+    const endMs = isActive ? Math.max(startMs + minutes * 60_000, Date.now()) : startMs + minutes * 60_000;
+    if (startMs < new Date(endAt).getTime() && endMs > new Date(startAt).getTime() && !conflicts.has(item.staff_id)) {
+      conflicts.set(
+        item.staff_id,
+        isActive
+          ? `In service until about ${hhmm(new Date(endMs).toISOString())}`
+          : `Walk-in booked ${hhmm(new Date(startMs).toISOString())}–${hhmm(new Date(endMs).toISOString())}`,
+      );
     }
   }
 

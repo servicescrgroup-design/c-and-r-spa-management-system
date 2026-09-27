@@ -3,6 +3,7 @@ import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { getStaffBranches, getMyOpenDrawer } from "@/lib/pos/session";
 import { CheckoutCart } from "@/components/pos/checkout-cart";
 import { getFreelanceSessions } from "@/lib/pos/sale-actions";
+import { getFreeAtByStaff } from "@/lib/pos/free-at";
 
 export default async function CheckoutPage({
   searchParams,
@@ -75,7 +76,7 @@ export default async function CheckoutPage({
     supabase.from("therapist_profiles").select("staff_id, nickname"),
     supabase
       .from("therapist_clock_sessions")
-      .select("staff_id, status, current_room_id, current_bed_id")
+      .select("staff_id, status, current_room_id, current_bed_id, active_item_id")
       .eq("branch_id", activeBranchId)
       .is("clock_out_at", null),
     supabase
@@ -127,13 +128,18 @@ export default async function CheckoutPage({
 
   const nicknames = new Map((profiles ?? []).map((p) => [p.staff_id, p.nickname]));
   const statusByStaff = new Map((sessions ?? []).map((s) => [s.staff_id, s.status]));
+
+  const freeAtByStaff = await getFreeAtByStaff(
+    Array.from(new Set((therapistRoles ?? []).map((r) => r.staff_id))),
+    (sessions ?? []).map((s) => s.active_item_id).filter((id): id is string => Boolean(id)),
+  );
   const seen = new Set<string>();
   const therapists = (therapistRoles ?? [])
     .filter((r) => !seen.has(r.staff_id) && seen.add(r.staff_id))
     .map((r) => {
       const full = `${r.staff?.first_name ?? ""} ${r.staff?.last_name ?? ""}`.trim();
       const nick = nicknames.get(r.staff_id);
-      return { id: r.staff_id, name: nick ? `${nick} (${full})` : full || "Therapist", status: statusByStaff.get(r.staff_id) ?? null };
+      return { id: r.staff_id, name: nick ? `${nick} (${full})` : full || "Therapist", status: statusByStaff.get(r.staff_id) ?? null, freeAt: freeAtByStaff.get(r.staff_id) ?? null };
     })
     .sort((a, b) => Number(!a.status) - Number(!b.status) || a.name.localeCompare(b.name));
 
