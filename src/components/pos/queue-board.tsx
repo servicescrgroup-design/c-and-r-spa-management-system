@@ -286,6 +286,23 @@ export function QueueBoard({
     setOrder(queue);
   }
 
+  /** Show a status change straight away; the server copy replaces it on refresh (or puts it back on error). */
+  function setLocalStatus(sessionId: string, status: Status) {
+    setOrder((prev) =>
+      prev.map((q) => (q.sessionId === sessionId ? { ...q, status, ...(status === "in_service" ? {} : { endsAt: null }) } : q)),
+    );
+  }
+
+  function completeNow(q: CombinedQueueEntry) {
+    setLocalStatus(q.sessionId, "available");
+    void run(q.sessionId, () => completeJob(q.branchId, q.sessionId));
+  }
+
+  function changeStatus(q: CombinedQueueEntry, status: Status) {
+    setLocalStatus(q.sessionId, status);
+    void run(q.sessionId, () => setTherapistStatus(q.branchId, q.sessionId, status));
+  }
+
   function saveOrder(next: CombinedQueueEntry[]) {
     setOrder(next.map((q, i) => ({ ...q, queueNumber: i + 1 })));
     void run("reorder", () => reorderCombinedQueue(next.map((q) => q.sessionId)));
@@ -395,7 +412,7 @@ export function QueueBoard({
                     <select
                       aria-label="Status"
                       value={q.status}
-                      onChange={(e) => run(q.sessionId, () => setTherapistStatus(q.branchId, q.sessionId, e.target.value as Status))}
+                      onChange={(e) => changeStatus(q, e.target.value as Status)}
                       className={cn("h-9 rounded-full border-0 px-3 text-xs font-medium", STATUS_STYLE[q.status])}
                     >
                       {(Object.keys(STATUS_LABEL) as Status[]).map((st) => (
@@ -414,7 +431,7 @@ export function QueueBoard({
                       type="button"
                       className="h-11 flex-1"
                       disabled={busy === q.sessionId}
-                      onClick={() => run(q.sessionId, () => completeJob(q.branchId, q.sessionId))}
+                      onClick={() => completeNow(q)}
                     >
                       Complete job
                     </Button>
@@ -570,7 +587,7 @@ export function QueueBoard({
                       <select
                         aria-label="Status"
                         value={q.status}
-                        onChange={(e) => run(q.sessionId, () => setTherapistStatus(q.branchId, q.sessionId, e.target.value as Status))}
+                        onChange={(e) => changeStatus(q, e.target.value as Status)}
                         className={cn("h-8 rounded-full border-0 px-3 text-xs font-medium", STATUS_STYLE[q.status])}
                       >
                         {(Object.keys(STATUS_LABEL) as Status[]).map((s) => (
@@ -607,7 +624,7 @@ export function QueueBoard({
                             type="button"
                             size="sm"
                             disabled={busy === q.sessionId}
-                            onClick={() => run(q.sessionId, () => completeJob(q.branchId, q.sessionId))}
+                            onClick={() => completeNow(q)}
                           >
                             Complete job
                           </Button>
