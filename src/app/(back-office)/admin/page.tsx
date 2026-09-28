@@ -5,7 +5,9 @@ import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { RevenueChart } from "@/components/admin/revenue-chart";
 import { getRevenueDashboard, resolveRange } from "@/lib/admin/dashboard-data";
-import { formatCents, cn } from "@/lib/utils";
+import { getOwnerDashboard } from "@/lib/admin/owner-dashboard";
+import { OwnerDashboardView } from "@/components/admin/owner-dashboard-view";
+import { cn } from "@/lib/utils";
 
 const DEPOSIT_LABEL: Record<string, string> = {
   not_required: "Pay at shop",
@@ -38,8 +40,9 @@ export default async function AdminDashboardPage({ searchParams }: PageProps<"/a
   };
   const range = resolveRange(spFlat);
 
-  const [{ count: branchCount }, dashboard, { data: appointments }] = await Promise.all([
-    supabase.from("branches").select("id", { count: "exact", head: true }),
+  const tab = sp.tab === "money" || sp.tab === "team" || sp.tab === "fix" ? sp.tab : "overview";
+  const [owner, dashboard, { data: appointments }] = await Promise.all([
+    getOwnerDashboard(range),
     getRevenueDashboard(range),
     supabase
       .from("appointments")
@@ -52,7 +55,7 @@ export default async function AdminDashboardPage({ searchParams }: PageProps<"/a
   ]);
 
   const qs = (overrides: Record<string, string>) => {
-    const merged: Record<string, string> = { view: range.view };
+    const merged: Record<string, string> = { view: range.view, ...(tab !== "overview" ? { tab } : {}) };
     for (const [key, value] of Object.entries(spFlat)) if (value) merged[key] = value;
     Object.assign(merged, overrides);
     return `/admin?${new URLSearchParams(merged).toString()}`;
@@ -62,116 +65,89 @@ export default async function AdminDashboardPage({ searchParams }: PageProps<"/a
     <div className="space-y-6">
       <div>
         <h1 className="font-display text-3xl font-medium tracking-tight">Welcome back, {ctx.firstName || ctx.email}</h1>
-        <p className="text-muted-foreground">{isOwner(ctx) ? "Organization overview" : "Your branch overview"}</p>
+        <p className="text-muted-foreground">
+          {isOwner(ctx) ? "Both stores at a glance: money, team and what still needs filling in." : "Your branch overview"}
+        </p>
       </div>
 
-      <div className="grid gap-4 sm:grid-cols-4">
-        <Card>
-          <CardHeader>
-            <CardDescription>Branches</CardDescription>
-            <CardTitle className="text-3xl">{branchCount ?? 0}</CardTitle>
-          </CardHeader>
-        </Card>
-        <Card>
-          <CardHeader>
-            <CardDescription>Revenue ({range.label})</CardDescription>
-            <CardTitle className="text-3xl">{formatCents(dashboard.summary.totalRevenueCents)}</CardTitle>
-          </CardHeader>
-        </Card>
-        <Card>
-          <CardHeader>
-            <CardDescription>Transactions</CardDescription>
-            <CardTitle className="text-3xl">{dashboard.summary.transactionCount}</CardTitle>
-          </CardHeader>
-        </Card>
-        <Card>
-          <CardHeader>
-            <CardDescription>Average ticket</CardDescription>
-            <CardTitle className="text-3xl">{formatCents(dashboard.summary.averageTicketCents)}</CardTitle>
-          </CardHeader>
-        </Card>
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <p className="text-sm text-muted-foreground">
+          Showing <span className="font-medium text-foreground">{range.label}</span>
+        </p>
+      <div className="flex flex-wrap items-center gap-3">
+        <div className="flex gap-1 rounded-full bg-muted p-1">
+          {(["day", "month", "year", "custom"] as const).map((v) => (
+            <Link
+              key={v}
+              href={qs({ view: v })}
+              className={cn(
+                "rounded-full px-3 py-1.5 text-sm capitalize transition-colors",
+                range.view === v ? "bg-card font-medium shadow-sm" : "text-muted-foreground",
+              )}
+            >
+              {v}
+            </Link>
+          ))}
+        </div>
+        {range.view === "day" && (
+          <form className="flex items-center gap-2">
+            <input type="hidden" name="view" value="day" />
+            {tab !== "overview" && <input type="hidden" name="tab" value={tab} />}
+            <input type="date" name="date" defaultValue={range.label} className="h-9 rounded-md border border-border bg-background px-2.5 text-sm" />
+            <button type="submit" className="text-sm text-primary hover:underline">Go</button>
+          </form>
+        )}
+        {range.view === "month" && (
+          <form className="flex items-center gap-2">
+            <input type="hidden" name="view" value="month" />
+            {tab !== "overview" && <input type="hidden" name="tab" value={tab} />}
+            <input type="month" name="month" defaultValue={range.label} className="h-9 rounded-md border border-border bg-background px-2.5 text-sm" />
+            <button type="submit" className="text-sm text-primary hover:underline">Go</button>
+          </form>
+        )}
+        {range.view === "year" && (
+          <form className="flex items-center gap-2">
+            <input type="hidden" name="view" value="year" />
+            {tab !== "overview" && <input type="hidden" name="tab" value={tab} />}
+            <input
+              type="number"
+              name="year"
+              defaultValue={range.label}
+              min="2020"
+              max="2100"
+              className="h-9 w-24 rounded-md border border-border bg-background px-2.5 text-sm"
+            />
+            <button type="submit" className="text-sm text-primary hover:underline">Go</button>
+          </form>
+        )}
+        {range.view === "custom" && (
+          <form className="flex items-center gap-2">
+            <input type="hidden" name="view" value="custom" />
+            {tab !== "overview" && <input type="hidden" name="tab" value={tab} />}
+            <input
+              type="date"
+              name="start"
+              defaultValue={spFlat.start ?? range.label.split(" to ")[0]}
+              className="h-9 rounded-md border border-border bg-background px-2.5 text-sm"
+            />
+            <span className="text-sm text-muted-foreground">to</span>
+            <input
+              type="date"
+              name="end"
+              defaultValue={spFlat.end ?? range.label.split(" to ")[1]}
+              className="h-9 rounded-md border border-border bg-background px-2.5 text-sm"
+            />
+            <button type="submit" className="text-sm text-primary hover:underline">Go</button>
+          </form>
+        )}
+      </div>
       </div>
 
-      <Card>
-        <CardHeader className="flex-row items-center justify-between space-y-0">
-          <CardTitle>Revenue by branch</CardTitle>
-          <div className="flex flex-wrap items-center gap-3">
-            <div className="flex gap-1 rounded-full bg-muted p-1">
-              {(["day", "month", "year", "custom"] as const).map((v) => (
-                <Link
-                  key={v}
-                  href={qs({ view: v })}
-                  className={cn(
-                    "rounded-full px-3 py-1.5 text-sm capitalize transition-colors",
-                    range.view === v ? "bg-card font-medium shadow-sm" : "text-muted-foreground",
-                  )}
-                >
-                  {v}
-                </Link>
-              ))}
-            </div>
-            {range.view === "day" && (
-              <form className="flex items-center gap-2">
-                <input type="hidden" name="view" value="day" />
-                <input type="date" name="date" defaultValue={range.label} className="h-9 rounded-md border border-border bg-background px-2.5 text-sm" />
-                <button type="submit" className="text-sm text-primary hover:underline">Go</button>
-              </form>
-            )}
-            {range.view === "month" && (
-              <form className="flex items-center gap-2">
-                <input type="hidden" name="view" value="month" />
-                <input type="month" name="month" defaultValue={range.label} className="h-9 rounded-md border border-border bg-background px-2.5 text-sm" />
-                <button type="submit" className="text-sm text-primary hover:underline">Go</button>
-              </form>
-            )}
-            {range.view === "year" && (
-              <form className="flex items-center gap-2">
-                <input type="hidden" name="view" value="year" />
-                <input
-                  type="number"
-                  name="year"
-                  defaultValue={range.label}
-                  min="2020"
-                  max="2100"
-                  className="h-9 w-24 rounded-md border border-border bg-background px-2.5 text-sm"
-                />
-                <button type="submit" className="text-sm text-primary hover:underline">Go</button>
-              </form>
-            )}
-            {range.view === "custom" && (
-              <form className="flex items-center gap-2">
-                <input type="hidden" name="view" value="custom" />
-                <input
-                  type="date"
-                  name="start"
-                  defaultValue={spFlat.start ?? range.label.split(" to ")[0]}
-                  className="h-9 rounded-md border border-border bg-background px-2.5 text-sm"
-                />
-                <span className="text-sm text-muted-foreground">to</span>
-                <input
-                  type="date"
-                  name="end"
-                  defaultValue={spFlat.end ?? range.label.split(" to ")[1]}
-                  className="h-9 rounded-md border border-border bg-background px-2.5 text-sm"
-                />
-                <button type="submit" className="text-sm text-primary hover:underline">Go</button>
-              </form>
-            )}
-          </div>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <RevenueChart buckets={dashboard.buckets} series={dashboard.series} granularity={dashboard.granularity} />
-          <div className="grid gap-2 border-t border-border pt-4 sm:grid-cols-2 lg:grid-cols-4">
-            {dashboard.summary.byBranch.map((b) => (
-              <div key={b.branchId} className="rounded-xl bg-muted/40 p-3">
-                <p className="text-sm font-medium">{b.branchName}</p>
-                <p className="font-display text-lg">{formatCents(b.revenueCents)}</p>
-                <p className="text-xs text-muted-foreground">{b.transactionCount} sales</p>
-              </div>
-            ))}
-          </div>
-        </CardContent>
-      </Card>
+      <OwnerDashboardView
+        data={owner}
+        initialTab={tab}
+        timeChart={<RevenueChart buckets={dashboard.buckets} series={dashboard.series} granularity={dashboard.granularity} />}
+      />
 
       <Card>
         <CardHeader>
