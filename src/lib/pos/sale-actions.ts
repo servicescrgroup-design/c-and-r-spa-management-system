@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { getStaffConflicts } from "@/lib/admin/calendar-data";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
+import { countTodaysJobs } from "@/lib/pos/jobs-count";
 import { requireStaffContext } from "@/lib/auth/session";
 import { hasBranchRole, isOwner } from "@/lib/auth/roles";
 import { getMyOpenDrawer } from "@/lib/pos/session";
@@ -391,7 +392,9 @@ export async function getFreelanceSessions(branchId: string): Promise<FreelanceS
     .neq("status", "done")
     .order("queue_position");
 
-  return (data ?? []).map((r) => ({ id: r.id, name: r.name, status: r.status, jobsToday: r.jobs_today }));
+  // Counted from today's sales so it matches the Sales page.
+  const { byFreelancer } = await countTodaysJobs(supabase, workDate);
+  return (data ?? []).map((r) => ({ id: r.id, name: r.name, status: r.status, jobsToday: byFreelancer.get(r.id) ?? 0 }));
 }
 
 export async function addFreelancer(branchId: string, name: string): Promise<ActionResult & { sessionId?: string }> {

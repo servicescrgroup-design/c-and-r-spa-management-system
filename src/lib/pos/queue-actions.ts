@@ -2,6 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
+import { countTodaysJobs } from "@/lib/pos/jobs-count";
 import { requireStaffContext } from "@/lib/auth/session";
 import { hasBranchRole, isOwner } from "@/lib/auth/roles";
 import type { Enums } from "@/types/database.types";
@@ -40,6 +41,7 @@ export async function getQueueData(branchId: string) {
 
   const { data: branch } = await supabase.from("branches").select("timezone").eq("id", branchId).single();
   const workDate = workDateFor(branch?.timezone ?? "Asia/Bangkok");
+  const singleJobs = await countTodaysJobs(supabase, workDate);
 
   const { data: sessions } = await supabase
     .from("therapist_clock_sessions")
@@ -85,7 +87,7 @@ export async function getQueueData(branchId: string) {
       skills: skillsById.get(s.staff_id) ?? [],
       status: s.status,
       clockInAt: s.clock_in_at,
-      jobsToday: s.jobs_today,
+      jobsToday: singleJobs.byStaff.get(s.staff_id) ?? 0,
       queuePosition: s.queue_position,
     };
   });
@@ -201,6 +203,15 @@ export async function getCombinedQueueData(branchIds: string[]) {
     }
   }
 
+  // Jobs come from today's sales, not the running tally, and the tally is kept in step.
+  const { byStaff: jobsByStaff } = await countTodaysJobs(supabase, workDate);
+  const jobsFor = (staffId: string) => jobsByStaff.get(staffId) ?? 0;
+  for (const s of open) {
+    if (s.jobs_today !== jobsFor(s.staff_id)) {
+      await supabase.from("therapist_clock_sessions").update({ jobs_today: jobsFor(s.staff_id) }).eq("id", s.id);
+    }
+  }
+
   // Walk-ins paid for a later start, per therapist.
   const openStaffIds = open.map((s) => s.staff_id);
   const { data: booked } = openStaffIds.length
@@ -227,7 +238,7 @@ export async function getCombinedQueueData(branchIds: string[]) {
       photoUrl: profileById.get(s.staff_id)?.photo_url ?? null,
       status: s.status,
       clockInAt: s.clock_in_at,
-      jobsToday: s.jobs_today,
+      jobsToday: jobsFor(s.staff_id),
       recordedAt: s.clock_in_recorded_at,
       checkedInBy: s.checked_in_by ? `${s.checked_in_by.first_name} ${s.checked_in_by.last_name}`.trim() : null,
       endsAt: s.status === "in_service" ? (endsBySession.get(s.id) ?? null) : null,
@@ -239,7 +250,7 @@ export async function getCombinedQueueData(branchIds: string[]) {
   const workedToday = new Map<string, { branchId: string; clockOutAt: string | null; jobs: number }>();
   for (const s of sessions ?? []) {
     const prev = workedToday.get(s.staff_id);
-    const jobs = (prev?.jobs ?? 0) + s.jobs_today;
+    const jobs = jobsFor(s.staff_id);
     if (!prev || (s.clock_out_at ?? "") > (prev.clockOutAt ?? "")) {
       workedToday.set(s.staff_id, { branchId: s.branch_id, clockOutAt: s.clock_out_at, jobs });
     } else {
@@ -419,7 +430,11 @@ export async function setTherapistStatus(
   if (!canOperateQueue(ctx, branchId)) return { ok: false, error: "Not authorized to manage the queue here." };
 
   const supabase = await createServerSupabaseClient();
-  const { error } = await supabase.from("therapist_clock_sessions").update({ status }).eq("id", sessionId);
+  // Leaving "In service" by hand lets go of the massage, so the next one can start on time.
+  const { error } = await supabase
+    .from("therapist_clock_sessions")
+    .update(status === "in_service" ? { status } : { status, active_item_id: null, current_room_id: null, current_bed_id: null })
+    .eq("id", sessionId);
   if (error) return { ok: false, error: error.message };
 
   revalidatePath("/pos/queue");

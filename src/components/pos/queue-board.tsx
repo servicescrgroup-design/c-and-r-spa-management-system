@@ -16,6 +16,7 @@ import {
   type CombinedQueueEntry,
   type ClockInCandidate,
 } from "@/lib/pos/queue-actions";
+import { TodayJobsDialog } from "@/components/pos/today-jobs-dialog";
 import { completeJob, addFreelancer, removeFreelancer, type FreelanceSession } from "@/lib/pos/sale-actions";
 import { setTherapistSkills } from "@/lib/admin/staff-hr-actions";
 import { Button } from "@/components/ui/button";
@@ -229,7 +230,9 @@ export function QueueBoard({
   candidates,
   freelancers,
   services,
+  canEditJobs = false,
 }: {
+  canEditJobs?: boolean;
   branches: Branch[];
   queue: CombinedQueueEntry[];
   candidates: ClockInCandidate[];
@@ -241,6 +244,7 @@ export function QueueBoard({
   const [error, setError] = useState<string | null>(null);
   const [editing, setEditing] = useState<{ staffId: string; name: string } | null>(null);
   const [timeEntry, setTimeEntry] = useState<CombinedQueueEntry | null>(null);
+  const [jobsFor, setJobsFor] = useState<{ who: { staffId?: string; freelanceSessionId?: string }; name: string } | null>(null);
 
   // Pull fresh data every 30 seconds so finished massages drop back to Available on their own.
   useEffect(() => {
@@ -468,7 +472,16 @@ export function QueueBoard({
                         <p className="mt-0.5 text-[11px] font-medium text-accent">Next walk-in {clock(q.nextBookedAt)}</p>
                       )}
                     </td>
-                    <td className="px-2 py-3 text-center tabular-nums">{q.jobsToday}</td>
+                    <td className="px-2 py-3 text-center">
+                      <button
+                        type="button"
+                        title="See today's jobs"
+                        onClick={() => setJobsFor({ who: { staffId: q.staffId }, name: q.nickname || q.name })}
+                        className="min-w-9 rounded-full bg-muted px-3 py-1 tabular-nums underline decoration-dotted underline-offset-4 hover:bg-secondary"
+                      >
+                        {q.jobsToday}
+                      </button>
+                    </td>
                     <td className="px-4 py-3">
                       <div className="flex justify-end gap-2">
                         {q.status === "in_service" && (
@@ -532,8 +545,14 @@ export function QueueBoard({
                     {f.name}
                   </p>
                   <p className="text-xs text-muted-foreground">
-                    <span data-no-translate>{branchName.get(f.branchId)}</span> &middot; {f.jobsToday} job
-                    {f.jobsToday === 1 ? "" : "s"} today
+                    <span data-no-translate>{branchName.get(f.branchId)}</span> &middot;{" "}
+                    <button
+                      type="button"
+                      onClick={() => setJobsFor({ who: { freelanceSessionId: f.id }, name: f.name })}
+                      className="underline decoration-dotted underline-offset-4 hover:text-foreground"
+                    >
+                      {f.jobsToday} job{f.jobsToday === 1 ? "" : "s"} today
+                    </button>
                   </p>
                 </div>
                 <Button type="button" variant="secondary" size="sm" disabled={busy === f.id} onClick={() => run(f.id, () => removeFreelancer(f.id))}>
@@ -669,6 +688,9 @@ export function QueueBoard({
 
       {editing && <SkillsEditor entry={editing} services={services} onClose={() => setEditing(null)} />}
       {timeEntry && <CheckInEditor entry={timeEntry} onClose={() => setTimeEntry(null)} />}
+      {jobsFor && (
+        <TodayJobsDialog who={jobsFor.who} name={jobsFor.name} canEdit={canEditJobs} onClose={() => setJobsFor(null)} />
+      )}
     </div>
   );
 }

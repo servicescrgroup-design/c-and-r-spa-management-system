@@ -19,10 +19,17 @@ export default async function SalesPage({ searchParams }: PageProps<"/pos/sales"
   const [branches, working] = await Promise.all([getStaffBranches(), getWorkingBranch()]);
   if (branches.length === 0) redirect("/pos/register");
   const wanted = typeof sp.branchId === "string" ? sp.branchId : null;
+  // "all" shows every store together.
+  const allStores = branches.length > 1 && (wanted === "all" || !wanted || !branches.some((b) => b.id === wanted));
   const branch = branches.find((b) => b.id === wanted) ?? branches.find((b) => b.id === working?.branch.id) ?? branches[0];
   const ctx = await requireStaffContext();
-  const branchId = branch.id;
-  const canEdit = isOwner(ctx) || hasBranchRole(ctx, branchId, ["manager"]);
+  const branchId = allStores ? "all" : branch.id;
+  const branchIds = allStores ? branches.map((b) => b.id) : [branch.id];
+  const branchName = new Map(branches.map((b) => [b.id, b.name]));
+  const canEditBranch = (id: string) => isOwner(ctx) || hasBranchRole(ctx, id, ["manager"]);
+  const canEdit = branchIds.some(canEditBranch);
+  // Earliest first by default; "newest" flips it.
+  const newestFirst = sp.sort === "newest";
   const date = typeof sp.date === "string" && /^\d{4}-\d{2}-\d{2}$/.test(sp.date) ? sp.date : bangkokToday();
 
   const start = new Date(`${date}T00:00:00+07:00`);
@@ -32,20 +39,20 @@ export default async function SalesPage({ searchParams }: PageProps<"/pos/sales"
     supabase
       .from("pos_transactions")
       .select(
-        `id, customer_ref, customer_name, created_at, subtotal_cents, discount_cents, tax_cents, tip_cents, card_fee_cents,
+        `id, branch_id, customer_ref, customer_name, created_at, subtotal_cents, discount_cents, tax_cents, tip_cents, card_fee_cents,
          total_cents, status, customer:customer_id(id, first_name, last_name),
          pos_transaction_items(id, item_type, reference_id, description, duration_minutes, quantity, unit_price_cents,
            discount_cents, total_cents, payout_cents, staff_id, room_id, bed_id, start_at, customer_name, is_add_on,
            completed_at, staff:staff_id(first_name, last_name)),
          pos_payments(method, amount_cents)`,
       )
-      .eq("branch_id", branchId)
+      .in("branch_id", branchIds)
       .is("original_transaction_id", null)
       .gte("created_at", start.toISOString())
       .lt("created_at", end.toISOString())
-      .order("created_at", { ascending: false }),
+      .order("created_at", { ascending: !newestFirst }),
     supabase.from("therapist_profiles").select("staff_id, nickname"),
-    supabase.from("payroll_day_locks").select("work_date").eq("branch_id", branchId).eq("work_date", date),
+    supabase.from("payroll_day_locks").select("branch_id").in("branch_id", branchIds).eq("work_date", date),
   ]);
   const nick = new Map((profiles ?? []).map((p) => [p.staff_id, p.nickname]));
   const txnIds = (txns ?? []).map((t) => t.id);
@@ -59,7 +66,7 @@ export default async function SalesPage({ searchParams }: PageProps<"/pos/sales"
       : { data: [] };
   const editCount = new Map<string, number>();
   for (const e of edits ?? []) editCount.set(e.transaction_id, (editCount.get(e.transaction_id) ?? 0) + 1);
-  const dayLocked = (locks ?? []).length > 0;
+  const lockedBranches = new Set((locks ?? []).map((l) => l.branch_id));
   const allItemIds = (txns ?? []).flatMap((t) => (t.pos_transaction_items ?? []).map((i) => i.id));
   const { data: fees } =
     canEdit && allItemIds.length
@@ -75,7 +82,9 @@ export default async function SalesPage({ searchParams }: PageProps<"/pos/sales"
   const sales: SaleRow[] = (txns ?? []).map((t) => {
     const items = [...(t.pos_transaction_items ?? [])].sort((a, b) => a.id.localeCompare(b.id));
     const payments = t.pos_payments ?? [];
-    const lockedReason = !canEdit
+    const canEditThis = canEditBranch(t.branch_id);
+    const dayLocked = lockedBranches.has(t.branch_id);
+    const lockedReason = !canEditThis
       ? "Only an owner or manager can edit a sale."
       : t.status !== "completed" || refunded.has(t.id)
         ? "This sale was refunded or voided."
@@ -88,6 +97,7 @@ export default async function SalesPage({ searchParams }: PageProps<"/pos/sales"
       i.staff_id ? nick.get(i.staff_id) || i.staff?.first_name || "Therapist" : null;
     return {
       id: t.id,
+      branchName: allStores ? (branchName.get(t.branch_id) ?? null) : null,
       ref: t.customer_ref,
       createdAt: t.created_at,
       customerName: t.customer_name,
@@ -107,7 +117,7 @@ export default async function SalesPage({ searchParams }: PageProps<"/pos/sales"
         payments: payments.map((p) => ({ method: p.method, amountCents: p.amount_cents })),
         lockedReason,
         canDelete:
-          canEdit && !dayLocked && !payments.some((p) => LOCKED_METHODS.has(p.method)),
+          canEditThis && !dayLocked && !payments.some((p) => LOCKED_METHODS.has(p.method)),
         editCount: editCount.get(t.id) ?? 0,
         lines: items.map((i) => ({
           id: i.id,
@@ -143,7 +153,7 @@ export default async function SalesPage({ searchParams }: PageProps<"/pos/sales"
       .select("id, created_at, detail, staff:staff_id(first_name, last_name)")
       .eq("entity_type", "pos_transaction")
       .eq("action", "delete")
-      .eq("branch_id", branchId)
+      .in("branch_id", branchIds)
       .gte("detail->transaction->>created_at", start.toISOString())
       .lt("detail->transaction->>created_at", end.toISOString())
       .order("created_at", { ascending: false });
@@ -177,8 +187,8 @@ export default async function SalesPage({ searchParams }: PageProps<"/pos/sales"
         .from("staff_branch_roles")
         .select("staff_id, branch_id, staff:staff_id(first_name, last_name)")
         .eq("role", "therapist")
-        .or(`branch_id.eq.${branchId},branch_id.is.null`),
-      supabase.from("branch_rooms").select("id, name").eq("branch_id", branchId).order("sort_order").order("name"),
+        .or(`branch_id.in.(${branchIds.join(",")}),branch_id.is.null`),
+      supabase.from("branch_rooms").select("id, name, branch_id").in("branch_id", branchIds).order("sort_order").order("name"),
       supabase.from("room_beds").select("id, room_id, name").order("sort_order").order("name"),
     ]);
     services = (serviceRows ?? []).map((s) => ({
@@ -201,7 +211,8 @@ export default async function SalesPage({ searchParams }: PageProps<"/pos/sales"
       .sort((a, b) => a.name.localeCompare(b.name));
     rooms = (roomRows ?? []).map((r) => ({
       id: r.id,
-      name: r.name,
+      // With both stores shown, say which store a room is in.
+      name: allStores ? `${branchName.get(r.branch_id) ?? ""} · ${r.name}` : r.name,
       beds: (bedRows ?? []).filter((b) => b.room_id === r.id).map((b) => ({ id: b.id, name: b.name })),
     }));
   }
@@ -217,6 +228,7 @@ export default async function SalesPage({ searchParams }: PageProps<"/pos/sales"
         </div>
         <form className="flex items-center gap-2">
           <input type="hidden" name="branchId" value={branchId} />
+          {newestFirst && <input type="hidden" name="sort" value="newest" />}
           <input
             type="date"
             name="date"
@@ -230,12 +242,13 @@ export default async function SalesPage({ searchParams }: PageProps<"/pos/sales"
         </form>
       </div>
 
+      <div className="flex flex-wrap items-center justify-between gap-2">
       {branches.length > 1 && (
         <div className="flex flex-wrap gap-2">
-          {branches.map((b) => (
+          {[{ id: "all", name: "All stores" }, ...branches].map((b) => (
             <Link
               key={b.id}
-              href={`/pos/sales?branchId=${b.id}&date=${date}`}
+              href={`/pos/sales?branchId=${b.id}&date=${date}${newestFirst ? "&sort=newest" : ""}`}
               className={
                 b.id === branchId
                   ? "h-9 rounded-full bg-foreground px-4 text-sm leading-9 text-background"
@@ -248,6 +261,13 @@ export default async function SalesPage({ searchParams }: PageProps<"/pos/sales"
           ))}
         </div>
       )}
+        <Link
+          href={`/pos/sales?branchId=${branchId}&date=${date}${newestFirst ? "" : "&sort=newest"}`}
+          className="h-9 rounded-full bg-muted px-4 text-sm leading-9 hover:bg-secondary"
+        >
+          {newestFirst ? "Newest first ↓" : "Earliest first ↑"}
+        </Link>
+      </div>
 
       <SalesList sales={sales} services={services} therapists={therapists} rooms={rooms} />
 

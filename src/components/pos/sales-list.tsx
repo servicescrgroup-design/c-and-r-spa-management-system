@@ -11,6 +11,8 @@ import { bangkokTime, type DeletedSale, type SaleDetail } from "@/lib/pos/sale-d
 
 export type SaleRow = {
   id: string;
+  /** Set when several stores are shown together. */
+  branchName?: string | null;
   ref: string | null;
   createdAt: string;
   customerName: string | null;
@@ -254,6 +256,11 @@ export function SalesList({ sales, ...choices }: { sales: SaleRow[] } & EditorCh
               <div className="min-w-0">
                 <p className="flex flex-wrap items-center gap-2">
                   <span className="rounded-md bg-muted px-2 py-0.5 font-mono text-xs tabular-nums">{s.ref ?? "—"}</span>
+                  {s.branchName && (
+                    <span className="rounded-full bg-accent/10 px-2 py-0.5 text-[11px] text-accent" data-no-translate>
+                      {s.branchName}
+                    </span>
+                  )}
                   <span className={cn("font-medium", !label && "text-muted-foreground")} data-no-translate={label ? true : undefined}>
                     {label ?? "No name"}
                   </span>

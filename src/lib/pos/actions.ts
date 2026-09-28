@@ -249,8 +249,10 @@ export async function checkoutSale(input: {
     ? await supabase
         .from("therapist_clock_sessions")
         // A therapist has one check-in a day, at either store, and the queue is shared.
+        // Only today's: a check-in left open from yesterday must not take today's massages.
         .select("id, staff_id, status, active_item_id, staff:staff_id(first_name)")
         .in("staff_id", staffIds)
+        .eq("work_date", new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Bangkok" }).format(new Date()))
         .is("clock_out_at", null)
     : { data: [] };
   const sessionByStaff = new Map((openSessions ?? []).map((sess) => [sess.staff_id, sess]));

@@ -3,9 +3,12 @@ import { getStaffBranches } from "@/lib/pos/session";
 import { getCombinedQueueData } from "@/lib/pos/queue-actions";
 import { getFreelanceSessions } from "@/lib/pos/sale-actions";
 import { QueueBoard } from "@/components/pos/queue-board";
+import { requireStaffContext } from "@/lib/auth/session";
+import { isOwner } from "@/lib/auth/roles";
 
 export default async function QueuePage() {
-  const branches = await getStaffBranches();
+  const [branches, ctx] = await Promise.all([getStaffBranches(), requireStaffContext()]);
+  const canEditJobs = isOwner(ctx) || ctx.roles.some((r) => r.role === "manager");
 
   if (branches.length === 0) {
     return <p className="text-sm text-muted-foreground">You are not assigned to any branch yet.</p>;
@@ -39,6 +42,7 @@ export default async function QueuePage() {
         candidates={candidates}
         freelancers={freelancerLists.flat()}
         services={services ?? []}
+        canEditJobs={canEditJobs}
       />
     </div>
   );
