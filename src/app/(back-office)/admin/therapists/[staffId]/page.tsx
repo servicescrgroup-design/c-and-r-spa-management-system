@@ -41,11 +41,16 @@ export default async function TherapistDetailPage({ params, searchParams }: Page
 
       <section className="space-y-4">
         <EarningsRange basePath={`/admin/therapists/${staffId}`} active={range.key} from={range.from} to={range.to} />
-        <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+        <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
           {[
             { label: "Massages", value: String(summary.jobs), sub: `${hours(summary.minutes)} hours` },
             { label: "Sales they brought in", value: formatCents(summary.saleCents), sub: range.label },
             { label: "Their pay (ค่ามือ)", value: formatCents(summary.payoutCents), sub: "before guarantee top-ups" },
+            {
+              label: "Net pay",
+              value: formatCents(summary.payoutCents + extras),
+              sub: extras ? `includes ${formatCents(extras)} transport and OT` : "their pay + transport + OT",
+            },
             {
               label: "Shop keeps",
               value: formatCents(keeps),

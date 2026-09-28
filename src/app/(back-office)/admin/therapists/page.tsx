@@ -31,12 +31,13 @@ export default async function TherapistsPage({ searchParams }: PageProps<"/admin
 
       <EarningsRange basePath="/admin/therapists" active={range.key} from={range.from} to={range.to} />
 
-      <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+      <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
         {[
           { label: "Massages", value: String(total.jobs), sub: `${hours(total.minutes)} hours` },
           { label: "Sales from massages", value: formatCents(total.sale), sub: range.label },
           { label: "Therapist pay (ค่ามือ)", value: formatCents(total.pay), sub: "before guarantee top-ups" },
           { label: "Transport + OT", value: formatCents(total.transport), sub: "paid with payroll" },
+          { label: "Net pay", value: formatCents(total.pay + total.transport), sub: "their pay + transport + OT" },
         ].map((b) => (
           <div key={b.label} className="rounded-[18px] bg-card p-4 ring-1 ring-black/[0.05] dark:ring-white/[0.08]">
             <p className="text-xs font-medium text-muted-foreground">{b.label}</p>
@@ -47,7 +48,7 @@ export default async function TherapistsPage({ searchParams }: PageProps<"/admin
       </div>
 
       <div className="overflow-x-auto rounded-[18px] bg-card ring-1 ring-black/[0.05] dark:ring-white/[0.08]">
-        <table className="w-full min-w-[760px] text-sm">
+        <table className="w-full min-w-[880px] text-sm">
           <thead className="bg-muted/60 text-left text-xs text-muted-foreground">
             <tr>
               <th className="px-4 py-2.5 font-medium">Therapist</th>
@@ -56,6 +57,7 @@ export default async function TherapistsPage({ searchParams }: PageProps<"/admin
               <th className="px-4 py-2.5 text-right font-medium">Sales</th>
               <th className="px-4 py-2.5 text-right font-medium">Their pay</th>
               <th className="px-4 py-2.5 text-right font-medium">Transport + OT</th>
+              <th className="bg-primary/5 px-4 py-2.5 text-right font-medium text-foreground">Net pay</th>
               <th className="px-4 py-2.5 text-right font-medium">Shop keeps</th>
               <th className="px-4 py-2.5" />
             </tr>
@@ -78,6 +80,9 @@ export default async function TherapistsPage({ searchParams }: PageProps<"/admin
                 <td className="px-4 py-3 text-right tabular-nums text-muted-foreground">
                   {s.transportCents + s.otCents ? formatCents(s.transportCents + s.otCents) : "—"}
                 </td>
+                <td className="bg-primary/5 px-4 py-3 text-right font-semibold tabular-nums">
+                  {formatCents(s.payoutCents + s.transportCents + s.otCents)}
+                </td>
                 <td className="px-4 py-3 text-right tabular-nums">{formatCents(s.saleCents - s.payoutCents - s.transportCents - s.otCents)}</td>
                 <td className="px-4 py-3 text-right">
                   <Link
@@ -91,16 +96,32 @@ export default async function TherapistsPage({ searchParams }: PageProps<"/admin
             ))}
             {summaries.length === 0 && (
               <tr>
-                <td colSpan={8} className="px-4 py-6 text-center text-muted-foreground">
+                <td colSpan={9} className="px-4 py-6 text-center text-muted-foreground">
                   No therapists set up yet.
                 </td>
               </tr>
             )}
           </tbody>
+          {summaries.length > 0 && (
+            <tfoot className="border-t-2 border-border font-semibold">
+              <tr>
+                <td className="px-4 py-2.5">Total</td>
+                <td className="px-4 py-2.5 text-right tabular-nums">{total.jobs}</td>
+                <td className="px-4 py-2.5 text-right tabular-nums">{hours(total.minutes)}</td>
+                <td className="px-4 py-2.5 text-right tabular-nums">{formatCents(total.sale)}</td>
+                <td className="px-4 py-2.5 text-right tabular-nums">{formatCents(total.pay)}</td>
+                <td className="px-4 py-2.5 text-right tabular-nums">{formatCents(total.transport)}</td>
+                <td className="bg-primary/10 px-4 py-2.5 text-right tabular-nums">{formatCents(total.pay + total.transport)}</td>
+                <td className="px-4 py-2.5 text-right tabular-nums">{formatCents(total.sale - total.pay - total.transport)}</td>
+                <td />
+              </tr>
+            </tfoot>
+          )}
         </table>
       </div>
       <p className="text-xs text-muted-foreground">
-        Counted by when each massage finished, the same as Payroll. Sales are after discounts. Guarantee top-ups, bonuses and
+        Counted by when each massage finished, the same as Payroll. Sales are after discounts. Net pay is their pay (ค่ามือ) plus
+        transport and OT. Guarantee top-ups, bonuses and
         deductions are on the Payroll page.
       </p>
     </div>
