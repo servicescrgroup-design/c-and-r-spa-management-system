@@ -15,7 +15,7 @@ const time = (iso: string | null) =>
 const METHOD: Record<string, string> = {
   cash: "Cash",
   promptpay: "PromptPay",
-  bank_transfer: "Bank transfer",
+  bank_transfer: "PromptPay / transfer",
   card_manual: "Card",
   card_stripe: "Online card",
   gift_card: "Gift card",
@@ -491,9 +491,8 @@ export function DailyReportView({ report, salesHref }: { report: DailyReport; sa
         hint="Match these against the drawer, the PromptPay app and the card machine."
       >
         <Row label="Cash" value={formatCents(r.payments.cash)} />
-        <Row label="PromptPay" value={formatCents(r.payments.promptpay)} />
+        <Row label="PromptPay / transfer" value={formatCents(r.payments.promptpay + r.payments.bankTransfer)} />
         <Row label="Credit card" value={formatCents(r.payments.card)} />
-        {r.payments.bankTransfer > 0 && <Row label="Bank transfer" value={formatCents(r.payments.bankTransfer)} />}
         {r.payments.other > 0 && <Row label="Gift card, credit and packages" value={formatCents(r.payments.other)} />}
       </Section>
 

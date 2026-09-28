@@ -20,7 +20,7 @@ import { BookingDepositSection } from "@/components/admin/booking-deposit-sectio
 const PAYMENT_OPTIONS = [
   { value: "cash", label: "Cash" },
   { value: "promptpay", label: "PromptPay" },
-  { value: "bank_transfer", label: "Bank transfer" },
+  { value: "bank_transfer", label: "PromptPay / transfer" },
   { value: "card_manual", label: "Card" },
 ] as const;
 

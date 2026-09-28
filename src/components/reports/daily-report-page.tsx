@@ -28,8 +28,9 @@ function StoreComparison({ reports, total }: { reports: DailyReport[]; total: Da
     },
     { label: "Net profit", value: (r) => r.totals.netProfitCents, tone: "result", strong: true },
     { label: "Cash", value: (r) => r.payments.cash, tone: "muted" },
-    { label: "PromptPay", value: (r) => r.payments.promptpay, tone: "muted" },
+    { label: "PromptPay / transfer", value: (r) => r.payments.promptpay + r.payments.bankTransfer, tone: "muted" },
     { label: "Card", value: (r) => r.payments.card, tone: "muted" },
+    { label: "Gift card, credit, packages", value: (r) => r.payments.other, tone: "muted" },
   ];
   return (
     <div className="print-break-inside-avoid overflow-x-auto rounded-[18px] bg-card ring-1 ring-black/[0.06] dark:ring-white/[0.08]">

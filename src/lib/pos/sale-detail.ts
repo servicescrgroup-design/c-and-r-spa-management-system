@@ -58,7 +58,7 @@ export type SaleGroup = { main: SaleLine; addOns: SaleLine[] };
 
 export const PAYMENT_LABELS: Record<string, string> = {
   cash: "Cash",
-  bank_transfer: "Bank transfer",
+  bank_transfer: "PromptPay / transfer",
   promptpay: "PromptPay",
   card_manual: "Card",
   card_stripe: "Online card",

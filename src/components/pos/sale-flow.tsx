@@ -28,7 +28,7 @@ type Room = { id: string; name: string };
 const PAYMENT_METHODS: { value: SalePayment["method"]; label: string }[] = [
   { value: "cash", label: "Cash" },
   { value: "promptpay", label: "PromptPay" },
-  { value: "bank_transfer", label: "Bank transfer" },
+  { value: "bank_transfer", label: "PromptPay / transfer" },
   { value: "card_manual", label: "Card" },
 ];
 

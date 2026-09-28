@@ -1472,4 +1472,8 @@ export const TH: Record<string, string> = {
   "Every bill from both stores, with what each massage cost and what the shop kept. Open a bill to edit it, see its history or delete it.": "ทุกบิลจากทั้งสองสาขา พร้อมต้นทุนแต่ละการนวดและกำไรของร้าน เปิดบิลเพื่อแก้ไข ดูประวัติ หรือลบ",
   "Net pay": "ค่าแรงสุทธิ",
   "their pay + transport + OT": "ค่ามือ + ค่าเดินทาง + OT",
+  "PromptPay / transfer": "พร้อมเพย์ / โอน",
+  "Gift card, credit, packages": "บัตรของขวัญ เครดิต แพ็กเกจ",
+  "One bill": "บิลเดียว",
+  "Separate bills": "แยกบิล",
 };

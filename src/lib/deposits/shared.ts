@@ -5,7 +5,7 @@ export type DepositMethod = Enums<"pos_payment_method">;
 export const DEPOSIT_METHODS: { value: DepositMethod; label: string }[] = [
   { value: "cash", label: "Cash" },
   { value: "promptpay", label: "PromptPay" },
-  { value: "bank_transfer", label: "Bank transfer" },
+  { value: "bank_transfer", label: "PromptPay / transfer" },
   { value: "card_manual", label: "Card" },
 ];
 

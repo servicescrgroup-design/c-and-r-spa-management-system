@@ -49,7 +49,7 @@ type PaymentRow = { method: PaymentMethod; amount: string };
 
 const PAYMENT_LABELS: Record<PaymentMethod, string> = {
   cash: "Cash",
-  bank_transfer: "Bank transfer",
+  bank_transfer: "PromptPay / transfer",
   card_manual: "Credit card",
 };
 
@@ -183,7 +183,14 @@ export function CheckoutCart({
   const [payments, setPayments] = useState<PaymentRow[]>([{ method: "cash", amount: "0" }]);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
-  const [receipt, setReceipt] = useState<{ total: number; ref: string | null } | null>(null);
+  const [receipt, setReceipt] = useState<{
+    total: number;
+    ref: string | null;
+    bills?: { ref: string | null; totalCents: number; method: PaymentMethod }[];
+  } | null>(null);
+  // Separate bills: each cart line is paid on its own bill, with its own payment method.
+  const [separate, setSeparate] = useState(false);
+  const [lineMethods, setLineMethods] = useState<PaymentMethod[]>([]);
   const [showGiftCard, setShowGiftCard] = useState(false);
 
   const categoryColor = useMemo(() => new Map(categories.map((c) => [c.id, c.background_color])), [categories]);
@@ -282,6 +289,7 @@ export function CheckoutCart({
 
   function removeItem(index: number) {
     setCart((prev) => prev.filter((_, i) => i !== index));
+    setLineMethods((prev) => prev.filter((_, i) => i !== index));
     // Add-ons follow their massage: drop the removed line's, shift the rest.
     setAddOns((prev) =>
       prev.filter((a) => a.lineIndex !== index).map((a) => (a.lineIndex > index ? { ...a, lineIndex: a.lineIndex - 1 } : a)),
@@ -345,9 +353,105 @@ export function CheckoutCart({
     setCardFeeDollars(((afterDiscountCents * pct) / 100 / 100).toFixed(2));
   }
 
+  /** Each cart line (with its add-ons) as its own bill. Discount, tax, tip and card fee are shared by each bill's share of the subtotal. */
+  function splitBills() {
+    const lineSubs = cart.map(
+      (item, i) => item.unitPriceCents * item.quantity + addOns.filter((a) => a.lineIndex === i).reduce((n, a) => n + a.priceCents, 0),
+    );
+    const share = (whole: number) => {
+      let left = whole;
+      return lineSubs.map((sub, i) => {
+        if (i === lineSubs.length - 1) return left;
+        const part = subtotalCents ? Math.round((whole * sub) / subtotalCents) : 0;
+        left -= part;
+        return part;
+      });
+    };
+    const discounts = share(discountCents);
+    const taxes = share(taxCents);
+    const tips = share(tipCents);
+    const fees = share(cardFeeCents);
+    return cart.map((item, i) => {
+      const totalCents = lineSubs[i] - discounts[i] + taxes[i] + tips[i] + fees[i];
+      return {
+        item,
+        addOns: addOns.filter((a) => a.lineIndex === i).map((a) => ({ ...a, lineIndex: 0 })),
+        discountCents: discounts[i],
+        taxCents: taxes[i],
+        tipCents: tips[i],
+        cardFeeCents: fees[i],
+        totalCents,
+        method: lineMethods[i] ?? "cash",
+      };
+    });
+  }
+
+  function resetCart() {
+    setCart([]);
+    setAddOns([]);
+    setLineMethods([]);
+    setDiscountValue("");
+    setDiscountReason("");
+    setPlacingLine(null);
+    setCustomerId("");
+    setCustomerName("");
+    setPayments([{ method: "cash", amount: "0" }]);
+    setCardFeeDollars("0");
+  }
+
+  async function handleSeparateCheckout() {
+    const bills = splitBills();
+    const done: { ref: string | null; totalCents: number; method: PaymentMethod }[] = [];
+    for (let i = 0; i < bills.length; i++) {
+      const b = bills[i];
+      const result = await checkoutSale({
+        branchId,
+        drawerSessionId,
+        items: [b.item],
+        taxCents: b.taxCents,
+        tipCents: b.tipCents,
+        cardFeeCents: b.cardFeeCents,
+        payments: [{ method: b.method, amountCents: b.totalCents }],
+        customerId: customerId || null,
+        customerName: customerId ? null : customerName.trim() || null,
+        addOns: b.addOns,
+        discountCents: b.discountCents,
+        discountType: discountMode,
+        discountValue: discountInput,
+        discountReason,
+      }).catch(() => ({ ok: false as const, error: "Couldn't save. Try again." }));
+      if (!result.ok) {
+        // Keep only the lines that weren't charged, so nothing is billed twice.
+        if (done.length > 0) {
+          setCart((prev) => prev.slice(i));
+          setLineMethods((prev) => prev.slice(i));
+          setAddOns((prev) => prev.filter((a) => a.lineIndex >= i).map((a) => ({ ...a, lineIndex: a.lineIndex - i })));
+          router.refresh();
+        }
+        setError(
+          done.length > 0
+            ? `${done.length} bill${done.length === 1 ? "" : "s"} saved (${done.map((d) => d.ref ?? "no code").join(", ")}). The rest failed: ${result.error}`
+            : result.error,
+        );
+        return;
+      }
+      done.push({ ref: result.customerRef ?? null, totalCents: b.totalCents, method: b.method });
+    }
+    setReceipt({ total: done.reduce((n, d) => n + d.totalCents, 0), ref: null, bills: done });
+    resetCart();
+    router.refresh();
+  }
+
   async function handleCheckout() {
     if (hasPackageInCart && !customerId) {
       setError("Select a customer before selling a package.");
+      return;
+    }
+    if (separate && cart.length > 1) {
+      setLoading(true);
+      setError(null);
+      await handleSeparateCheckout();
+      setLoading(false);
       return;
     }
     setLoading(true);
@@ -377,15 +481,7 @@ export function CheckoutCart({
       return;
     }
     setReceipt({ total: totalCents, ref: result.customerRef ?? null });
-    setCart([]);
-    setAddOns([]);
-    setDiscountValue("");
-    setDiscountReason("");
-    setPlacingLine(null);
-    setCustomerId("");
-    setCustomerName("");
-    setPayments([{ method: "cash", amount: "0" }]);
-    setCardFeeDollars("0");
+    resetCart();
     router.refresh();
   }
 
@@ -398,6 +494,17 @@ export function CheckoutCart({
           </CardHeader>
           <CardContent className="space-y-4">
             <p className="text-3xl font-semibold">{formatCents(receipt.total)}</p>
+            {receipt.bills && (
+              <ul className="divide-y divide-border rounded-xl bg-muted/50 text-sm">
+                {receipt.bills.map((b, k) => (
+                  <li key={k} className="flex justify-between gap-3 px-3 py-2">
+                    <span className="tabular-nums">{b.ref ?? `Bill ${k + 1}`}</span>
+                    <span className="text-muted-foreground">{PAYMENT_LABELS[b.method]}</span>
+                    <span className="font-medium tabular-nums">{formatCents(b.totalCents)}</span>
+                  </li>
+                ))}
+              </ul>
+            )}
             {receipt.ref && (
               <p className="text-sm text-muted-foreground">
                 Saved as <span className="font-medium text-foreground tabular-nums">{receipt.ref}</span>. Add a name
@@ -431,7 +538,9 @@ export function CheckoutCart({
     payments.length === 1
       ? totalCents
       : payments.reduce((sum, p) => sum + Math.round((Number(p.amount) || 0) * 100), 0);
-  const paymentsBalanced = paidCents === totalCents;
+  const splitting = separate && cart.length > 1;
+  const paymentsBalanced = splitting || paidCents === totalCents;
+  const billTotals = splitting ? splitBills().map((b) => b.totalCents) : [];
 
   return (
     <div className="grid gap-6 lg:grid-cols-3">
@@ -648,10 +757,35 @@ export function CheckoutCart({
       )}
 
       <Card id="cart" className="h-fit scroll-mt-16 lg:sticky lg:top-16 lg:self-start">
-        <CardHeader>
+        <CardHeader className="flex flex-row items-center justify-between gap-3 space-y-0">
           <CardTitle>Cart</CardTitle>
+          <div className="flex rounded-full bg-muted p-0.5 text-xs" role="group" aria-label="Bills">
+            {[
+              { on: false, label: "One bill" },
+              { on: true, label: "Separate bills" },
+            ].map((o) => (
+              <button
+                key={o.label}
+                type="button"
+                aria-pressed={separate === o.on}
+                onClick={() => setSeparate(o.on)}
+                className={cn(
+                  "rounded-full px-3 py-1",
+                  separate === o.on ? "bg-card font-medium shadow-[0_1px_3px_rgba(0,0,0,0.12)]" : "text-muted-foreground",
+                )}
+              >
+                {o.label}
+              </button>
+            ))}
+          </div>
         </CardHeader>
         <CardContent className="space-y-4">
+          {separate && (
+            <p className="rounded-lg bg-primary/5 px-3 py-2 text-xs text-muted-foreground">
+              Each massage or item is its own bill with its own payment. Discount, tax, tip and card fee are shared by each bill&apos;s
+              part of the subtotal.
+            </p>
+          )}
           <div className="space-y-2">
             {cart.map((item, i) => (
               <div key={i} className="space-y-1.5 border-b border-border pb-2 text-sm last:border-0">
@@ -669,6 +803,30 @@ export function CheckoutCart({
                     </button>
                   </div>
                 </div>
+                {splitting && (
+                  <div className="flex items-center justify-between gap-2 rounded-lg bg-primary/5 px-2 py-1.5 text-xs">
+                    <span className="font-medium">Bill {i + 1} pays by</span>
+                    <select
+                      value={lineMethods[i] ?? "cash"}
+                      onChange={(e) =>
+                        setLineMethods((prev) => {
+                          const next = [...prev];
+                          next[i] = e.target.value as PaymentMethod;
+                          return next;
+                        })
+                      }
+                      aria-label={`Bill ${i + 1} payment method`}
+                      className="h-8 rounded-full border border-border bg-card px-2"
+                    >
+                      {(Object.keys(PAYMENT_LABELS) as PaymentMethod[]).map((m) => (
+                        <option key={m} value={m}>
+                          {PAYMENT_LABELS[m]}
+                        </option>
+                      ))}
+                    </select>
+                    <span className="font-semibold tabular-nums">{formatCents(billTotals[i] ?? 0)}</span>
+                  </div>
+                )}
                 {addOns
                   .filter((a) => a.lineIndex === i)
                   .map((a, j) => (
@@ -1052,7 +1210,7 @@ export function CheckoutCart({
             </div>
           </div>
 
-          <PaymentRowsEditor rows={payments} setRows={setPayments} totalCents={totalCents} />
+          {!splitting && <PaymentRowsEditor rows={payments} setRows={setPayments} totalCents={totalCents} />}
 
           <div className="space-y-1 border-t border-border pt-3 text-sm">
             <div className="flex justify-between">
@@ -1122,7 +1280,7 @@ export function CheckoutCart({
             disabled={cart.length === 0 || loading || !paymentsBalanced}
             onClick={handleCheckout}
           >
-            {loading ? "Charging..." : "Take payment"}
+            {loading ? "Charging..." : splitting ? `Take payment · ${cart.length} bills` : "Take payment"}
           </Button>
         </CardContent>
       </Card>
