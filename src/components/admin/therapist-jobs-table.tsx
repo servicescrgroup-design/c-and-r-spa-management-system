@@ -120,7 +120,7 @@ export function TherapistJobsTable({ jobs, canEdit }: { jobs: TherapistJob[]; ca
         </div>
       )}
       <div className="overflow-x-auto rounded-[18px] bg-card ring-1 ring-black/[0.05] dark:ring-white/[0.08]">
-        <table className="w-full min-w-[820px] text-sm">
+        <table className="w-full min-w-[900px] text-sm">
           <thead className="bg-muted/60 text-left text-xs text-muted-foreground">
             <tr>
               <th className="px-4 py-2.5 font-medium">Day / time</th>
@@ -130,6 +130,7 @@ export function TherapistJobsTable({ jobs, canEdit }: { jobs: TherapistJob[]; ca
               <th className="px-3 py-2.5 text-right font-medium">Their pay</th>
               <th className="px-3 py-2.5 text-right font-medium">Transport</th>
               <th className="px-3 py-2.5 text-right font-medium">OT</th>
+              <th className="px-4 py-2.5 text-right font-medium text-foreground">Total pay</th>
             </tr>
           </thead>
           <tbody>
@@ -153,6 +154,7 @@ export function TherapistJobsTable({ jobs, canEdit }: { jobs: TherapistJob[]; ca
                     <td className={cn(TD, "tabular-nums")}>{formatCents(t.pay)}</td>
                     <td className={cn(TD, "tabular-nums")}>{formatCents(t.transport)}</td>
                     <td className={cn(TD, "tabular-nums")}>{formatCents(t.ot)}</td>
+                    <td className="bg-primary/5 px-4 py-2.5 text-right font-semibold tabular-nums">{formatCents(t.pay + t.transport + t.ot)}</td>
                   </tr>
                   {isOpen &&
                     list.map((j) => {
@@ -191,6 +193,9 @@ export function TherapistJobsTable({ jobs, canEdit }: { jobs: TherapistJob[]; ca
                           <td className="px-3 py-2 text-right">
                             <Cell cents={j.otCents} disabled={locked} onSave={(c) => save(j, "otCents", c)} />
                           </td>
+                          <td className="bg-primary/5 px-4 py-2 text-right font-medium tabular-nums">
+                            {formatCents(j.payoutCents + j.transportCents + j.drawerTransportCents + j.otCents)}
+                          </td>
                         </tr>
                       );
                     })}
@@ -199,7 +204,7 @@ export function TherapistJobsTable({ jobs, canEdit }: { jobs: TherapistJob[]; ca
             })}
             {jobs.length === 0 && (
               <tr>
-                <td colSpan={7} className="px-4 py-6 text-center text-muted-foreground">
+                <td colSpan={8} className="px-4 py-6 text-center text-muted-foreground">
                   No finished massages in this period.
                 </td>
               </tr>
@@ -215,6 +220,7 @@ export function TherapistJobsTable({ jobs, canEdit }: { jobs: TherapistJob[]; ca
                 <td className={cn(TD, "tabular-nums")}>{formatCents(all.pay)}</td>
                 <td className={cn(TD, "tabular-nums")}>{formatCents(all.transport)}</td>
                 <td className={cn(TD, "tabular-nums")}>{formatCents(all.ot)}</td>
+                <td className="bg-primary/10 px-4 py-2.5 text-right tabular-nums">{formatCents(all.pay + all.transport + all.ot)}</td>
               </tr>
             </tfoot>
           )}
