@@ -335,7 +335,125 @@ export function QueueBoard({
 
         {error && <p className="rounded-xl bg-destructive/10 p-3 text-sm text-destructive">{error}</p>}
 
-        <div className="overflow-x-auto rounded-[18px] bg-card ring-1 ring-black/[0.05] dark:ring-white/[0.08]">
+        {/* Phones: one card per therapist, big touch targets, no sideways scrolling. */}
+        <ul className="space-y-2 md:hidden">
+          {shown.map((q) => {
+            const color = branchColor.get(q.branchId) ?? "#8e8e93";
+            return (
+              <li key={q.sessionId} className="space-y-3 rounded-2xl bg-card p-3.5 ring-1 ring-black/[0.05] dark:ring-white/[0.08]">
+                <div className="flex items-start gap-3">
+                  <div className="flex flex-col items-center">
+                    <button
+                      type="button"
+                      aria-label="Move up in queue"
+                      disabled={busy === "reorder" || q.queueNumber === 1}
+                      onClick={() => move(q, -1)}
+                      className="flex h-7 w-9 items-center justify-center text-muted-foreground disabled:opacity-30"
+                    >
+                      ▲
+                    </button>
+                    <span className="text-lg font-semibold tabular-nums">{q.queueNumber}</span>
+                    <button
+                      type="button"
+                      aria-label="Move down in queue"
+                      disabled={busy === "reorder" || q.queueNumber === order.length}
+                      onClick={() => move(q, 1)}
+                      className="flex h-7 w-9 items-center justify-center text-muted-foreground disabled:opacity-30"
+                    >
+                      ▼
+                    </button>
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <button
+                      type="button"
+                      onClick={() => setEditing({ staffId: q.staffId, name: q.nickname ? `${q.nickname} (${q.name})` : q.name })}
+                      className="text-left text-[17px] font-semibold"
+                      data-no-translate
+                    >
+                      {q.nickname ?? q.name}
+                    </button>
+                    <p className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                      <span className="size-2 rounded-full" style={{ background: color }} />
+                      <span data-no-translate>{branchName.get(q.branchId)}</span>
+                    </p>
+                    <p className="mt-1 text-xs text-muted-foreground">
+                      In at{" "}
+                      <button type="button" onClick={() => setTimeEntry(q)} className="font-medium text-foreground underline decoration-dotted underline-offset-4">
+                        {clock(q.clockInAt)}
+                      </button>
+                      {" · "}
+                      <button
+                        type="button"
+                        onClick={() => setJobsFor({ who: { staffId: q.staffId }, name: q.nickname || q.name })}
+                        className="font-medium text-foreground underline decoration-dotted underline-offset-4"
+                      >
+                        {q.jobsToday} job{q.jobsToday === 1 ? "" : "s"}
+                      </button>
+                    </p>
+                  </div>
+                  <div className="flex flex-col items-end">
+                    <select
+                      aria-label="Status"
+                      value={q.status}
+                      onChange={(e) => run(q.sessionId, () => setTherapistStatus(q.branchId, q.sessionId, e.target.value as Status))}
+                      className={cn("h-9 rounded-full border-0 px-3 text-xs font-medium", STATUS_STYLE[q.status])}
+                    >
+                      {(Object.keys(STATUS_LABEL) as Status[]).map((st) => (
+                        <option key={st} value={st}>
+                          {STATUS_LABEL[st]}
+                        </option>
+                      ))}
+                    </select>
+                    {q.endsAt && <EndsAt iso={q.endsAt} />}
+                    {q.nextBookedAt && <p className="mt-0.5 text-[11px] font-medium text-accent">Next walk-in {clock(q.nextBookedAt)}</p>}
+                  </div>
+                </div>
+                <div className="flex gap-2">
+                  {q.status === "in_service" && (
+                    <Button
+                      type="button"
+                      className="h-11 flex-1"
+                      disabled={busy === q.sessionId}
+                      onClick={() => run(q.sessionId, () => completeJob(q.branchId, q.sessionId))}
+                    >
+                      Complete job
+                    </Button>
+                  )}
+                  <Button
+                    type="button"
+                    variant="secondary"
+                    className="h-11 flex-1"
+                    disabled={busy === q.sessionId}
+                    onClick={() => run(q.sessionId, () => clockOut(q.branchId, q.sessionId))}
+                  >
+                    Clock out
+                  </Button>
+                  {q.jobsToday === 0 && q.status !== "in_service" && (
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      className="h-11"
+                      disabled={busy === q.sessionId}
+                      onClick={() => {
+                        if (!confirm(`Remove ${q.nickname ?? q.name}'s check-in? You can check them in again afterwards.`)) return;
+                        void run(q.sessionId, () => removeCheckIn(q.branchId, q.sessionId));
+                      }}
+                    >
+                      Remove
+                    </Button>
+                  )}
+                </div>
+              </li>
+            );
+          })}
+          {shown.length === 0 && (
+            <li className="rounded-2xl bg-card p-6 text-center text-sm text-muted-foreground">
+              No one is checked in yet. Check therapists in below.
+            </li>
+          )}
+        </ul>
+
+        <div className="hidden overflow-x-auto rounded-[18px] bg-card ring-1 ring-black/[0.05] dark:ring-white/[0.08] md:block">
           <table className="w-full min-w-[760px] text-sm">
             <thead>
               <tr className="border-b border-border text-left text-xs text-muted-foreground">

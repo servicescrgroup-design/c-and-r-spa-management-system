@@ -17,7 +17,10 @@ export default async function AdminLayout({ children }: LayoutProps<"/admin">) {
     <div className="flex min-h-svh flex-1 flex-col" data-i18n-pending={locale === "th" ? "" : undefined}>
       <AutoTranslate locale={locale} />
       <AdminNav userLabel={ctx.firstName || ctx.email} isOwner={isOwner(ctx)} locale={locale} />
-      <main className="mx-auto w-full max-w-[1280px] flex-1 px-4 pb-16 pt-8 sm:px-6 sm:pt-10">{children}</main>
+      {/* Room for the sidebar on wide screens and the tab bar on phones. */}
+      <div className="flex-1 lg:pl-60">
+        <main className="mx-auto w-full max-w-[1200px] px-4 pb-28 pt-6 sm:px-6 sm:pt-8 lg:pb-16">{children}</main>
+      </div>
     </div>
   );
 }

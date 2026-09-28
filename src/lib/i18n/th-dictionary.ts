@@ -1452,4 +1452,12 @@ export const TH: Record<string, string> = {
   "Day / time": "วัน / เวลา",
   "Expand all": "เปิดทั้งหมด",
   "Collapse all": "ย่อทั้งหมด",
+  "People": "พนักงาน",
+  "Menu & bookings": "เมนูและการจอง",
+  "Money": "การเงิน",
+  "Setup": "ตั้งค่า",
+  "More": "เพิ่มเติม",
+  "Spa": "สปา",
+  "In at": "เข้างาน",
+  "No one is checked in yet. Check therapists in below.": "ยังไม่มีใครเช็คอิน เช็คอินหมอนวดด้านล่าง",
 };

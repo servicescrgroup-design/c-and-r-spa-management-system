@@ -624,7 +624,23 @@ export function CheckoutCart({
 
       </div>
 
-      <Card className="h-fit lg:sticky lg:top-16 lg:self-start">
+      {/* Phones and tablets: the cart sits below the menu, so keep its total in reach. */}
+      {cart.length > 0 && (
+        <a
+          href="#cart"
+          className="fixed inset-x-3 z-30 flex items-center justify-between gap-3 rounded-2xl bg-primary px-4 py-3 text-primary-foreground shadow-lg lg:hidden"
+          style={{ bottom: "calc(4rem + env(safe-area-inset-bottom))" }}
+        >
+          <span className="text-sm font-medium">
+            Cart · {cart.reduce((n, c) => n + c.quantity, 0)} item{cart.reduce((n, c) => n + c.quantity, 0) === 1 ? "" : "s"}
+          </span>
+          <span className="flex items-center gap-2 font-semibold tabular-nums">
+            {formatCents(totalCents)} <span aria-hidden>›</span>
+          </span>
+        </a>
+      )}
+
+      <Card id="cart" className="h-fit scroll-mt-16 lg:sticky lg:top-16 lg:self-start">
         <CardHeader>
           <CardTitle>Cart</CardTitle>
         </CardHeader>

@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { ViewSwitcher } from "@/components/view-switcher";
@@ -44,6 +45,9 @@ const TABS = [
   },
 ];
 
+/** Phones and tablets: the four pages used all day in the tab bar, the rest under More. */
+const PRIMARY = ["/pos/queue", "/pos/checkout", "/pos/sales", "/pos/checklist"];
+
 function TabIcon({ children }: { children: React.ReactNode }) {
   return (
     <svg aria-hidden viewBox="0 0 20 20" className="size-6" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round">
@@ -68,6 +72,14 @@ export function PosNav({
   closeShiftHref: string | null;
 }) {
   const pathname = usePathname();
+  const [moreOpen, setMoreOpen] = useState(false);
+  const [lastPath, setLastPath] = useState(pathname);
+  if (lastPath !== pathname) {
+    setLastPath(pathname);
+    setMoreOpen(false);
+  }
+  const secondary = TABS.filter((t) => !PRIMARY.includes(t.href));
+  const inMore = secondary.some((t) => pathname.startsWith(t.href)) || pathname.startsWith("/pos/drawer");
 
   return (
     <>
@@ -92,7 +104,7 @@ export function PosNav({
             </div>
           </div>
 
-          <nav aria-label="POS sections" className="hidden rounded-full bg-muted p-0.5 sm:flex">
+          <nav aria-label="POS sections" className="hidden rounded-full bg-muted p-0.5 lg:flex">
             {TABS.map((tab) => {
               const active = pathname.startsWith(tab.href);
               return (
@@ -120,29 +132,83 @@ export function PosNav({
         </div>
       </header>
 
-      {/* Phones get an iOS-style tab bar within thumb reach. */}
+      {/* Phones and tablets: an iOS-style tab bar within thumb reach. */}
       <nav
         aria-label="POS sections"
-        className="glass-bar fixed inset-x-0 bottom-0 z-40 flex border-t border-black/5 pb-[env(safe-area-inset-bottom)] sm:hidden dark:border-white/10"
+        className="glass-bar fixed inset-x-0 bottom-0 z-40 border-t border-black/5 pb-[env(safe-area-inset-bottom)] lg:hidden dark:border-white/10"
       >
-        {TABS.map((tab) => {
-          const active = pathname.startsWith(tab.href);
-          return (
-            <Link
-              key={tab.href}
-              href={tab.href}
-              aria-current={active ? "page" : undefined}
-              className={cn(
-                "flex flex-1 flex-col items-center gap-0.5 pb-1.5 pt-2 text-[10px] font-medium",
-                active ? "text-primary" : "text-muted-foreground",
-              )}
-            >
-              <TabIcon>{tab.icon}</TabIcon>
-              {tab.label}
-            </Link>
-          );
-        })}
+        <div className="mx-auto flex max-w-xl">
+          {PRIMARY.map((href) => {
+            const tab = TABS.find((t) => t.href === href)!;
+            const active = pathname.startsWith(tab.href) && !moreOpen;
+            return (
+              <Link
+                key={tab.href}
+                href={tab.href}
+                aria-current={active ? "page" : undefined}
+                className={cn(
+                  "flex h-14 flex-1 flex-col items-center justify-center gap-0.5 text-[11px] font-medium",
+                  active ? "text-primary" : "text-muted-foreground",
+                )}
+              >
+                <TabIcon>{tab.icon}</TabIcon>
+                {tab.label}
+              </Link>
+            );
+          })}
+          <button
+            type="button"
+            aria-expanded={moreOpen}
+            onClick={() => setMoreOpen((o) => !o)}
+            className={cn(
+              "flex h-14 flex-1 flex-col items-center justify-center gap-0.5 text-[11px] font-medium",
+              moreOpen || inMore ? "text-primary" : "text-muted-foreground",
+            )}
+          >
+            <TabIcon>
+              <path d="M5 10h.01M10 10h.01M15 10h.01" strokeWidth="3" />
+            </TabIcon>
+            More
+          </button>
+        </div>
       </nav>
+
+      {moreOpen && (
+        <div className="fixed inset-0 z-30 lg:hidden">
+          <button type="button" aria-label="Close" onClick={() => setMoreOpen(false)} className="absolute inset-0 bg-black/30" />
+          <div className="absolute inset-x-0 bottom-0 rounded-t-3xl bg-background px-4 pb-24 pt-2 shadow-2xl">
+            <div className="mx-auto mb-3 h-1.5 w-10 rounded-full bg-muted-foreground/30" aria-hidden />
+            <p className="px-2 pb-2 text-xs text-muted-foreground">
+              {workingAt ? <span data-no-translate>{workingAt}</span> : "No register open"}
+            </p>
+            <ul className="overflow-hidden rounded-2xl bg-card ring-1 ring-border">
+              {secondary.map((tab) => (
+                <li key={tab.href} className="border-b border-border last:border-0">
+                  <Link href={tab.href} className="flex h-12 items-center gap-3 px-4 text-[16px]">
+                    <span className="text-primary">
+                      <TabIcon>{tab.icon}</TabIcon>
+                    </span>
+                    <span className="flex-1">{tab.label}</span>
+                    <span aria-hidden className="text-muted-foreground">
+                      ›
+                    </span>
+                  </Link>
+                </li>
+              ))}
+              {closeShiftHref && (
+                <li>
+                  <Link href={closeShiftHref} className="flex h-12 items-center gap-3 px-4 text-[16px] font-medium text-primary">
+                    <TabIcon>
+                      <path d="M10 3.5v6M6 6a5.5 5.5 0 1 0 8 0" />
+                    </TabIcon>
+                    <span className="flex-1">Close shift</span>
+                  </Link>
+                </li>
+              )}
+            </ul>
+          </div>
+        </div>
+      )}
     </>
   );
 }

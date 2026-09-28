@@ -24,7 +24,7 @@ export default async function PosLayout({ children }: LayoutProps<"/pos">) {
           working ? `/pos/drawer?branchId=${working.branch.id}&registerId=${working.drawer.registerId}` : null
         }
       />
-      <main className="mx-auto w-full max-w-[1280px] flex-1 px-4 pb-28 pt-6 sm:px-6 sm:pb-12 sm:pt-8">{children}</main>
+      <main className="mx-auto w-full max-w-[1280px] flex-1 px-4 pb-32 pt-5 sm:px-6 sm:pt-8 lg:pb-12">{children}</main>
     </div>
   );
 }
