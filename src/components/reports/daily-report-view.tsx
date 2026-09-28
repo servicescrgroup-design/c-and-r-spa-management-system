@@ -172,7 +172,9 @@ export function DailyReportView({ report, salesHref }: { report: DailyReport; sa
           <h1 className="font-display text-3xl">Daily report</h1>
           <p className="text-muted-foreground">
             <span data-no-translate>{r.branch.name}</span> ·{" "}
-            {new Date(`${r.date}T12:00:00+07:00`).toLocaleDateString("en-GB", { weekday: "long", day: "numeric", month: "long", year: "numeric" })}
+            {r.toDate && r.toDate !== r.date
+              ? `${new Date(`${r.date}T12:00:00+07:00`).toLocaleDateString("en-GB", { day: "numeric", month: "short" })} – ${new Date(`${r.toDate}T12:00:00+07:00`).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" })}`
+              : new Date(`${r.date}T12:00:00+07:00`).toLocaleDateString("en-GB", { weekday: "long", day: "numeric", month: "long", year: "numeric" })}
           </p>
         </div>
         <div className="flex flex-wrap gap-2" data-print-hide>
@@ -188,7 +190,11 @@ export function DailyReportView({ report, salesHref }: { report: DailyReport; sa
           { label: "Total revenue", value: r.netRevenueCents, sub: `${r.revenue.salesCount} sales` },
           ...(r.canSeeCosts
             ? [
-                { label: "Therapist cost", value: r.totals.therapistCostCents + r.totals.topupCents, sub: "ค่ามือ + guarantee top-ups" },
+                {
+                  label: "Therapist cost",
+                  value: r.totals.therapistCostCents + r.totals.topupCents + r.totals.transportCents + r.totals.otCents,
+                  sub: "ค่ามือ, top-ups, transport and OT",
+                },
                 { label: "Freelance cost", value: r.totals.freelanceCostCents, sub: `${r.freelanceJobs.length} jobs` },
                 { label: "Other expenses", value: r.totals.otherExpensesCents, sub: `${r.expenses.length} items` },
                 { label: "Net profit", value: r.totals.netProfitCents, sub: "revenue minus all costs", result: true },
@@ -295,9 +301,9 @@ export function DailyReportView({ report, salesHref }: { report: DailyReport; sa
         <>
           <Section
             title="Therapist cost"
-            total={r.totals.therapistCostCents + r.totals.topupCents}
+            total={r.totals.therapistCostCents + r.totals.topupCents + r.totals.transportCents + r.totals.otCents}
             tone="minus"
-            hint="ค่ามือ for each massage, plus guarantee top-ups. Tap an amount to change it."
+            hint="ค่ามือ for each massage plus transport, OT and guarantee top-ups, all paid at payroll. Tap ค่ามือ to change it."
           >
             <table className="w-full text-sm">
               <tbody className="divide-y divide-border">
@@ -312,6 +318,13 @@ export function DailyReportView({ report, salesHref }: { report: DailyReport; sa
                         {j.description}
                       </span>{" "}
                       <span className="font-mono text-xs">{j.ref}</span>
+                      {(j.transportCents > 0 || j.otCents > 0) && (
+                        <span className="block text-xs">
+                          {j.transportCents > 0 && `Transport ${formatCents(j.transportCents)}`}
+                          {j.transportCents > 0 && j.otCents > 0 && " · "}
+                          {j.otCents > 0 && `OT ${formatCents(j.otCents)}`}
+                        </span>
+                      )}
                     </td>
                     <td className="py-1.5 text-right">
                       <MoneyEdit
@@ -393,6 +406,7 @@ export function DailyReportView({ report, salesHref }: { report: DailyReport; sa
                 )}
               </tbody>
             </table>
+            {r.branch.id !== "all" && (
             <form
               data-print-hide
               className="mt-3 flex flex-wrap items-center gap-2"
@@ -450,11 +464,14 @@ export function DailyReportView({ report, salesHref }: { report: DailyReport; sa
                 Add expense
               </Button>
             </form>
+            )}
           </Section>
 
           <Section title="Net profit" total={r.totals.netProfitCents} tone="result" defaultOpen>
             <Row label="Total revenue" value={formatCents(r.netRevenueCents)} />
             <Row label="Therapist cost (ค่ามือ)" value={`−${formatCents(r.totals.therapistCostCents)}`} />
+            {r.totals.transportCents > 0 && <Row label="Transport" value={`−${formatCents(r.totals.transportCents)}`} />}
+            {r.totals.otCents > 0 && <Row label="OT" value={`−${formatCents(r.totals.otCents)}`} />}
             {r.totals.topupCents > 0 && <Row label="Guarantee top-ups" value={`−${formatCents(r.totals.topupCents)}`} />}
             <Row label="Freelance cost" value={`−${formatCents(r.totals.freelanceCostCents)}`} />
             <Row label="Other expenses" value={`−${formatCents(r.totals.otherExpensesCents)}`} />

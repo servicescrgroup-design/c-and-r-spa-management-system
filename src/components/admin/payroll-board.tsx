@@ -84,9 +84,8 @@ function JobsDrillDown({ jobs, guaranteeTopupCents }: { jobs: StaffDayJob[]; gua
           <span>
             {j.description}
             {j.durationMinutes ? ` · ${j.durationMinutes} min` : ""}
-            {j.transportCents > 0 && (
-              <span className="text-muted-foreground"> · transport {formatCents(j.transportCents)} (paid from drawer)</span>
-            )}
+            {j.transportCents > 0 && <span className="text-muted-foreground"> · transport {formatCents(j.transportCents)}</span>}
+            {j.otCents > 0 && <span className="text-muted-foreground"> · OT {formatCents(j.otCents)}</span>}
           </span>
           <span>{formatCents(j.payoutCents)}</span>
         </li>
@@ -136,6 +135,8 @@ function DailyRow({ row, showStore }: { row: PayrollDayRow; showStore: boolean }
           <span className={cn(row.guaranteeTopupCents > 0 && "font-medium text-highlight")}>
             U {formatCents(row.guaranteeTopupCents)}
           </span>
+          {row.transportCents > 0 && <span>Transport {formatCents(row.transportCents)}</span>}
+          {row.otCents > 0 && <span>OT {formatCents(row.otCents)}</span>}
           <span>Tips {formatCents(row.tipsCents)}</span>
           <span className="font-display text-base font-medium">Pay {formatCents(row.grossPayCents)}</span>
         </div>
@@ -186,6 +187,8 @@ type MonthlySummary = {
   payoutCents: number;
   guaranteeTopupCents: number;
   tipsCents: number;
+  transportCents: number;
+  otCents: number;
   bonusCents: number;
   deductionCents: number;
   advanceCents: number;
@@ -207,6 +210,8 @@ function summarizeMonthly(rows: PayrollDayRow[], minHours: number): MonthlySumma
       payoutCents: 0,
       guaranteeTopupCents: 0,
       tipsCents: 0,
+      transportCents: 0,
+      otCents: 0,
       bonusCents: 0,
       deductionCents: 0,
       advanceCents: 0,
@@ -221,6 +226,8 @@ function summarizeMonthly(rows: PayrollDayRow[], minHours: number): MonthlySumma
     existing.payoutCents += r.payoutCents;
     existing.guaranteeTopupCents += r.guaranteeTopupCents;
     existing.tipsCents += r.tipsCents;
+    existing.transportCents += r.transportCents;
+    existing.otCents += r.otCents;
     existing.bonusCents += r.bonusCents;
     existing.deductionCents += r.deductionCents;
     existing.advanceCents += r.advanceCents;
@@ -401,6 +408,7 @@ function GuaranteeDays({
                                 {j.transportCents > 0 && (
                                   <span className="text-muted-foreground"> · transport {formatCents(j.transportCents)}</span>
                                 )}
+                                {j.otCents > 0 && <span className="text-muted-foreground"> · OT {formatCents(j.otCents)}</span>}
                               </span>
                               <span className="shrink-0 text-muted-foreground">{formatCents(j.payoutCents)}</span>
                             </li>
@@ -537,6 +545,7 @@ export function PayrollBoard({
               <th className={cn(TH, "text-right")}>Jobs</th>
               <th className={cn(TH, "text-right")}>ค่ามือ earned</th>
               <th className={cn(TH, "text-right")}>Guarantee top-up</th>
+              <th className={cn(TH, "text-right")}>Transport + OT</th>
               <th className={cn(TH, "text-right")}>Tips</th>
               <th className={cn(TH, "text-right")}>Busy time</th>
               <th className="px-6 py-2.5 text-right font-medium">Total pay</th>
@@ -563,6 +572,14 @@ export function PayrollBoard({
                     <td className="px-3 py-3 text-right">{m.jobsCount}</td>
                     <td className="px-3 py-3 text-right">{formatCents(m.payoutCents)}</td>
                     <td className="px-3 py-3 text-right font-medium text-highlight">{formatCents(m.guaranteeTopupCents)}</td>
+                    <td className="px-3 py-3 text-right">
+                      {formatCents(m.transportCents + m.otCents)}
+                      {(m.transportCents > 0 || m.otCents > 0) && (
+                        <span className="block text-[11px] text-muted-foreground">
+                          T {formatCents(m.transportCents)} · OT {formatCents(m.otCents)}
+                        </span>
+                      )}
+                    </td>
                     <td className="px-3 py-3 text-right">{formatCents(m.tipsCents)}</td>
                     <td className="px-3 py-3 text-right">
                       {m.clockedHours > 0 ? `${Math.round((m.serviceHours / m.clockedHours) * 100)}%` : "—"}
@@ -571,7 +588,7 @@ export function PayrollBoard({
                   </tr>
                   {open && (
                     <tr>
-                      <td colSpan={10} className="px-6 pb-5 pt-1">
+                      <td colSpan={11} className="px-6 pb-5 pt-1">
                         <GuaranteeDays
                           branches={branches}
                           staffId={m.staffId}

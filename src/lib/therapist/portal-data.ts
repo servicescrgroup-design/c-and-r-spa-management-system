@@ -57,7 +57,7 @@ async function loadTherapistPortal(staffId: string, name: string) {
       .order("day_of_week"),
     supabase
       .from("pos_transaction_items")
-      .select("id, description, payout_cents, duration_minutes, completed_at")
+      .select("id, description, payout_cents, transport_cents, ot_cents, duration_minutes, completed_at")
       .eq("staff_id", staffId)
       .not("completed_at", "is", null)
       .gte("completed_at", weekStart.toISOString())
@@ -69,8 +69,10 @@ async function loadTherapistPortal(staffId: string, name: string) {
   ]);
 
   const todayItems = (items ?? []).filter((i) => bangkokDateString(new Date(i.completed_at!)) === todayStr);
-  const earningsTodayCents = todayItems.reduce((sum, i) => sum + i.payout_cents, 0);
-  const earningsWeekCents = (items ?? []).reduce((sum, i) => sum + i.payout_cents, 0);
+  // ค่ามือ plus transport and OT, all paid to them at payroll.
+  const earned = (i: { payout_cents: number; transport_cents: number; ot_cents: number }) => i.payout_cents + i.transport_cents + i.ot_cents;
+  const earningsTodayCents = todayItems.reduce((sum, i) => sum + earned(i), 0);
+  const earningsWeekCents = (items ?? []).reduce((sum, i) => sum + earned(i), 0);
 
   const depositBalanceCents = (deposit ?? []).reduce(
     (sum, e) => sum + (e.entry_type === "payment" || e.entry_type === "deduction" ? -e.amount_cents : e.amount_cents),

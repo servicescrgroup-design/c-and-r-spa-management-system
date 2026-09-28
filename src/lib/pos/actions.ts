@@ -167,8 +167,10 @@ export type CartItem = {
   bedId?: string | null;
   /** Services only: a later start (ISO), e.g. when the therapist finishes their current massage. Empty = now. */
   startAt?: string | null;
-  /** Services only: transport paid to this store therapist from the drawer for this massage, in satang. */
+  /** Services only: transport for this massage, in satang. Paid to the therapist with payroll, a store cost, not revenue. */
   transportCents?: number | null;
+  /** Services only: OT (overtime) for this massage, in satang. Paid with payroll like transport. */
+  otCents?: number | null;
 };
 
 export type PaymentMethod = "cash" | "bank_transfer" | "card_manual";
@@ -204,12 +206,12 @@ export async function checkoutSale(input: {
     return { ok: false, error: "Add at least one item to the sale." };
   }
   for (const item of input.items) {
-    if (!item.transportCents) continue;
+    if (!item.transportCents && !item.otCents) continue;
     if (item.itemType !== "service" || !item.staffId || item.freelanceSessionId) {
-      return { ok: false, error: "Transport can only be paid to a store therapist on a massage." };
+      return { ok: false, error: "Transport and OT can only go to a store therapist on a massage." };
     }
-    if (!Number.isFinite(item.transportCents) || item.transportCents < 0) {
-      return { ok: false, error: "Transport must be an amount of 0 or more." };
+    for (const v of [item.transportCents ?? 0, item.otCents ?? 0]) {
+      if (!Number.isFinite(v) || v < 0) return { ok: false, error: "Transport and OT must be 0 or more." };
     }
   }
   const addOns = input.addOns ?? [];
@@ -435,6 +437,9 @@ export async function checkoutSale(input: {
         total_cents: item.unitPriceCents * item.quantity - lineDiscounts[index],
         duration_minutes: item.itemType === "service" ? (item.durationMinutes ?? null) : null,
         payout_cents: item.itemType === "service" && (item.staffId || freelancer) ? (item.payoutCents ?? 0) : 0,
+        // Paid to the therapist at payroll; a store cost, never part of the sale total.
+        transport_cents: item.itemType === "service" && item.staffId && !freelancer ? Math.round(item.transportCents ?? 0) : 0,
+        ot_cents: item.itemType === "service" && item.staffId && !freelancer ? Math.round(item.otCents ?? 0) : 0,
       })
       .select("id")
       .single();
@@ -535,22 +540,10 @@ export async function checkoutSale(input: {
     await supabase.from("freelance_sessions").update({ jobs_today: f.jobs_today + jobs }).eq("id", f.id);
   }
 
-  // Transport paid from the drawer, saved as an expense tied to its massage.
-  for (const [index, item] of input.items.entries()) {
-    if (!item.transportCents || !item.staffId) continue;
-    const { error: feeError } = await supabase.rpc("record_transportation_fee", {
-      p_branch_id: input.branchId,
-      p_staff_id: item.staffId,
-      p_amount_cents: Math.round(item.transportCents),
-      p_item_id: itemIdByLine.get(index),
-    });
-    if (feeError) return { ok: false, error: `Sale saved but the transport fee wasn't: ${feeError.message}` };
-  }
-
   revalidatePath("/pos/queue");
   revalidatePath("/pos/checkout");
   revalidatePath("/pos/sales");
-  revalidatePath("/admin/expenses");
+  revalidatePath("/admin/payroll");
   return { ok: true, transactionId: txn.id, customerRef: txn.customer_ref };
 }
 

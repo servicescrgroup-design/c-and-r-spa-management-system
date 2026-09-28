@@ -226,6 +226,7 @@ export function CheckoutCart({
               staffId: kind === "staff" ? id : null,
               freelanceSessionId: kind === "free" ? id : null,
               transportCents: kind === "staff" ? c.transportCents : null,
+              otCents: kind === "staff" ? c.otCents : null,
               startAt: suggested ?? (c.startAt && new Date(c.startAt).getTime() > Date.now() ? c.startAt : null),
             }
           : c,
@@ -237,8 +238,8 @@ export function CheckoutCart({
     setCart((prev) => prev.map((c, i) => (i === index ? { ...c, startAt } : c)));
   }
 
-  function setLineTransport(index: number, cents: number | null) {
-    setCart((prev) => prev.map((c, i) => (i === index ? { ...c, transportCents: cents } : c)));
+  function setLineExtra(index: number, key: "transportCents" | "otCents", cents: number | null) {
+    setCart((prev) => prev.map((c, i) => (i === index ? { ...c, [key]: cents } : c)));
   }
 
   function setLineCustomer(index: number, name: string) {
@@ -319,7 +320,7 @@ export function CheckoutCart({
       : item.staffId
         ? (therapists.find((t) => t.id === item.staffId)?.name ?? "Therapist")
         : "No therapist yet";
-  const costLines: { kind: "pay" | "transport"; label: string; cents: number }[] = [];
+  const costLines: { kind: "pay" | "transport" | "ot"; label: string; cents: number }[] = [];
   cart.forEach((item, index) => {
     if (item.itemType !== "service") return;
     const pay =
@@ -327,6 +328,7 @@ export function CheckoutCart({
       addOns.filter((a) => a.lineIndex === index).reduce((n, a) => n + a.payoutCents, 0);
     costLines.push({ kind: "pay", label: `${workerName(item)} · ${item.description}`, cents: pay });
     if (item.transportCents) costLines.push({ kind: "transport", label: workerName(item), cents: item.transportCents });
+    if (item.otCents) costLines.push({ kind: "ot", label: workerName(item), cents: item.otCents });
   });
   const variableCostCents = costLines.reduce((n, c) => n + c.cents, 0);
   const netProfitCents = afterDiscountCents - variableCostCents;
@@ -756,30 +758,55 @@ export function CheckoutCart({
                     </div>
 
                     {item.staffId && !item.freelanceSessionId && (
-                      <div className="flex items-center gap-2 text-xs">
-                        <label className="flex shrink-0 cursor-pointer items-center gap-1.5">
-                          <input
-                            type="checkbox"
-                            checked={item.transportCents != null}
-                            onChange={(e) => setLineTransport(i, e.target.checked ? transportFeeCents : null)}
-                            className="size-4 accent-[var(--color-primary)]"
-                          />
-                          Transport
-                        </label>
-                        {item.transportCents != null && (
-                          <>
-                            <Input
-                              type="number"
-                              min="0"
-                              step="1"
-                              aria-label="Transport amount in baht"
-                              value={item.transportCents ? item.transportCents / 100 : ""}
-                              onChange={(e) => setLineTransport(i, Math.max(0, Math.round((Number(e.target.value) || 0) * 100)))}
-                              placeholder="฿"
-                              className="h-8 w-24 text-xs"
-                            />
-                            <span className="text-muted-foreground">paid from the drawer</span>
-                          </>
+                      <div className="space-y-1.5 rounded-lg bg-muted/40 p-2 text-xs">
+                        {([
+                          { key: "transportCents", label: "Transport", start: transportFeeCents, quick: [] as number[] },
+                          { key: "otCents", label: "OT", start: 1000, quick: [1000, 2000] },
+                        ] as const).map((extra) => {
+                          const value = item[extra.key];
+                          return (
+                            <div key={extra.key} className="flex flex-wrap items-center gap-2">
+                              <label className="flex w-24 shrink-0 cursor-pointer items-center gap-1.5">
+                                <input
+                                  type="checkbox"
+                                  checked={value != null}
+                                  onChange={(e) => setLineExtra(i, extra.key, e.target.checked ? extra.start : null)}
+                                  className="size-4 accent-[var(--color-primary)]"
+                                />
+                                {extra.label}
+                              </label>
+                              {value != null && (
+                                <>
+                                  <Input
+                                    type="number"
+                                    min="0"
+                                    step="1"
+                                    aria-label={`${extra.label} amount in baht`}
+                                    value={value ? value / 100 : ""}
+                                    onChange={(e) => setLineExtra(i, extra.key, Math.max(0, Math.round((Number(e.target.value) || 0) * 100)))}
+                                    placeholder="฿"
+                                    className="h-8 w-20 text-xs"
+                                  />
+                                  {extra.quick.map((q) => (
+                                    <button
+                                      key={q}
+                                      type="button"
+                                      onClick={() => setLineExtra(i, extra.key, q)}
+                                      className={cn(
+                                        "h-7 rounded-full px-2.5",
+                                        value === q ? "bg-foreground text-background" : "bg-card ring-1 ring-border",
+                                      )}
+                                    >
+                                      ฿{q / 100}
+                                    </button>
+                                  ))}
+                                </>
+                              )}
+                            </div>
+                          );
+                        })}
+                        {(item.transportCents != null || item.otCents != null) && (
+                          <p className="text-[11px] text-muted-foreground">Added to their pay at payroll. Not part of the customer&apos;s bill.</p>
                         )}
                       </div>
                     )}
@@ -1038,7 +1065,7 @@ export function CheckoutCart({
               {costLines.map((c, k) => (
                 <div key={k} className="flex justify-between gap-3">
                   <span className="min-w-0 truncate">
-                    <span className="text-muted-foreground">{c.kind === "pay" ? "Therapist pay" : "Transport"} · </span>
+                    <span className="text-muted-foreground">{c.kind === "pay" ? "Therapist pay" : c.kind === "ot" ? "OT" : "Transport"} · </span>
                     <span data-no-translate>{c.label}</span>
                   </span>
                   <span className="shrink-0 tabular-nums">{formatCents(c.cents)}</span>
@@ -1058,7 +1085,7 @@ export function CheckoutCart({
                 <span className="tabular-nums">{formatCents(netProfitCents)}</span>
               </div>
               <p className="text-[11px] text-muted-foreground">
-                Sales after discount minus therapist pay and transport. Tax, tip and card fee are left out.
+                Sales after discount minus therapist pay, transport and OT. Tax, tip and card fee are left out.
               </p>
             </div>
           )}

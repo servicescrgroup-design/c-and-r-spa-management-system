@@ -84,6 +84,8 @@ export type SaleLineEdit = {
   unitPriceCents?: number;
   discountCents?: number;
   payoutCents?: number;
+  transportCents?: number;
+  otCents?: number;
   staffId?: string | null;
   roomId?: string | null;
   bedId?: string | null;
@@ -106,6 +108,8 @@ export async function updateSale(
     if (l.unitPriceCents !== undefined) row.unit_price_cents = Math.round(l.unitPriceCents);
     if (l.discountCents !== undefined) row.discount_cents = Math.round(l.discountCents);
     if (l.payoutCents !== undefined) row.payout_cents = Math.round(l.payoutCents);
+    if (l.transportCents !== undefined) row.transport_cents = Math.round(l.transportCents);
+    if (l.otCents !== undefined) row.ot_cents = Math.round(l.otCents);
     if (l.staffId !== undefined) row.staff_id = l.staffId ?? "";
     if (l.roomId !== undefined) row.room_id = l.roomId ?? "";
     if (l.bedId !== undefined) row.bed_id = l.bedId ?? "";

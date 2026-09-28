@@ -15,7 +15,7 @@ export default async function TherapistsPage({ searchParams }: PageProps<"/admin
       minutes: t.minutes + s.minutes,
       sale: t.sale + s.saleCents,
       pay: t.pay + s.payoutCents,
-      transport: t.transport + s.transportCents,
+      transport: t.transport + s.transportCents + s.otCents,
     }),
     { jobs: 0, minutes: 0, sale: 0, pay: 0, transport: 0 },
   );
@@ -36,7 +36,7 @@ export default async function TherapistsPage({ searchParams }: PageProps<"/admin
           { label: "Massages", value: String(total.jobs), sub: `${hours(total.minutes)} hours` },
           { label: "Sales from massages", value: formatCents(total.sale), sub: range.label },
           { label: "Therapist pay (ค่ามือ)", value: formatCents(total.pay), sub: "before guarantee top-ups" },
-          { label: "Transport paid", value: formatCents(total.transport), sub: "from the drawer" },
+          { label: "Transport + OT", value: formatCents(total.transport), sub: "paid with payroll" },
         ].map((b) => (
           <div key={b.label} className="rounded-[18px] bg-card p-4 ring-1 ring-black/[0.05] dark:ring-white/[0.08]">
             <p className="text-xs font-medium text-muted-foreground">{b.label}</p>
@@ -55,7 +55,7 @@ export default async function TherapistsPage({ searchParams }: PageProps<"/admin
               <th className="px-4 py-2.5 text-right font-medium">Hours</th>
               <th className="px-4 py-2.5 text-right font-medium">Sales</th>
               <th className="px-4 py-2.5 text-right font-medium">Their pay</th>
-              <th className="px-4 py-2.5 text-right font-medium">Transport</th>
+              <th className="px-4 py-2.5 text-right font-medium">Transport + OT</th>
               <th className="px-4 py-2.5 text-right font-medium">Shop keeps</th>
               <th className="px-4 py-2.5" />
             </tr>
@@ -76,9 +76,9 @@ export default async function TherapistsPage({ searchParams }: PageProps<"/admin
                 <td className="px-4 py-3 text-right tabular-nums">{formatCents(s.saleCents)}</td>
                 <td className="px-4 py-3 text-right font-medium tabular-nums">{formatCents(s.payoutCents)}</td>
                 <td className="px-4 py-3 text-right tabular-nums text-muted-foreground">
-                  {s.transportCents ? formatCents(s.transportCents) : "—"}
+                  {s.transportCents + s.otCents ? formatCents(s.transportCents + s.otCents) : "—"}
                 </td>
-                <td className="px-4 py-3 text-right tabular-nums">{formatCents(s.saleCents - s.payoutCents - s.transportCents)}</td>
+                <td className="px-4 py-3 text-right tabular-nums">{formatCents(s.saleCents - s.payoutCents - s.transportCents - s.otCents)}</td>
                 <td className="px-4 py-3 text-right">
                   <Link
                     href={`/admin/therapists/${s.staffId}?${query}`}

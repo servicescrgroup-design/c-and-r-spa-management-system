@@ -19,7 +19,8 @@ export default async function TherapistDetailPage({ params, searchParams }: Page
   ]);
   const summary = summaries[0];
   if (!portal || !summary) notFound();
-  const keeps = summary.saleCents - summary.payoutCents - summary.transportCents;
+  const extras = summary.transportCents + summary.otCents;
+  const keeps = summary.saleCents - summary.payoutCents - extras;
 
   return (
     <div className="space-y-8">
@@ -48,7 +49,7 @@ export default async function TherapistDetailPage({ params, searchParams }: Page
             {
               label: "Shop keeps",
               value: formatCents(keeps),
-              sub: summary.transportCents ? `after ${formatCents(summary.transportCents)} transport` : "sales minus their pay",
+              sub: extras ? `after ${formatCents(extras)} transport and OT` : "sales minus their pay",
             },
           ].map((b) => (
             <div key={b.label} className="rounded-[18px] bg-card p-4 ring-1 ring-black/[0.05] dark:ring-white/[0.08]">
@@ -68,7 +69,7 @@ export default async function TherapistDetailPage({ params, searchParams }: Page
                 <th className="px-4 py-2.5 font-medium">Bill</th>
                 <th className="px-4 py-2.5 text-right font-medium">Customer paid</th>
                 <th className="px-4 py-2.5 text-right font-medium">Their pay</th>
-                <th className="px-4 py-2.5 text-right font-medium">Transport</th>
+                <th className="px-4 py-2.5 text-right font-medium">Transport + OT</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-border">
@@ -93,7 +94,7 @@ export default async function TherapistDetailPage({ params, searchParams }: Page
                   <td className="whitespace-nowrap px-4 py-2.5 font-mono text-xs">{j.saleRef ?? "—"}</td>
                   <td className="px-4 py-2.5 text-right tabular-nums">{formatCents(j.saleCents)}</td>
                   <td className="px-4 py-2.5 text-right font-medium tabular-nums">{formatCents(j.payoutCents)}</td>
-                  <td className="px-4 py-2.5 text-right tabular-nums">{j.transportCents ? formatCents(j.transportCents) : "—"}</td>
+                  <td className="px-4 py-2.5 text-right tabular-nums">{j.transportCents + j.otCents ? formatCents(j.transportCents + j.otCents) : "—"}</td>
                 </tr>
               ))}
               {jobs.length === 0 && (
@@ -112,7 +113,7 @@ export default async function TherapistDetailPage({ params, searchParams }: Page
                   </td>
                   <td className="px-4 py-2.5 text-right tabular-nums">{formatCents(summary.saleCents)}</td>
                   <td className="px-4 py-2.5 text-right tabular-nums">{formatCents(summary.payoutCents)}</td>
-                  <td className="px-4 py-2.5 text-right tabular-nums">{formatCents(summary.transportCents)}</td>
+                  <td className="px-4 py-2.5 text-right tabular-nums">{formatCents(extras)}</td>
                 </tr>
               </tfoot>
             )}

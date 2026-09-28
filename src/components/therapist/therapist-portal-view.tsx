@@ -94,8 +94,15 @@ export function TherapistPortalView({ data, viewer = "self" }: { data: Therapist
                 <span className="text-sm">
                   {j.description}
                   {j.duration_minutes ? ` · ${j.duration_minutes} min` : ""}
+                  {(j.transport_cents > 0 || j.ot_cents > 0) && (
+                    <span className="block text-xs text-muted-foreground">
+                      {j.transport_cents > 0 && `+ transport ${formatCents(j.transport_cents)}`}
+                      {j.transport_cents > 0 && j.ot_cents > 0 && " "}
+                      {j.ot_cents > 0 && `+ OT ${formatCents(j.ot_cents)}`}
+                    </span>
+                  )}
                 </span>
-                <span className="shrink-0 text-sm font-medium">{formatCents(j.payout_cents)}</span>
+                <span className="shrink-0 text-sm font-medium">{formatCents(j.payout_cents + j.transport_cents + j.ot_cents)}</span>
               </li>
             ))}
           </ul>

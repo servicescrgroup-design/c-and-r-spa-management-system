@@ -21,8 +21,12 @@ export type SaleLine = {
   customerName: string | null;
   isAddOn: boolean;
   completedAt: string | null;
-  /** Transport paid from the drawer for this massage. */
+  /** Transport for this massage (paid with payroll; older ones came from the drawer). */
   transportCents: number;
+  /** OT for this massage, paid with payroll. */
+  otCents: number;
+  /** Older transport paid from the drawer as an expense (shown, not edited here). */
+  drawerTransportCents?: number;
 };
 
 export type SalePayment = { method: string; amountCents: number };

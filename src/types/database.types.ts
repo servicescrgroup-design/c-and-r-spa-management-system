@@ -2217,6 +2217,7 @@ export type Database = {
           id: string
           is_add_on: boolean
           item_type: Database["public"]["Enums"]["pos_item_type"]
+          ot_cents: number
           payout_cents: number
           quantity: number
           reference_id: string | null
@@ -2226,6 +2227,7 @@ export type Database = {
           tax_cents: number
           total_cents: number
           transaction_id: string
+          transport_cents: number
           unit_price_cents: number
         }
         Insert: {
@@ -2241,6 +2243,7 @@ export type Database = {
           id?: string
           is_add_on?: boolean
           item_type: Database["public"]["Enums"]["pos_item_type"]
+          ot_cents?: number
           payout_cents?: number
           quantity?: number
           reference_id?: string | null
@@ -2250,6 +2253,7 @@ export type Database = {
           tax_cents?: number
           total_cents: number
           transaction_id: string
+          transport_cents?: number
           unit_price_cents: number
         }
         Update: {
@@ -2265,6 +2269,7 @@ export type Database = {
           id?: string
           is_add_on?: boolean
           item_type?: Database["public"]["Enums"]["pos_item_type"]
+          ot_cents?: number
           payout_cents?: number
           quantity?: number
           reference_id?: string | null
@@ -2274,6 +2279,7 @@ export type Database = {
           tax_cents?: number
           total_cents?: number
           transaction_id?: string
+          transport_cents?: number
           unit_price_cents?: number
         }
         Relationships: [
@@ -3909,11 +3915,13 @@ export type Database = {
           jobs_count: number
           locked: boolean
           name: string
+          ot_cents: number
           payout_cents: number
           service_hours: number
           session_id: string
           staff_id: string
           tips_cents: number
+          transport_cents: number
           work_date: string
         }[]
       }

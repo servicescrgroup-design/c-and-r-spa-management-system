@@ -28,6 +28,9 @@ export type PayrollDayRow = {
   payoutCents: number;
   guaranteeTopupCents: number;
   tipsCents: number;
+  /** Transport and OT on the day's massages, paid with ค่ามือ. */
+  transportCents: number;
+  otCents: number;
   bonusCents: number;
   deductionCents: number;
   advanceCents: number;
@@ -59,6 +62,8 @@ export async function getPayrollDays(branchId: string, startDate: string, endDat
     payoutCents: r.payout_cents,
     guaranteeTopupCents: r.guarantee_topup_cents,
     tipsCents: r.tips_cents,
+    transportCents: r.transport_cents,
+    otCents: r.ot_cents,
     bonusCents: r.bonus_cents,
     deductionCents: r.deduction_cents,
     advanceCents: r.advance_cents,
@@ -86,7 +91,7 @@ export type GuaranteeDay = {
   branchName: string;
   workDate: string;
   serviceHours: number;
-  jobs: { description: string; durationMinutes: number | null; payoutCents: number; transportCents: number }[];
+  jobs: { description: string; durationMinutes: number | null; payoutCents: number; transportCents: number; otCents: number }[];
   earnedCents: number;
   guaranteeCents: number;
   topupCents: number;
@@ -120,7 +125,7 @@ export async function getGuaranteeDays(
       .lte("work_date", endDate),
     supabase
       .from("pos_transaction_items")
-      .select("id, description, duration_minutes, payout_cents, completed_at, reference_id, item_type")
+      .select("id, description, duration_minutes, payout_cents, transport_cents, ot_cents, completed_at, reference_id, item_type")
       .eq("staff_id", staffId)
       .not("completed_at", "is", null)
       // A day's jobs can finish just after midnight UTC; pad the window and filter by local date below.
@@ -158,7 +163,9 @@ export async function getGuaranteeDays(
           description: (j.reference_id && serviceName.get(j.reference_id)) || j.description,
           durationMinutes: j.duration_minutes,
           payoutCents: j.payout_cents,
-          transportCents: transportByItem.get(j.id) ?? 0,
+          // Transport saved on the massage, plus any older one paid from the drawer.
+          transportCents: j.transport_cents + (transportByItem.get(j.id) ?? 0),
+          otCents: j.ot_cents,
         })),
         earnedCents: r.payoutCents,
         guaranteeCents: profile?.guarantee_override_cents ?? info?.payroll_guarantee_cents ?? 0,
@@ -238,8 +245,9 @@ export type StaffDayJob = {
   durationMinutes: number | null;
   payoutCents: number;
   completedAt: string | null;
-  /** Transport paid from the drawer for this job; shown for reference, not part of pay. */
+  /** Transport and OT on this job, paid with ค่ามือ at payroll (older transport may have come from the drawer). */
   transportCents: number;
+  otCents: number;
 };
 
 /** The drill-down behind a daily payroll row: each completed job plus a synthetic
@@ -257,7 +265,7 @@ export async function getStaffDayJobs(
 
   const { data: items } = await supabase
     .from("pos_transaction_items")
-    .select("id, description, duration_minutes, payout_cents, completed_at")
+    .select("id, description, duration_minutes, payout_cents, transport_cents, ot_cents, completed_at")
     .eq("staff_id", staffId)
     // A therapist works at one store a day, so every job that day belongs to
     // this check-in, whichever store's register sold it (same as payroll).
@@ -280,7 +288,8 @@ export async function getStaffDayJobs(
       description: j.description,
       durationMinutes: j.duration_minutes,
       payoutCents: j.payout_cents,
-      transportCents: transportByItem.get(j.id) ?? 0,
+      transportCents: j.transport_cents + (transportByItem.get(j.id) ?? 0),
+      otCents: j.ot_cents,
       completedAt: j.completed_at,
     })),
     guaranteeTopupCents: row?.guaranteeTopupCents ?? 0,

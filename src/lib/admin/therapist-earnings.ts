@@ -39,6 +39,7 @@ export type TherapistJob = {
   saleCents: number;
   payoutCents: number;
   transportCents: number;
+  otCents: number;
 };
 
 export type TherapistSummary = {
@@ -50,6 +51,7 @@ export type TherapistSummary = {
   saleCents: number;
   payoutCents: number;
   transportCents: number;
+  otCents: number;
 };
 
 /**
@@ -97,6 +99,7 @@ export async function getTherapistEarnings(range: EarningsRange, onlyStaffId?: s
       saleCents: 0,
       payoutCents: 0,
       transportCents: 0,
+      otCents: 0,
     });
   }
 
@@ -108,7 +111,7 @@ export async function getTherapistEarnings(range: EarningsRange, onlyStaffId?: s
   const { data: items } = await supabase
     .from("pos_transaction_items")
     .select(
-      "id, staff_id, description, duration_minutes, is_add_on, total_cents, payout_cents, completed_at, start_at, customer_name, pos_transactions!inner(branch_id, customer_ref, status)",
+      "id, staff_id, description, duration_minutes, is_add_on, total_cents, payout_cents, transport_cents, ot_cents, completed_at, start_at, customer_name, pos_transactions!inner(branch_id, customer_ref, status)",
     )
     .in("staff_id", staffIds)
     .eq("item_type", "service")
@@ -140,7 +143,8 @@ export async function getTherapistEarnings(range: EarningsRange, onlyStaffId?: s
     guestName: i.customer_name,
     saleCents: i.total_cents,
     payoutCents: i.payout_cents,
-    transportCents: transport.get(i.id) ?? 0,
+    transportCents: i.transport_cents + (transport.get(i.id) ?? 0),
+    otCents: i.ot_cents,
   }));
 
   for (const j of jobs) {
@@ -151,6 +155,7 @@ export async function getTherapistEarnings(range: EarningsRange, onlyStaffId?: s
     s.saleCents += j.saleCents;
     s.payoutCents += j.payoutCents;
     s.transportCents += j.transportCents;
+    s.otCents += j.otCents;
   }
 
   return {

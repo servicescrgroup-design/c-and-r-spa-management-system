@@ -107,8 +107,13 @@ export function SaleBreakdown({
                   </td>
                   <td className="px-3 py-2.5">
                     <TherapistTag line={g.main} />
-                    {g.main.transportCents > 0 && (
-                      <p className="text-xs text-muted-foreground">Transport {formatCents(g.main.transportCents)}</p>
+                    {g.main.transportCents + (g.main.drawerTransportCents ?? 0) > 0 && (
+                      <p className="text-xs text-muted-foreground">
+                        Transport {formatCents(g.main.transportCents + (g.main.drawerTransportCents ?? 0))}
+                      </p>
+                    )}
+                    {g.main.otCents > 0 && (
+                      <p className="text-xs text-muted-foreground">OT {formatCents(g.main.otCents)}</p>
                     )}
                   </td>
                   <td className="px-3 py-2.5">
@@ -223,6 +228,8 @@ type LineDraft = {
   price: string;
   discount: string;
   payout: string;
+  transport: string;
+  ot: string;
   staffId: string;
   place: string; // "roomId|bedId", or "" for none
   start: string; // HH:MM, Bangkok time
@@ -243,6 +250,8 @@ function initialDraft(line: SaleLine, createdAt: string): LineDraft {
     price: baht(line.unitPriceCents),
     discount: baht(line.discountCents),
     payout: baht(line.payoutCents),
+    transport: baht(line.transportCents),
+    ot: baht(line.otCents),
     staffId: line.staffId ?? "",
     place: line.roomId ? `${line.roomId}|${line.bedId ?? ""}` : "",
     start: bangkokTime(line.startAt ?? createdAt),
@@ -383,6 +392,10 @@ export function SaleEditForm({
         const [roomId, bedId] = hd.place ? hd.place.split("|") : ["", ""];
         edit.minutes = Number(d.minutes);
         edit.payoutCents = toCents(d.payout)!;
+        if (!line.isAddOn && line.staffId && !line.freelancerName) {
+          edit.transportCents = toCents(d.transport) ?? 0;
+          edit.otCents = toCents(d.ot) ?? 0;
+        }
         edit.serviceId = hd.serviceId || null;
         edit.roomId = roomId || null;
         edit.bedId = bedId || null;
@@ -411,7 +424,7 @@ export function SaleEditForm({
     onDone();
   }
 
-  const moneyInput = (id: string, key: "price" | "discount" | "payout") => (
+  const moneyInput = (id: string, key: "price" | "discount" | "payout" | "transport" | "ot") => (
     <Input
       inputMode="decimal"
       value={drafts[id][key]}
@@ -473,6 +486,12 @@ export function SaleEditForm({
                   <Field label="Price ฿">{moneyInput(main.id, "price")}</Field>
                   <Field label="Discount ฿">{moneyInput(main.id, "discount")}</Field>
                   <Field label="Therapist pay ฿">{moneyInput(main.id, "payout")}</Field>
+                  {!main.freelancerName && (
+                    <>
+                      <Field label="Transport ฿">{moneyInput(main.id, "transport")}</Field>
+                      <Field label="OT ฿">{moneyInput(main.id, "ot")}</Field>
+                    </>
+                  )}
                   <Field label="Therapist" className="col-span-2">
                     {main.freelancerName ? (
                       <p className="flex h-9 items-center text-sm">

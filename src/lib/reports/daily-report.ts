@@ -13,6 +13,9 @@ export type ReportLine = {
   minutes: number | null;
   totalCents: number;
   payoutCents: number;
+  /** Transport and OT on this massage: paid to the therapist with payroll, a store cost. */
+  transportCents: number;
+  otCents: number;
   /** The therapist cost set on the service today, for filling in jobs saved at ฿0. */
   suggestedPayoutCents: number | null;
 };
@@ -68,12 +71,13 @@ const DAY_MS = 86_400_000;
  * payment totals, the cash each drawer should hold and the net profit.
  * Refunded sales are listed but left out of the money totals.
  */
-export async function getDailyReport(branchId: string, date: string) {
+export async function getDailyReport(branchId: string, date: string, toDate?: string) {
+  const to = toDate && toDate >= date ? toDate : date;
   const ctx = await requireStaffContext();
   const canSeeCosts = isOwner(ctx) || hasBranchRole(ctx, branchId, ["manager"]);
   const supabase = await createServerSupabaseClient();
   const start = new Date(`${date}T00:00:00+07:00`).toISOString();
-  const end = new Date(new Date(`${date}T00:00:00+07:00`).getTime() + DAY_MS).toISOString();
+  const end = new Date(new Date(`${to}T00:00:00+07:00`).getTime() + DAY_MS).toISOString();
 
   const [{ data: branch }, { data: txns }, { data: profiles }, { data: expenses }, { data: drawers }, { data: categories }] =
     await Promise.all([
@@ -86,7 +90,7 @@ export async function getDailyReport(branchId: string, date: string) {
            customer:customer_id(first_name, last_name),
            pos_payments(method, amount_cents),
            pos_transaction_items(id, item_type, reference_id, description, is_add_on, staff_id, freelance_session_id,
-             duration_minutes, total_cents, payout_cents, staff:staff_id(first_name))`,
+             duration_minutes, total_cents, payout_cents, transport_cents, ot_cents, staff:staff_id(first_name))`,
         )
         .eq("branch_id", branchId)
         .gte("created_at", start)
@@ -98,7 +102,8 @@ export async function getDailyReport(branchId: string, date: string) {
             .from("expenses")
             .select("id, category_id, description, amount_cents, tax_cents, payment_method, drawer_session_id, category:category_id(name), staff:staff_id(first_name)")
             .eq("branch_id", branchId)
-            .eq("expense_date", date)
+            .gte("expense_date", date)
+            .lte("expense_date", to)
             .order("created_at")
         : Promise.resolve({ data: [] as never[] }),
       supabase
@@ -152,6 +157,8 @@ export async function getDailyReport(branchId: string, date: string) {
           minutes: i.duration_minutes,
           totalCents: i.total_cents,
           payoutCents: i.payout_cents,
+          transportCents: i.transport_cents,
+          otCents: i.ot_cents,
           suggestedPayoutCents:
             i.item_type === "service" && !i.is_add_on && i.reference_id
               ? (suggested.get(`${i.reference_id}:${i.duration_minutes}`) ?? null)
@@ -183,7 +190,7 @@ export async function getDailyReport(branchId: string, date: string) {
 
   let topups: { name: string; cents: number }[] = [];
   if (canSeeCosts) {
-    const { data: payroll } = await supabase.rpc("compute_payroll_days", { p_branch_id: branchId, p_start: date, p_end: date });
+    const { data: payroll } = await supabase.rpc("compute_payroll_days", { p_branch_id: branchId, p_start: date, p_end: to });
     topups = (payroll ?? []).filter((r) => r.guarantee_topup_cents > 0).map((r) => ({ name: r.name, cents: r.guarantee_topup_cents }));
   }
 
@@ -245,6 +252,8 @@ export async function getDailyReport(branchId: string, date: string) {
   }
 
   const therapistCostCents = sum(therapistJobs.map((j) => j.payoutCents));
+  const transportCents = sum(therapistJobs.map((j) => j.transportCents));
+  const otCents = sum(therapistJobs.map((j) => j.otCents));
   const topupCents = sum(topups.map((t) => t.cents));
   const freelanceCostCents = sum(freelanceJobs.map((j) => j.payoutCents));
   const otherExpensesCents = sum(expenseRows.map((e) => e.amountCents));
@@ -252,6 +261,7 @@ export async function getDailyReport(branchId: string, date: string) {
   return {
     branch: { id: branchId, name: branch?.name ?? "Store" },
     date,
+    toDate: to,
     canSeeCosts,
     sales,
     revenue,
@@ -265,11 +275,60 @@ export async function getDailyReport(branchId: string, date: string) {
     drawers: drawerRows,
     totals: {
       therapistCostCents,
+      transportCents,
+      otCents,
       topupCents,
       freelanceCostCents,
       otherExpensesCents,
-      netProfitCents: netRevenueCents - therapistCostCents - topupCents - freelanceCostCents - otherExpensesCents,
+      netProfitCents:
+        netRevenueCents - therapistCostCents - topupCents - transportCents - otCents - freelanceCostCents - otherExpensesCents,
     },
     zeroPayoutJobs: therapistJobs.filter((j) => j.payoutCents === 0 && (j.suggestedPayoutCents ?? 0) > 0).length,
+  };
+}
+
+/** Adds several stores' reports into one "All stores" report. */
+export function mergeReports(reports: DailyReport[]): DailyReport {
+  const first = reports[0];
+  const sum = (pick: (r: DailyReport) => number) => reports.reduce((n, r) => n + pick(r), 0);
+  return {
+    ...first,
+    branch: { id: "all", name: "All stores" },
+    canSeeCosts: reports.every((r) => r.canSeeCosts),
+    sales: reports.flatMap((r) => r.sales).sort((a, b) => a.createdAt.localeCompare(b.createdAt)),
+    revenue: {
+      salesCount: sum((r) => r.revenue.salesCount),
+      grossCents: sum((r) => r.revenue.grossCents),
+      discountCents: sum((r) => r.revenue.discountCents),
+      cardFeeCents: sum((r) => r.revenue.cardFeeCents),
+      taxCents: sum((r) => r.revenue.taxCents),
+      tipCents: sum((r) => r.revenue.tipCents),
+      refundedCount: sum((r) => r.revenue.refundedCount),
+      refundedCents: sum((r) => r.revenue.refundedCents),
+    },
+    netRevenueCents: sum((r) => r.netRevenueCents),
+    therapistJobs: reports.flatMap((r) => r.therapistJobs),
+    topups: reports.flatMap((r) => r.topups),
+    freelanceJobs: reports.flatMap((r) => r.freelanceJobs),
+    expenses: reports.flatMap((r) => r.expenses),
+    categories: first.categories,
+    payments: {
+      cash: sum((r) => r.payments.cash),
+      promptpay: sum((r) => r.payments.promptpay),
+      bankTransfer: sum((r) => r.payments.bankTransfer),
+      card: sum((r) => r.payments.card),
+      other: sum((r) => r.payments.other),
+    },
+    drawers: reports.flatMap((r) => r.drawers),
+    totals: {
+      therapistCostCents: sum((r) => r.totals.therapistCostCents),
+      transportCents: sum((r) => r.totals.transportCents),
+      otCents: sum((r) => r.totals.otCents),
+      topupCents: sum((r) => r.totals.topupCents),
+      freelanceCostCents: sum((r) => r.totals.freelanceCostCents),
+      otherExpensesCents: sum((r) => r.totals.otherExpensesCents),
+      netProfitCents: sum((r) => r.totals.netProfitCents),
+    },
+    zeroPayoutJobs: sum((r) => r.zeroPayoutJobs),
   };
 }
