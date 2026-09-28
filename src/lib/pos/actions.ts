@@ -2,11 +2,18 @@
 
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
+import { cookies } from "next/headers";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { requireStaffContext } from "@/lib/auth/session";
 import { isOwner } from "@/lib/auth/roles";
 import { expectedCash, getDrawerCash } from "@/lib/pos/drawer-cash";
 import { getStaffConflicts } from "@/lib/admin/calendar-data";
+import { ACTIVE_DRAWER_COOKIE } from "@/lib/pos/active-drawer";
+
+/** Remember which drawer this person is selling from, for when they have more than one. */
+async function rememberDrawer(drawerSessionId: string) {
+  (await cookies()).set(ACTIVE_DRAWER_COOKIE, drawerSessionId, { path: "/", httpOnly: true, sameSite: "lax", maxAge: 60 * 60 * 24 });
+}
 
 type ActionResult = { ok: true } | { ok: false; error: string };
 
@@ -39,20 +46,23 @@ export async function openDrawer(formData: FormData): Promise<ActionResult> {
     }
   }
 
-  // A person works one store and one register at a time.
-  const { data: mine } = await supabase
-    .from("cash_drawer_sessions")
-    .select("id, pos_registers(name, branch:branch_id(name))")
-    .eq("opened_by_staff_id", ctx.staffId)
-    .eq("status", "open")
-    .limit(1)
-    .maybeSingle();
-  if (mine) {
-    const where = [mine.pos_registers?.branch?.name, mine.pos_registers?.name].filter(Boolean).join(" · ");
-    return { ok: false, error: `You already have a drawer open (${where}). Close it before opening another.` };
+  // Staff work one store and one register at a time. The owner can keep
+  // drawers open at several stores and switch between them.
+  if (!isOwner(ctx)) {
+    const { data: mine } = await supabase
+      .from("cash_drawer_sessions")
+      .select("id, pos_registers(name, branch:branch_id(name))")
+      .eq("opened_by_staff_id", ctx.staffId)
+      .eq("status", "open")
+      .limit(1)
+      .maybeSingle();
+    if (mine) {
+      const where = [mine.pos_registers?.branch?.name, mine.pos_registers?.name].filter(Boolean).join(" · ");
+      return { ok: false, error: `You already have a drawer open (${where}). Close it before opening another.` };
+    }
+    // Opening your own drawer ends any shared one you joined.
+    await supabase.from("cash_drawer_members").update({ left_at: new Date().toISOString() }).eq("staff_id", ctx.staffId).is("left_at", null);
   }
-  // Opening your own drawer ends any shared one you joined.
-  await supabase.from("cash_drawer_members").update({ left_at: new Date().toISOString() }).eq("staff_id", ctx.staffId).is("left_at", null);
 
   const { data: alreadyOpen } = await supabase
     .from("cash_drawer_sessions")
@@ -62,14 +72,19 @@ export async function openDrawer(formData: FormData): Promise<ActionResult> {
     .maybeSingle();
   if (alreadyOpen) return { ok: false, error: "That register is already open by someone else." };
 
-  const { error } = await supabase.from("cash_drawer_sessions").insert({
-    register_id: registerId,
-    opened_by_staff_id: ctx.staffId,
-    opening_amount_cents: Math.round(openingDollars * 100),
-    opening_breakdown: openingBreakdown,
-  });
+  const { data: opened, error } = await supabase
+    .from("cash_drawer_sessions")
+    .insert({
+      register_id: registerId,
+      opened_by_staff_id: ctx.staffId,
+      opening_amount_cents: Math.round(openingDollars * 100),
+      opening_breakdown: openingBreakdown,
+    })
+    .select("id")
+    .single();
 
   if (error) return { ok: false, error: error.message };
+  await rememberDrawer(opened.id);
 
   revalidatePath("/pos");
   redirect("/pos/checkout");
@@ -77,8 +92,9 @@ export async function openDrawer(formData: FormData): Promise<ActionResult> {
 
 /**
  * Join a drawer another receptionist already opened, so several people can
- * sell from one register. Each sale still records who rang it up. Leaves any
- * other drawer you had joined; you can't join while you have your own open.
+ * sell from one register. Each sale still records who rang it up. Staff leave
+ * any other drawer they had joined and can't join while their own is open;
+ * the owner can be on drawers at several stores at once.
  */
 export async function joinDrawer(drawerSessionId: string): Promise<ActionResult> {
   const ctx = await requireStaffContext();
@@ -89,29 +105,57 @@ export async function joinDrawer(drawerSessionId: string): Promise<ActionResult>
     .eq("id", drawerSessionId)
     .maybeSingle();
   if (!drawer || drawer.status !== "open") return { ok: false, error: "That drawer isn't open any more." };
-  if (drawer.opened_by_staff_id === ctx.staffId) return { ok: true };
+  if (drawer.opened_by_staff_id === ctx.staffId) {
+    await rememberDrawer(drawer.id);
+    return { ok: true };
+  }
 
-  if (!isOwner(ctx)) {
+  const owner = isOwner(ctx);
+  if (!owner) {
     const { data: access } = await supabase.from("staff_register_access").select("register_id").eq("staff_id", ctx.staffId);
     if (access && access.length > 0 && !access.some((a) => a.register_id === drawer.register_id)) {
       return { ok: false, error: "You're not allowed to use this register." };
     }
+    const { data: own } = await supabase
+      .from("cash_drawer_sessions")
+      .select("id, pos_registers(name)")
+      .eq("opened_by_staff_id", ctx.staffId)
+      .eq("status", "open")
+      .limit(1)
+      .maybeSingle();
+    if (own) return { ok: false, error: `You have your own drawer open (${own.pos_registers?.name ?? "a register"}). Close it first.` };
   }
-  const { data: own } = await supabase
-    .from("cash_drawer_sessions")
-    .select("id, pos_registers(name)")
-    .eq("opened_by_staff_id", ctx.staffId)
-    .eq("status", "open")
-    .limit(1)
-    .maybeSingle();
-  if (own) return { ok: false, error: `You have your own drawer open (${own.pos_registers?.name ?? "a register"}). Close it first.` };
 
   const now = new Date().toISOString();
-  await supabase.from("cash_drawer_members").update({ left_at: now }).eq("staff_id", ctx.staffId).is("left_at", null).neq("drawer_session_id", drawerSessionId);
+  if (!owner) {
+    await supabase.from("cash_drawer_members").update({ left_at: now }).eq("staff_id", ctx.staffId).is("left_at", null).neq("drawer_session_id", drawerSessionId);
+  }
   const { error } = await supabase
     .from("cash_drawer_members")
     .upsert({ drawer_session_id: drawerSessionId, staff_id: ctx.staffId, joined_at: now, left_at: null });
   if (error) return { ok: false, error: error.message };
+  await rememberDrawer(drawerSessionId);
+  revalidatePath("/pos");
+  return { ok: true };
+}
+
+/** Sell from another drawer you already opened or joined (the owner working two stores). */
+export async function switchDrawer(drawerSessionId: string): Promise<ActionResult> {
+  const ctx = await requireStaffContext();
+  const supabase = await createServerSupabaseClient();
+  const [{ data: drawer }, { data: member }] = await Promise.all([
+    supabase.from("cash_drawer_sessions").select("id, status, opened_by_staff_id").eq("id", drawerSessionId).maybeSingle(),
+    supabase
+      .from("cash_drawer_members")
+      .select("drawer_session_id")
+      .eq("drawer_session_id", drawerSessionId)
+      .eq("staff_id", ctx.staffId)
+      .is("left_at", null)
+      .maybeSingle(),
+  ]);
+  if (!drawer || drawer.status !== "open") return { ok: false, error: "That drawer isn't open any more." };
+  if (drawer.opened_by_staff_id !== ctx.staffId && !member) return { ok: false, error: "Join this register first." };
+  await rememberDrawer(drawerSessionId);
   revalidatePath("/pos");
   return { ok: true };
 }

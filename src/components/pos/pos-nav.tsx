@@ -6,6 +6,7 @@ import { usePathname } from "next/navigation";
 import { ViewSwitcher } from "@/components/view-switcher";
 import { LanguageToggle } from "@/components/i18n/language-toggle";
 import { cn } from "@/lib/utils";
+import { DrawerSwitchButton } from "@/components/pos/drawer-switch-button";
 
 const TABS = [
   {
@@ -61,6 +62,7 @@ export function PosNav({
   userLabel,
   locale,
   workingAt,
+  otherStores = [],
   closeShiftHref,
 }: {
   canAccessAdmin: boolean;
@@ -68,6 +70,8 @@ export function PosNav({
   locale: "en" | "th";
   /** "Store · Register" from the drawer this person opened, or null. */
   workingAt: string | null;
+  /** Other open drawers this person is on, so the owner can switch stores. */
+  otherStores?: { drawerId: string; branchId: string; name: string }[];
   /** Link to close the drawer this person has open, or null. */
   closeShiftHref: string | null;
 }) {
@@ -96,6 +100,16 @@ export function PosNav({
               >
                 {workingAt ? <span data-no-translate>{workingAt}</span> : "No register open"}
               </Link>
+              {otherStores.map((o) => (
+                <DrawerSwitchButton
+                  key={o.drawerId}
+                  drawerSessionId={o.drawerId}
+                  branchId={o.branchId}
+                  variant="link"
+                  label={`Switch to ${o.name}`}
+                  className="max-w-40 shrink-0 truncate"
+                />
+              ))}
               {closeShiftHref && (
                 <Link href={closeShiftHref} className="shrink-0 font-medium text-primary hover:underline">
                   Close shift
@@ -193,6 +207,17 @@ export function PosNav({
                       ›
                     </span>
                   </Link>
+                </li>
+              ))}
+              {otherStores.map((o) => (
+                <li key={o.drawerId} className="border-b border-border">
+                  <DrawerSwitchButton
+                    drawerSessionId={o.drawerId}
+                    branchId={o.branchId}
+                    variant="link"
+                    label={`Switch to ${o.name}`}
+                    className="flex h-12 w-full items-center px-4 text-left text-[16px] hover:no-underline"
+                  />
                 </li>
               ))}
               {closeShiftHref && (

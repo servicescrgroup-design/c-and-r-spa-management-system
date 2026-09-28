@@ -1,7 +1,9 @@
 import "server-only";
+import { cookies } from "next/headers";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { requireStaffContext } from "@/lib/auth/session";
 import { isOwner } from "@/lib/auth/roles";
+import { ACTIVE_DRAWER_COOKIE } from "@/lib/pos/active-drawer";
 
 export async function getStaffBranches() {
   const ctx = await requireStaffContext();
@@ -117,7 +119,7 @@ export async function getOpenDrawerSession(registerId: string) {
 }
 
 /** The drawer the signed-in staff member is working: one they opened or
- * joined. Several receptionists can share a register; each sale still records
+ * joined, preferring the one they last picked. Several receptionists can share a register; each sale still records
  * who rang it up. */
 export async function getMyOpenDrawer(branchId?: string) {
   const ctx = await requireStaffContext();
@@ -127,11 +129,11 @@ export async function getMyOpenDrawer(branchId?: string) {
     .select("id, register_id, opening_amount_cents, opened_at, pos_registers!inner(id, name, branch_id)")
     .or(await mineFilter(ctx.staffId))
     .eq("status", "open")
-    .order("opened_at", { ascending: false })
-    .limit(1);
+    .order("opened_at", { ascending: false });
   if (branchId) query = query.eq("pos_registers.branch_id", branchId);
-  const { data } = await query.maybeSingle();
-  return data;
+  const [{ data }, jar] = await Promise.all([query, cookies()]);
+  const picked = jar.get(ACTIVE_DRAWER_COOKIE)?.value;
+  return data?.find((d) => d.id === picked) ?? data?.[0] ?? null;
 }
 
 /**
@@ -139,10 +141,13 @@ export async function getMyOpenDrawer(branchId?: string) {
  * register drawer they opened. Every POS page uses this instead of letting
  * people pick a store per page, so sales always land at the right branch.
  */
-export async function getWorkingBranch(): Promise<{
+export type WorkingDrawer = {
   branch: { id: string; name: string };
   drawer: { id: string; registerId: string; registerName: string; openedAt: string };
-} | null> {
+};
+
+/** Every open drawer this person opened or joined, newest first. Owners can work several stores at once. */
+export async function getMyOpenDrawers(): Promise<WorkingDrawer[]> {
   const ctx = await requireStaffContext();
   const supabase = await createServerSupabaseClient();
   const { data } = await supabase
@@ -150,13 +155,24 @@ export async function getWorkingBranch(): Promise<{
     .select("id, register_id, opened_at, pos_registers!inner(id, name, branch_id, branch:branch_id(id, name))")
     .or(await mineFilter(ctx.staffId))
     .eq("status", "open")
-    .order("opened_at", { ascending: false })
-    .limit(1)
-    .maybeSingle();
-  const branch = data?.pos_registers?.branch;
-  if (!data || !branch) return null;
-  return {
-    branch: { id: branch.id, name: branch.name },
-    drawer: { id: data.id, registerId: data.register_id, registerName: data.pos_registers.name, openedAt: data.opened_at },
-  };
+    .order("opened_at", { ascending: false });
+  return (data ?? []).flatMap((d) => {
+    const branch = d.pos_registers?.branch;
+    if (!branch) return [];
+    return [{
+      branch: { id: branch.id, name: branch.name },
+      drawer: { id: d.id, registerId: d.register_id, registerName: d.pos_registers.name, openedAt: d.opened_at },
+    }];
+  });
+}
+
+/**
+ * The store this staff member is working at right now: the drawer they last
+ * picked (Sell or Join), else the newest one they opened or joined. Every POS
+ * page uses this, so sales always land at the right branch.
+ */
+export async function getWorkingBranch(): Promise<WorkingDrawer | null> {
+  const [drawers, jar] = await Promise.all([getMyOpenDrawers(), cookies()]);
+  const picked = jar.get(ACTIVE_DRAWER_COOKIE)?.value;
+  return drawers.find((d) => d.drawer.id === picked) ?? drawers[0] ?? null;
 }

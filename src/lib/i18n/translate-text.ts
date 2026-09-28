@@ -92,6 +92,7 @@ const PATTERNS: [RegExp, string][] = [
   [/^You already have a drawer open \((.+)\)\. Close it before opening another\.$/, "คุณเปิดลิ้นชักไว้แล้ว ($1) ปิดก่อนเปิดเครื่องอื่น"],
   [/^Already checked in at (.+) today\. A therapist can only work at one store per day\.$/, "เช็คอินที่ $1 แล้ววันนี้ หมอนวดทำงานได้วันละหนึ่งสาขาเท่านั้น"],
   [/^Starts in (\d+) min$/, "เริ่มในอีก $1 นาที"],
+  [/^Switch to (.+)$/, "สลับไป $1"],
   [/^\(?Booked (\d{2}:\d{2}–\d{2}:\d{2})\)?$/, "จองแล้ว $1"],
   [/^\(?In service until about (\d{2}:\d{2})\)?$/, "ให้บริการถึงประมาณ $1"],
   [/^(.+) is already booked from (\S+) to (\S+)\. Pick another therapist or time\.$/, "$1 มีคิวจองแล้ว $2–$3 เลือกหมอนวดหรือเวลาอื่น"],

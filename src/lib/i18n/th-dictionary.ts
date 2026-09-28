@@ -1460,4 +1460,9 @@ export const TH: Record<string, string> = {
   "Spa": "สปา",
   "In at": "เข้างาน",
   "No one is checked in yet. Check therapists in below.": "ยังไม่มีใครเช็คอิน เช็คอินหมอนวดด้านล่าง",
+  "Switch here and sell": "สลับมาที่นี่และขาย",
+  "selling here now": "กำลังขายที่นี่",
+  "Join this register first.": "เข้าร่วมเครื่องนี้ก่อน",
+  "Couldn't switch. Try again.": "สลับไม่สำเร็จ ลองใหม่",
+  "As the owner you can be on a drawer at each store and switch between them without closing a shift.": "เจ้าของร้านเปิดลิ้นชักได้ทุกสาขาและสลับไปมาได้โดยไม่ต้องปิดกะ",
 };

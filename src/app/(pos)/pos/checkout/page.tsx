@@ -1,6 +1,6 @@
 import { redirect } from "next/navigation";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
-import { getStaffBranches, getMyOpenDrawer } from "@/lib/pos/session";
+import { getStaffBranches, getMyOpenDrawer, getWorkingBranch } from "@/lib/pos/session";
 import { CheckoutCart } from "@/components/pos/checkout-cart";
 import { getFreelanceSessions } from "@/lib/pos/sale-actions";
 import { getFreeAtByStaff } from "@/lib/pos/free-at";
@@ -11,18 +11,14 @@ export default async function CheckoutPage({
   const { branchId: branchIdParam } = await searchParams;
   const branches = await getStaffBranches();
 
-  let activeBranchId = typeof branchIdParam === "string" ? branchIdParam : null;
+  // Owners can have drawers open at several stores; without ?branchId, sell
+  // at the store they last picked.
+  const working = await getWorkingBranch();
+  let activeBranchId = typeof branchIdParam === "string" ? branchIdParam : (working?.branch.id ?? null);
   let drawer = activeBranchId ? await getMyOpenDrawer(activeBranchId) : null;
-
-  if (!drawer) {
-    for (const branch of branches) {
-      const open = await getMyOpenDrawer(branch.id);
-      if (open) {
-        activeBranchId = branch.id;
-        drawer = open;
-        break;
-      }
-    }
+  if (!drawer && working) {
+    activeBranchId = working.branch.id;
+    drawer = await getMyOpenDrawer(activeBranchId);
   }
 
   if (!activeBranchId || !drawer) {

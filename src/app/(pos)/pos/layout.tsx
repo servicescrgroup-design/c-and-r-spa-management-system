@@ -1,7 +1,7 @@
 import { redirect } from "next/navigation";
 import { requireStaffContext } from "@/lib/auth/session";
 import { PosNav } from "@/components/pos/pos-nav";
-import { getWorkingBranch } from "@/lib/pos/session";
+import { getMyOpenDrawers, getWorkingBranch } from "@/lib/pos/session";
 import { AutoTranslate } from "@/components/i18n/auto-translate";
 import { getUiLocale } from "@/lib/i18n/locale";
 
@@ -12,7 +12,10 @@ export default async function PosLayout({ children }: LayoutProps<"/pos">) {
   }
   const canAccessAdmin = ctx.roles.some((r) => r.role === "owner" || r.role === "manager");
 
-  const [locale, working] = await Promise.all([getUiLocale(), getWorkingBranch()]);
+  const [locale, working, drawers] = await Promise.all([getUiLocale(), getWorkingBranch(), getMyOpenDrawers()]);
+  const otherStores = drawers
+    .filter((d) => d.drawer.id !== working?.drawer.id)
+    .map((d) => ({ drawerId: d.drawer.id, branchId: d.branch.id, name: d.branch.name }));
 
   return (
     <div className="flex min-h-svh flex-1 flex-col" data-i18n-pending={locale === "th" ? "" : undefined}>
@@ -20,6 +23,7 @@ export default async function PosLayout({ children }: LayoutProps<"/pos">) {
       <PosNav canAccessAdmin={canAccessAdmin} userLabel={ctx.firstName || ctx.email}
         locale={locale}
         workingAt={working ? `${working.branch.name} · ${working.drawer.registerName}` : null}
+        otherStores={otherStores}
         closeShiftHref={
           working ? `/pos/drawer?branchId=${working.branch.id}&registerId=${working.drawer.registerId}` : null
         }

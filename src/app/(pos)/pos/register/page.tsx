@@ -1,6 +1,7 @@
 import Link from "next/link";
-import { getStaffBranches, getAllowedRegistersForBranch, getOpenDrawerSession, getDrawerPeople } from "@/lib/pos/session";
+import { getStaffBranches, getAllowedRegistersForBranch, getOpenDrawerSession, getDrawerPeople, getWorkingBranch } from "@/lib/pos/session";
 import { DrawerJoinButton } from "@/components/pos/drawer-join-button";
+import { DrawerSwitchButton } from "@/components/pos/drawer-switch-button";
 import { requireStaffContext } from "@/lib/auth/session";
 import { isOwner } from "@/lib/auth/roles";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -9,7 +10,9 @@ import { buttonVariants } from "@/components/ui/button";
 export default async function RegisterPage() {
   const ctx = await requireStaffContext();
   const branches = await getStaffBranches();
-  const canCloseOthers = isOwner(ctx) || ctx.roles.some((r) => r.role === "manager");
+  const owner = isOwner(ctx);
+  const canCloseOthers = owner || ctx.roles.some((r) => r.role === "manager");
+  const working = await getWorkingBranch();
 
   const branchStatus = await Promise.all(
     branches.map(async (branch) => {
@@ -31,6 +34,7 @@ export default async function RegisterPage() {
         <p className="text-muted-foreground">
           Pick the register you&apos;re working today and open its drawer, or join one that&apos;s already open. Several receptionists can
           share a register; every sale and expense records who entered it.
+          {owner && " As the owner you can be on a drawer at each store and switch between them without closing a shift."}
         </p>
       </div>
 
@@ -53,6 +57,7 @@ export default async function RegisterPage() {
                       {drawer ? (
                         <p className="text-xs text-muted-foreground">
                           {opened ? "Open — you opened it" : joined ? "Open — you joined" : "Open"}
+                          {mine && working?.drawer.id === drawer.id && " · selling here now"}
                           {people.length > 0 && (
                             <>
                               {" · "}
@@ -67,9 +72,13 @@ export default async function RegisterPage() {
                     {drawer ? (
                       <div className="flex flex-wrap items-center justify-end gap-2">
                         {mine ? (
-                          <Link href={`/pos/checkout?branchId=${branch.id}`} className={buttonVariants({ size: "sm" })}>
-                            Sell
-                          </Link>
+                          working?.drawer.id === drawer.id ? (
+                            <Link href={`/pos/checkout?branchId=${branch.id}`} className={buttonVariants({ size: "sm" })}>
+                              Sell
+                            </Link>
+                          ) : (
+                            <DrawerSwitchButton drawerSessionId={drawer.id} branchId={branch.id} label="Switch here and sell" />
+                          )
                         ) : (
                           <DrawerJoinButton drawerSessionId={drawer.id} mode="join" branchId={branch.id} />
                         )}
