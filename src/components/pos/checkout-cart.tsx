@@ -15,7 +15,14 @@ type CatalogItem = { id: string; name: string; default_price_cents?: number; ret
 type ServiceDuration = { minutes: number; priceCents: number; payoutCents: number };
 type ServiceItem = { id: string; name: string; category_id: string | null; default_price_cents: number; durations: ServiceDuration[] };
 type Category = { id: string; name: string; background_color: string | null };
-type Therapist = { id: string; name: string; status: string | null; freeAt?: string | null };
+type Therapist = {
+  id: string;
+  name: string;
+  status: string | null;
+  freeAt?: string | null;
+  /** Checked in today at the other store (the queue is shared). */
+  otherStore?: string | null;
+};
 
 const hhmm = (iso: string) =>
   new Intl.DateTimeFormat("en-GB", { timeZone: "Asia/Bangkok", hour: "2-digit", minute: "2-digit", hour12: false }).format(new Date(iso));
@@ -692,19 +699,20 @@ export function CheckoutCart({
                     >
                       <option value="">Choose therapist...</option>
                       {therapists.some((t) => t.status) && (
-                        <optgroup label="Store therapists · clocked in">
+                        <optgroup label="Checked in today">
                           {therapists
                             .filter((t) => t.status)
                             .map((t) => (
                               <option key={t.id} value={`staff:${t.id}`}>
                                 {isFreeNow(t, Date.now()) ? "🟢" : "🔴"} {t.name} · {STATUS_TEXT[t.status!] ?? t.status}
                                 {t.freeAt && new Date(t.freeAt).getTime() > Date.now() ? ` · free at ${hhmm(t.freeAt)}` : ""}
+                                {t.otherStore ? ` · at ${t.otherStore}` : ""}
                               </option>
                             ))}
                         </optgroup>
                       )}
                       {therapists.some((t) => !t.status) && (
-                        <optgroup label="Store therapists · not checked in yet">
+                        <optgroup label="Not checked in yet">
                           {therapists
                             .filter((t) => !t.status)
                             .map((t) => (

@@ -4028,6 +4028,7 @@ export type Database = {
           price_cents: number
         }[]
       }
+      finish_session_jobs: { Args: { p_session_id: string }; Returns: number }
       get_available_slots: {
         Args: {
           p_branch_id: string

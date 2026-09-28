@@ -430,6 +430,13 @@ export async function setTherapistStatus(
   if (!canOperateQueue(ctx, branchId)) return { ok: false, error: "Not authorized to manage the queue here." };
 
   const supabase = await createServerSupabaseClient();
+  // Setting "Available" by hand means the massage is done. Finish it, or the
+  // scheduler would see it still running and put them back "In service".
+  const { data: current } = await supabase.from("therapist_clock_sessions").select("status").eq("id", sessionId).maybeSingle();
+  if (status === "available" && current?.status === "in_service") {
+    const { error: finishError } = await supabase.rpc("finish_session_jobs", { p_session_id: sessionId });
+    if (finishError) return { ok: false, error: finishError.message };
+  }
   // Leaving "In service" by hand lets go of the massage, so the next one can start on time.
   const { error } = await supabase
     .from("therapist_clock_sessions")

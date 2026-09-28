@@ -70,10 +70,11 @@ export default async function CheckoutPage({
       .eq("role", "therapist")
       .eq("branch_id", activeBranchId),
     supabase.from("therapist_profiles").select("staff_id, nickname"),
+    // One shared queue: today's check-ins at either store.
     supabase
       .from("therapist_clock_sessions")
-      .select("staff_id, status, current_room_id, current_bed_id, active_item_id")
-      .eq("branch_id", activeBranchId)
+      .select("staff_id, branch_id, status, current_room_id, current_bed_id, active_item_id, staff:staff_id(first_name, last_name), branch:branch_id(name)")
+      .eq("work_date", new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Bangkok" }).format(new Date()))
       .is("clock_out_at", null),
     supabase
       .from("branch_rooms")
@@ -93,7 +94,8 @@ export default async function CheckoutPage({
     name: r.name,
     beds: (beds ?? []).filter((b) => b.room_id === r.id).map((b) => ({ id: b.id, name: b.name, bedType: b.bed_type })),
   }));
-  const inService = (sessions ?? []).filter((s) => s.status === "in_service");
+  // Rooms and beds belong to this store, so only its own busy therapists block them.
+  const inService = (sessions ?? []).filter((s) => s.status === "in_service" && s.branch_id === activeBranchId);
   const busyBedIds = inService.map((s) => s.current_bed_id).filter((id): id is string => Boolean(id));
   // A room with no beds counts as one space; it's busy when someone is in it.
   const busyRoomIds = inService
@@ -124,18 +126,26 @@ export default async function CheckoutPage({
 
   const nicknames = new Map((profiles ?? []).map((p) => [p.staff_id, p.nickname]));
   const statusByStaff = new Map((sessions ?? []).map((s) => [s.staff_id, s.status]));
+  const otherStoreByStaff = new Map(
+    (sessions ?? []).filter((s) => s.branch_id !== activeBranchId).map((s) => [s.staff_id, s.branch?.name ?? "the other store"]),
+  );
+  // Therapists checked in at the other store can take a customer here too.
+  const roleRows = [
+    ...(therapistRoles ?? []),
+    ...(sessions ?? []).map((s) => ({ staff_id: s.staff_id, staff: s.staff })),
+  ];
 
   const freeAtByStaff = await getFreeAtByStaff(
-    Array.from(new Set((therapistRoles ?? []).map((r) => r.staff_id))),
+    Array.from(new Set(roleRows.map((r) => r.staff_id))),
     (sessions ?? []).map((s) => s.active_item_id).filter((id): id is string => Boolean(id)),
   );
   const seen = new Set<string>();
-  const therapists = (therapistRoles ?? [])
+  const therapists = roleRows
     .filter((r) => !seen.has(r.staff_id) && seen.add(r.staff_id))
     .map((r) => {
       const full = `${r.staff?.first_name ?? ""} ${r.staff?.last_name ?? ""}`.trim();
       const nick = nicknames.get(r.staff_id);
-      return { id: r.staff_id, name: nick ? `${nick} (${full})` : full || "Therapist", status: statusByStaff.get(r.staff_id) ?? null, freeAt: freeAtByStaff.get(r.staff_id) ?? null };
+      return { id: r.staff_id, name: nick ? `${nick} (${full})` : full || "Therapist", status: statusByStaff.get(r.staff_id) ?? null, freeAt: freeAtByStaff.get(r.staff_id) ?? null, otherStore: otherStoreByStaff.get(r.staff_id) ?? null };
     })
     .sort((a, b) => Number(!a.status) - Number(!b.status) || a.name.localeCompare(b.name));
 

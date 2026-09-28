@@ -307,46 +307,11 @@ export async function completeJob(branchId: string, sessionId: string): Promise<
     .maybeSingle();
   if (!session || session.branch_id !== branchId) return { ok: false, error: "Session not found." };
 
-  if (session.active_item_id) {
-    const completedAt = new Date().toISOString();
-    await supabase.from("pos_transaction_items").update({ completed_at: completedAt }).eq("id", session.active_item_id);
-    // Add-ons on the same sale for this therapist finish with the main job, so their minutes count too.
-    const { data: main } = await supabase
-      .from("pos_transaction_items")
-      .select("transaction_id, staff_id")
-      .eq("id", session.active_item_id)
-      .maybeSingle();
-    if (main?.staff_id) {
-      await supabase
-        .from("pos_transaction_items")
-        .update({ completed_at: completedAt })
-        .eq("transaction_id", main.transaction_id)
-        .eq("staff_id", main.staff_id)
-        .eq("item_type", "service")
-        .is("completed_at", null);
-    }
-  }
-
-  if (!session.active_item_id) {
-    // Nothing linked (status set by hand, or sold before check-in): finish
-    // whatever this therapist has already started today so it counts for pay.
-    const { data: open } = await supabase
-      .from("pos_transaction_items")
-      .select("id, start_at, pos_transactions!inner(created_at, status)")
-      .eq("staff_id", session.staff_id)
-      .eq("item_type", "service")
-      .is("completed_at", null)
-      .eq("pos_transactions.status", "completed")
-      .gte("pos_transactions.created_at", new Date(Date.now() - 12 * 3600_000).toISOString());
-    const nowMs = Date.now();
-    const started = (open ?? []).filter((i) => new Date(i.start_at ?? i.pos_transactions.created_at).getTime() <= nowMs);
-    if (started.length > 0) {
-      await supabase
-        .from("pos_transaction_items")
-        .update({ completed_at: new Date(nowMs).toISOString() })
-        .in("id", started.map((i) => i.id));
-    }
-  }
+  // Finish the linked massage (and its add-ons), or whatever this therapist
+  // already started today. Runs in the database because staff can't update
+  // sale lines directly.
+  const { error: finishError } = await supabase.rpc("finish_session_jobs", { p_session_id: sessionId });
+  if (finishError) return { ok: false, error: finishError.message };
 
   const { data: branch } = await supabase.from("branches").select("queue_send_to_back").eq("id", branchId).single();
 
