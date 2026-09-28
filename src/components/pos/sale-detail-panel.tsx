@@ -56,6 +56,65 @@ function TherapistTag({ line }: { line: SaleLine }) {
   );
 }
 
+/** Quick fix for a massage saved without a therapist: pick one and it saves straight away. */
+function AssignTherapist({
+  saleId,
+  group,
+  detail,
+  therapists,
+  services,
+}: {
+  saleId: string;
+  group: SaleGroup;
+  detail: SaleDetail;
+  therapists: { id: string; name: string }[];
+  services: ServiceOption[];
+}) {
+  const router = useRouter();
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  // Their pay (ค่ามือ) from the menu, when the line has none yet.
+  const menuPay = (l: SaleLine) =>
+    services.find((sv) => sv.id === l.serviceId)?.durations.find((d) => d.minutes === l.minutes)?.payoutCents ?? 0;
+
+  async function assign(staffId: string) {
+    if (!staffId) return;
+    setBusy(true);
+    setError(null);
+    const lines = [group.main, ...group.addOns].filter((l) => !l.staffId && !l.freelancerName);
+    const result = await updateSale(saleId, {
+      lines: lines.map((l) => ({ id: l.id, staffId, ...(l.payoutCents === 0 && menuPay(l) > 0 ? { payoutCents: menuPay(l) } : {}) })),
+      tipCents: detail.tipCents,
+      payments: detail.payments,
+      note: "Therapist added",
+    }).catch(() => ({ ok: false as const, error: "Couldn't save. Try again." }));
+    setBusy(false);
+    if (!result.ok) return setError(result.error);
+    router.refresh();
+  }
+
+  return (
+    <span className="inline-flex flex-col gap-1">
+      <select
+        defaultValue=""
+        disabled={busy}
+        onChange={(e) => assign(e.target.value)}
+        aria-label="Choose therapist"
+        className="h-8 max-w-44 rounded-full border border-highlight/60 bg-card px-2 text-xs"
+      >
+        <option value="">{busy ? "Saving..." : "Choose therapist..."}</option>
+        {therapists.map((t) => (
+          <option key={t.id} value={t.id}>
+            {t.name}
+          </option>
+        ))}
+      </select>
+      {error && <span className="max-w-44 text-[11px] text-destructive">{error}</span>}
+    </span>
+  );
+}
+
 /** Read-only view: one row per massage with its add-ons underneath, then totals and payments. */
 export function SaleBreakdown({
   detail,
@@ -63,6 +122,7 @@ export function SaleBreakdown({
   totalCents,
   rooms,
   showCosts = false,
+  assign,
 }: {
   detail: SaleDetail;
   createdAt: string;
@@ -70,6 +130,8 @@ export function SaleBreakdown({
   rooms: RoomOption[];
   /** Owners and managers see what each massage cost and what the shop kept. */
   showCosts?: boolean;
+  /** Set when this sale can be edited: lets a missing therapist be picked in place. */
+  assign?: { saleId: string; therapists: { id: string; name: string }[]; services: ServiceOption[] };
 }) {
   const { groups, other } = groupSaleLines(detail.lines);
   const addOnCents = groups.flatMap((g) => g.addOns).reduce((sum, l) => sum + l.unitPriceCents * l.quantity, 0);
@@ -134,7 +196,17 @@ export function SaleBreakdown({
                     </p>
                   </td>
                   <td className="px-3 py-2.5">
-                    <TherapistTag line={g.main} />
+                    {assign && !g.main.staffId && !g.main.freelancerName && g.main.itemType === "service" ? (
+                      <AssignTherapist
+                        saleId={assign.saleId}
+                        group={g}
+                        detail={detail}
+                        therapists={assign.therapists}
+                        services={assign.services}
+                      />
+                    ) : (
+                      <TherapistTag line={g.main} />
+                    )}
                     {!showCosts && g.main.transportCents + (g.main.drawerTransportCents ?? 0) > 0 && (
                       <p className="text-xs text-muted-foreground">
                         Transport {formatCents(g.main.transportCents + (g.main.drawerTransportCents ?? 0))}

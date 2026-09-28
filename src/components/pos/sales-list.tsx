@@ -212,6 +212,11 @@ function SalePanel({ sale, choices, showCosts }: { sale: SaleRow; choices: Edito
             totalCents={sale.totalCents}
             rooms={choices.rooms}
             showCosts={showCosts}
+            assign={
+              sale.detail.lockedReason
+                ? undefined
+                : { saleId: sale.id, therapists: choices.therapists, services: choices.services }
+            }
           />
           {sale.detail.lockedReason && <p className="text-xs text-muted-foreground">{sale.detail.lockedReason}</p>}
         </>
