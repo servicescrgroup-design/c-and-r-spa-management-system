@@ -4,12 +4,11 @@ import { getTherapistEarnings, resolveRange } from "@/lib/admin/therapist-earnin
 import { getTherapistPortalDataFor } from "@/lib/therapist/portal-data";
 import { EarningsRange } from "@/components/admin/earnings-range";
 import { TherapistPortalView } from "@/components/therapist/therapist-portal-view";
+import { TherapistJobsTable } from "@/components/admin/therapist-jobs-table";
 import { getUiLocale } from "@/lib/i18n/locale";
 import { formatCents } from "@/lib/utils";
 
 const hours = (minutes: number) => (minutes / 60).toLocaleString("en-US", { maximumFractionDigits: 1 });
-const when = (iso: string) =>
-  new Date(iso).toLocaleString("en-GB", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit", timeZone: "Asia/Bangkok" });
 
 export default async function TherapistDetailPage({ params, searchParams }: PageProps<"/admin/therapists/[staffId]">) {
   const { staffId } = await params;
@@ -61,65 +60,7 @@ export default async function TherapistDetailPage({ params, searchParams }: Page
           ))}
         </div>
 
-        <div className="overflow-x-auto rounded-[18px] bg-card ring-1 ring-black/[0.05] dark:ring-white/[0.08]">
-          <table className="w-full min-w-[760px] text-sm">
-            <thead className="bg-muted/60 text-left text-xs text-muted-foreground">
-              <tr>
-                <th className="px-4 py-2.5 font-medium">Finished</th>
-                <th className="px-4 py-2.5 font-medium">Massage</th>
-                <th className="px-4 py-2.5 font-medium">Bill</th>
-                <th className="px-4 py-2.5 text-right font-medium">Customer paid</th>
-                <th className="px-4 py-2.5 text-right font-medium">Their pay</th>
-                <th className="px-4 py-2.5 text-right font-medium">Transport + OT</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-border">
-              {jobs.map((j) => (
-                <tr key={j.id} className={j.isAddOn ? "text-muted-foreground" : undefined}>
-                  <td className="whitespace-nowrap px-4 py-2.5 tabular-nums">{when(j.completedAt)}</td>
-                  <td className="px-4 py-2.5">
-                    <span data-no-translate>
-                      {j.isAddOn ? "+ " : ""}
-                      {j.description}
-                    </span>
-                    <p className="text-xs text-muted-foreground">
-                      <span data-no-translate>{j.branchName}</span>
-                      {j.guestName && (
-                        <>
-                          {" · "}
-                          <span data-no-translate>{j.guestName}</span>
-                        </>
-                      )}
-                    </p>
-                  </td>
-                  <td className="whitespace-nowrap px-4 py-2.5 font-mono text-xs">{j.saleRef ?? "—"}</td>
-                  <td className="px-4 py-2.5 text-right tabular-nums">{formatCents(j.saleCents)}</td>
-                  <td className="px-4 py-2.5 text-right font-medium tabular-nums">{formatCents(j.payoutCents)}</td>
-                  <td className="px-4 py-2.5 text-right tabular-nums">{j.transportCents + j.otCents ? formatCents(j.transportCents + j.otCents) : "—"}</td>
-                </tr>
-              ))}
-              {jobs.length === 0 && (
-                <tr>
-                  <td colSpan={6} className="px-4 py-6 text-center text-muted-foreground">
-                    No finished massages in this period.
-                  </td>
-                </tr>
-              )}
-            </tbody>
-            {jobs.length > 0 && (
-              <tfoot className="border-t border-border font-semibold">
-                <tr>
-                  <td className="px-4 py-2.5" colSpan={3}>
-                    Total
-                  </td>
-                  <td className="px-4 py-2.5 text-right tabular-nums">{formatCents(summary.saleCents)}</td>
-                  <td className="px-4 py-2.5 text-right tabular-nums">{formatCents(summary.payoutCents)}</td>
-                  <td className="px-4 py-2.5 text-right tabular-nums">{formatCents(extras)}</td>
-                </tr>
-              </tfoot>
-            )}
-          </table>
-        </div>
+        <TherapistJobsTable jobs={jobs} canEdit />
       </section>
 
       <section className="space-y-3">

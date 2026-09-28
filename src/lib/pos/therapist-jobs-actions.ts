@@ -228,3 +228,47 @@ export async function deleteTodayJob(saleId: string, itemId: string, who: Who): 
   refresh();
   return { ok: true, deletedBill: remaining.length === 0 };
 }
+
+/**
+ * Quick edit of one massage from the owner's views: what the customer paid
+ * for it, the therapist's pay, transport and OT. A change in what the
+ * customer paid is moved onto the bill's payments (cash first).
+ */
+export async function quickEditJob(
+  saleId: string,
+  itemId: string,
+  input: { customerPaidCents?: number; payoutCents?: number; transportCents?: number; otCents?: number },
+): Promise<ActionResult> {
+  await requireStaffContext();
+  for (const v of Object.values(input)) {
+    if (v !== undefined && (!Number.isFinite(v) || v < 0)) return { ok: false, error: "Enter an amount of 0 or more." };
+  }
+  const { supabase, sale } = await loadSale(saleId);
+  if (!sale) return { ok: false, error: "Sale not found." };
+  const line = sale.pos_transaction_items.find((i) => i.id === itemId);
+  if (!line) return { ok: false, error: "That massage isn't on this bill." };
+
+  const row: Record<string, unknown> = { id: itemId };
+  let delta = 0;
+  if (input.customerPaidCents !== undefined) {
+    // Keep the line's discount; set the price so price × qty − discount = what they paid.
+    const unit = Math.round((input.customerPaidCents + line.discount_cents) / line.quantity);
+    row.unit_price_cents = unit;
+    delta = unit * line.quantity - line.discount_cents - line.total_cents;
+  }
+  if (input.payoutCents !== undefined) row.payout_cents = Math.round(input.payoutCents);
+  if (input.transportCents !== undefined) row.transport_cents = Math.round(input.transportCents);
+  if (input.otCents !== undefined) row.ot_cents = Math.round(input.otCents);
+
+  const { error } = await supabase.rpc("edit_pos_sale_full", {
+    p_transaction_id: saleId,
+    p_lines: [row] as Json,
+    p_tip_cents: sale.tip_cents,
+    p_payments: spread(sale.pos_payments, delta) as Json,
+    p_note: "Quick edit from the Therapists page",
+  });
+  if (error) return { ok: false, error: error.message };
+  refresh();
+  revalidatePath("/admin/therapists");
+  return { ok: true };
+}

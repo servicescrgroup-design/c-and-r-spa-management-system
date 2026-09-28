@@ -1449,4 +1449,7 @@ export const TH: Record<string, string> = {
   "Working this drawer:": "ทำงานที่ลิ้นชักนี้:",
   "you": "คุณ",
   "Pick the register you're working today and open its drawer, or join one that's already open. Several receptionists can share a register; every sale and expense records who entered it.": "เลือกเครื่องคิดเงินที่คุณใช้วันนี้แล้วเปิดลิ้นชัก หรือเข้าร่วมเครื่องที่เปิดอยู่แล้ว พนักงานต้อนรับหลายคนใช้เครื่องเดียวกันได้ ทุกการขายและค่าใช้จ่ายจะบันทึกว่าใครเป็นคนทำ",
+  "Day / time": "วัน / เวลา",
+  "Expand all": "เปิดทั้งหมด",
+  "Collapse all": "ย่อทั้งหมด",
 };

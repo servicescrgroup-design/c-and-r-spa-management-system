@@ -26,6 +26,10 @@ export function resolveRange(sp: Record<string, string | string[] | undefined>):
 
 export type TherapistJob = {
   id: string;
+  saleId: string;
+  quantity: number;
+  unitPriceCents: number;
+  discountCents: number;
   staffId: string;
   completedAt: string;
   startAt: string | null;
@@ -40,6 +44,7 @@ export type TherapistJob = {
   payoutCents: number;
   transportCents: number;
   otCents: number;
+  drawerTransportCents: number;
 };
 
 export type TherapistSummary = {
@@ -111,7 +116,7 @@ export async function getTherapistEarnings(range: EarningsRange, onlyStaffId?: s
   const { data: items } = await supabase
     .from("pos_transaction_items")
     .select(
-      "id, staff_id, description, duration_minutes, is_add_on, total_cents, payout_cents, transport_cents, ot_cents, completed_at, start_at, customer_name, pos_transactions!inner(branch_id, customer_ref, status)",
+      "id, transaction_id, quantity, unit_price_cents, discount_cents, staff_id, description, duration_minutes, is_add_on, total_cents, payout_cents, transport_cents, ot_cents, completed_at, start_at, customer_name, pos_transactions!inner(branch_id, customer_ref, status)",
     )
     .in("staff_id", staffIds)
     .eq("item_type", "service")
@@ -132,6 +137,10 @@ export async function getTherapistEarnings(range: EarningsRange, onlyStaffId?: s
 
   const jobs: TherapistJob[] = visibleItems.map((i) => ({
     id: i.id,
+    saleId: i.transaction_id,
+    quantity: i.quantity,
+    unitPriceCents: i.unit_price_cents,
+    discountCents: i.discount_cents,
     staffId: i.staff_id!,
     completedAt: i.completed_at!,
     startAt: i.start_at,
@@ -143,7 +152,9 @@ export async function getTherapistEarnings(range: EarningsRange, onlyStaffId?: s
     guestName: i.customer_name,
     saleCents: i.total_cents,
     payoutCents: i.payout_cents,
-    transportCents: i.transport_cents + (transport.get(i.id) ?? 0),
+    // Editable transport lives on the massage; older transport was paid from the drawer.
+    transportCents: i.transport_cents,
+    drawerTransportCents: transport.get(i.id) ?? 0,
     otCents: i.ot_cents,
   }));
 
@@ -154,7 +165,7 @@ export async function getTherapistEarnings(range: EarningsRange, onlyStaffId?: s
     s.minutes += j.minutes;
     s.saleCents += j.saleCents;
     s.payoutCents += j.payoutCents;
-    s.transportCents += j.transportCents;
+    s.transportCents += j.transportCents + j.drawerTransportCents;
     s.otCents += j.otCents;
   }
 
