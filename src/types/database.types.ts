@@ -605,6 +605,42 @@ export type Database = {
           },
         ]
       }
+      cash_drawer_members: {
+        Row: {
+          drawer_session_id: string
+          joined_at: string
+          left_at: string | null
+          staff_id: string
+        }
+        Insert: {
+          drawer_session_id: string
+          joined_at?: string
+          left_at?: string | null
+          staff_id: string
+        }
+        Update: {
+          drawer_session_id?: string
+          joined_at?: string
+          left_at?: string | null
+          staff_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "cash_drawer_members_drawer_session_id_fkey"
+            columns: ["drawer_session_id"]
+            isOneToOne: false
+            referencedRelation: "cash_drawer_sessions"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "cash_drawer_members_staff_id_fkey"
+            columns: ["staff_id"]
+            isOneToOne: false
+            referencedRelation: "staff"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       cash_drawer_sessions: {
         Row: {
           closed_at: string | null

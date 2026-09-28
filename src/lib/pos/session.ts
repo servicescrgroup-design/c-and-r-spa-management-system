@@ -72,6 +72,39 @@ export async function getAllowedRegistersForBranch(branchId: string) {
   return all.filter((r) => allowedIds.has(r.id));
 }
 
+/** Open drawers this person joined (opening one counts as being on it too). */
+async function joinedDrawerIds(staffId: string): Promise<string[]> {
+  const supabase = await createServerSupabaseClient();
+  const { data } = await supabase.from("cash_drawer_members").select("drawer_session_id").eq("staff_id", staffId).is("left_at", null);
+  return (data ?? []).map((d) => d.drawer_session_id);
+}
+
+/** A drawer is "mine" if I opened it or joined it. */
+async function mineFilter(staffId: string): Promise<string> {
+  const joined = await joinedDrawerIds(staffId);
+  return joined.length ? `opened_by_staff_id.eq.${staffId},id.in.(${joined.join(",")})` : `opened_by_staff_id.eq.${staffId}`;
+}
+
+/** Everyone working an open drawer: who opened it plus who joined. */
+export async function getDrawerPeople(drawerSessionId: string): Promise<{ staffId: string; name: string; opener: boolean }[]> {
+  const supabase = await createServerSupabaseClient();
+  const [{ data: drawer }, { data: members }] = await Promise.all([
+    supabase.from("cash_drawer_sessions").select("opened_by_staff_id, staff:opened_by_staff_id(first_name, last_name)").eq("id", drawerSessionId).single(),
+    supabase
+      .from("cash_drawer_members")
+      .select("staff_id, staff:staff_id(first_name, last_name)")
+      .eq("drawer_session_id", drawerSessionId)
+      .is("left_at", null)
+      .order("joined_at"),
+  ]);
+  const people: { staffId: string; name: string; opener: boolean }[] = [];
+  if (drawer) people.push({ staffId: drawer.opened_by_staff_id, name: drawer.staff?.first_name ?? "Staff", opener: true });
+  for (const m of members ?? []) {
+    if (!people.some((p) => p.staffId === m.staff_id)) people.push({ staffId: m.staff_id, name: m.staff?.first_name ?? "Staff", opener: false });
+  }
+  return people;
+}
+
 export async function getOpenDrawerSession(registerId: string) {
   const supabase = await createServerSupabaseClient();
   const { data } = await supabase
@@ -83,18 +116,19 @@ export async function getOpenDrawerSession(registerId: string) {
   return data;
 }
 
-/** The signed-in staff member's own open drawer — the register they picked
- * when they checked in this morning — rather than "whichever drawer happens
- * to be open at the branch," since a branch can have several registers open
- * at once under different staff. */
+/** The drawer the signed-in staff member is working: one they opened or
+ * joined. Several receptionists can share a register; each sale still records
+ * who rang it up. */
 export async function getMyOpenDrawer(branchId?: string) {
   const ctx = await requireStaffContext();
   const supabase = await createServerSupabaseClient();
   let query = supabase
     .from("cash_drawer_sessions")
     .select("id, register_id, opening_amount_cents, opened_at, pos_registers!inner(id, name, branch_id)")
-    .eq("opened_by_staff_id", ctx.staffId)
-    .eq("status", "open");
+    .or(await mineFilter(ctx.staffId))
+    .eq("status", "open")
+    .order("opened_at", { ascending: false })
+    .limit(1);
   if (branchId) query = query.eq("pos_registers.branch_id", branchId);
   const { data } = await query.maybeSingle();
   return data;
@@ -114,7 +148,7 @@ export async function getWorkingBranch(): Promise<{
   const { data } = await supabase
     .from("cash_drawer_sessions")
     .select("id, register_id, opened_at, pos_registers!inner(id, name, branch_id, branch:branch_id(id, name))")
-    .eq("opened_by_staff_id", ctx.staffId)
+    .or(await mineFilter(ctx.staffId))
     .eq("status", "open")
     .order("opened_at", { ascending: false })
     .limit(1)

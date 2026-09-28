@@ -40,7 +40,7 @@ export default async function SalesPage({ searchParams }: PageProps<"/pos/sales"
       .from("pos_transactions")
       .select(
         `id, branch_id, customer_ref, customer_name, created_at, subtotal_cents, discount_cents, tax_cents, tip_cents, card_fee_cents,
-         total_cents, status, customer:customer_id(id, first_name, last_name),
+         total_cents, status, customer:customer_id(id, first_name, last_name), rung_by:staff_id(first_name),
          pos_transaction_items(id, item_type, reference_id, description, duration_minutes, quantity, unit_price_cents,
            discount_cents, total_cents, payout_cents, transport_cents, ot_cents, staff_id, room_id, bed_id, start_at, customer_name, is_add_on,
            completed_at, staff:staff_id(first_name, last_name)),
@@ -98,6 +98,7 @@ export default async function SalesPage({ searchParams }: PageProps<"/pos/sales"
     return {
       id: t.id,
       branchName: allStores ? (branchName.get(t.branch_id) ?? null) : null,
+      soldBy: t.rung_by?.first_name ?? null,
       ref: t.customer_ref,
       createdAt: t.created_at,
       customerName: t.customer_name,

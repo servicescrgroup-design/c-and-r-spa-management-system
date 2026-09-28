@@ -1,6 +1,7 @@
 import { redirect } from "next/navigation";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
-import { getRegistersForBranch, getOpenDrawerSession, getStaffBranches } from "@/lib/pos/session";
+import { getRegistersForBranch, getOpenDrawerSession, getStaffBranches, getDrawerPeople } from "@/lib/pos/session";
+import { expectedCash, getDrawerCash } from "@/lib/pos/drawer-cash";
 import { OpenDrawerForm } from "@/components/pos/open-drawer-form";
 import { CloseDrawerForm } from "@/components/pos/close-drawer-form";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -35,14 +36,9 @@ export default async function DrawerPage({
 
   if (drawer) {
     const supabase = await createServerSupabaseClient();
-    const { data: sales } = await supabase
-      .from("pos_payments")
-      .select("amount_cents, pos_transactions!inner(drawer_session_id)")
-      .eq("pos_transactions.drawer_session_id", drawer.id)
-      .eq("method", "cash");
-    const cashSalesCents = (sales ?? []).reduce((sum, p) => sum + p.amount_cents, 0);
-    const { data: paidOut } = await supabase.rpc("drawer_cash_paid_out", { p_drawer_session_id: drawer.id });
-    const expectedCents = drawer.opening_amount_cents + cashSalesCents - (paidOut ?? 0);
+    const [cash, people] = await Promise.all([getDrawerCash(supabase, drawer.id), getDrawerPeople(drawer.id)]);
+    const paidOut = cash.paidOutCents;
+    const expectedCents = expectedCash(drawer.opening_amount_cents, cash);
 
     return (
       <div className="mx-auto max-w-sm space-y-6">
@@ -53,8 +49,11 @@ export default async function DrawerPage({
             </CardTitle>
             <CardDescription>
               Opened with {formatCents(drawer.opening_amount_cents)}
-              {(paidOut ?? 0) > 0 && <> &middot; paid out {formatCents(paidOut ?? 0)} (transportation fees)</>}. Expected in
-              drawer: {formatCents(expectedCents)}.
+              {" "}+ cash sales {formatCents(cash.cashSalesCents)}
+              {cash.cashRefundsCents > 0 && <> − refunds {formatCents(cash.cashRefundsCents)}</>}
+              {paidOut > 0 && <> − paid out {formatCents(paidOut)}</>}
+              {cash.freelanceCashCents > 0 && <> − freelancers {formatCents(cash.freelanceCashCents)}</>}. Expected in drawer:{" "}
+              {formatCents(expectedCents)}.
             </CardDescription>
             <div className="mt-2 space-y-1 rounded-xl bg-muted p-3 text-sm">
               <p>
@@ -67,6 +66,25 @@ export default async function DrawerPage({
                   </span>
                 )}
               </p>
+              {people.length > 1 && (
+                <p className="text-muted-foreground">
+                  Working this drawer: <span data-no-translate>{people.map((p) => p.name).join(", ")}</span>
+                </p>
+              )}
+              {cash.byStaff.length > 0 && (
+                <ul className="space-y-0.5 text-xs text-muted-foreground">
+                  {cash.byStaff.map((b) => (
+                    <li key={b.staffId ?? b.name} className="flex justify-between gap-2">
+                      <span data-no-translate>
+                        {b.name} · {b.bills} bill{b.bills === 1 ? "" : "s"}
+                      </span>
+                      <span className="tabular-nums">
+                        {formatCents(b.totalCents)} (cash {formatCents(b.cashCents)})
+                      </span>
+                    </li>
+                  ))}
+                </ul>
+              )}
               <div className="text-muted-foreground">
                 <span>Now: </span>
                 <LiveClock />

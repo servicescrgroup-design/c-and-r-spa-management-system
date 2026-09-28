@@ -20,7 +20,7 @@ type Therapist = { id: string; name: string; status: string | null; freeAt?: str
 const hhmm = (iso: string) =>
   new Intl.DateTimeFormat("en-GB", { timeZone: "Asia/Bangkok", hour: "2-digit", minute: "2-digit", hour12: false }).format(new Date(iso));
 
-/** A Bangkok "HH:MM" today (or tomorrow if already past) as ISO. */
+/** A Bangkok "HH:MM" today as ISO. An earlier time is fine: busy staff can enter a massage afterwards. */
 function todayAt(time: string): string {
   const date = new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Bangkok" }).format(new Date());
   return new Date(`${date}T${time}:00+07:00`).toISOString();
@@ -877,7 +877,9 @@ export function CheckoutCart({
                           ) : (
                             <span className="shrink-0 text-muted-foreground">now</span>
                           )}
-                          <span className="ml-auto shrink-0 text-[11px] text-muted-foreground">until {hhmm(endIso)}</span>
+                          <span className="ml-auto shrink-0 text-[11px] text-muted-foreground">
+                            {startIso && new Date(startIso).getTime() < Date.now() - 60_000 ? "earlier · " : ""}until {hhmm(endIso)}
+                          </span>
                         </div>
                       );
                     })()}

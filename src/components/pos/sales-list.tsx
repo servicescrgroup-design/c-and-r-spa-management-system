@@ -13,6 +13,8 @@ export type SaleRow = {
   id: string;
   /** Set when several stores are shown together. */
   branchName?: string | null;
+  /** The receptionist account that rang the bill up. */
+  soldBy?: string | null;
   ref: string | null;
   createdAt: string;
   customerName: string | null;
@@ -281,7 +283,13 @@ export function SalesList({ sales, ...choices }: { sales: SaleRow[] } & EditorCh
                     hour: "2-digit",
                     minute: "2-digit",
                     timeZone: "Asia/Bangkok",
-                  })}{" "}
+                  })}
+                  {s.soldBy && (
+                    <>
+                      {" "}
+                      · by <span data-no-translate>{s.soldBy}</span>
+                    </>
+                  )}{" "}
                   · <span data-no-translate>{s.items.join(", ")}</span>
                   {s.therapists.length > 0 && (
                     <>

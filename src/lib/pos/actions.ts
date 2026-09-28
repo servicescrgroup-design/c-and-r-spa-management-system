@@ -5,6 +5,7 @@ import { redirect } from "next/navigation";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { requireStaffContext } from "@/lib/auth/session";
 import { isOwner } from "@/lib/auth/roles";
+import { expectedCash, getDrawerCash } from "@/lib/pos/drawer-cash";
 import { getStaffConflicts } from "@/lib/admin/calendar-data";
 
 type ActionResult = { ok: true } | { ok: false; error: string };
@@ -50,6 +51,8 @@ export async function openDrawer(formData: FormData): Promise<ActionResult> {
     const where = [mine.pos_registers?.branch?.name, mine.pos_registers?.name].filter(Boolean).join(" · ");
     return { ok: false, error: `You already have a drawer open (${where}). Close it before opening another.` };
   }
+  // Opening your own drawer ends any shared one you joined.
+  await supabase.from("cash_drawer_members").update({ left_at: new Date().toISOString() }).eq("staff_id", ctx.staffId).is("left_at", null);
 
   const { data: alreadyOpen } = await supabase
     .from("cash_drawer_sessions")
@@ -70,6 +73,61 @@ export async function openDrawer(formData: FormData): Promise<ActionResult> {
 
   revalidatePath("/pos");
   redirect("/pos/checkout");
+}
+
+/**
+ * Join a drawer another receptionist already opened, so several people can
+ * sell from one register. Each sale still records who rang it up. Leaves any
+ * other drawer you had joined; you can't join while you have your own open.
+ */
+export async function joinDrawer(drawerSessionId: string): Promise<ActionResult> {
+  const ctx = await requireStaffContext();
+  const supabase = await createServerSupabaseClient();
+  const { data: drawer } = await supabase
+    .from("cash_drawer_sessions")
+    .select("id, register_id, status, opened_by_staff_id, pos_registers(branch_id)")
+    .eq("id", drawerSessionId)
+    .maybeSingle();
+  if (!drawer || drawer.status !== "open") return { ok: false, error: "That drawer isn't open any more." };
+  if (drawer.opened_by_staff_id === ctx.staffId) return { ok: true };
+
+  if (!isOwner(ctx)) {
+    const { data: access } = await supabase.from("staff_register_access").select("register_id").eq("staff_id", ctx.staffId);
+    if (access && access.length > 0 && !access.some((a) => a.register_id === drawer.register_id)) {
+      return { ok: false, error: "You're not allowed to use this register." };
+    }
+  }
+  const { data: own } = await supabase
+    .from("cash_drawer_sessions")
+    .select("id, pos_registers(name)")
+    .eq("opened_by_staff_id", ctx.staffId)
+    .eq("status", "open")
+    .limit(1)
+    .maybeSingle();
+  if (own) return { ok: false, error: `You have your own drawer open (${own.pos_registers?.name ?? "a register"}). Close it first.` };
+
+  const now = new Date().toISOString();
+  await supabase.from("cash_drawer_members").update({ left_at: now }).eq("staff_id", ctx.staffId).is("left_at", null).neq("drawer_session_id", drawerSessionId);
+  const { error } = await supabase
+    .from("cash_drawer_members")
+    .upsert({ drawer_session_id: drawerSessionId, staff_id: ctx.staffId, joined_at: now, left_at: null });
+  if (error) return { ok: false, error: error.message };
+  revalidatePath("/pos");
+  return { ok: true };
+}
+
+/** Stop working a drawer you joined. The person who opened it closes it instead. */
+export async function leaveDrawer(drawerSessionId: string): Promise<ActionResult> {
+  const ctx = await requireStaffContext();
+  const supabase = await createServerSupabaseClient();
+  const { error } = await supabase
+    .from("cash_drawer_members")
+    .update({ left_at: new Date().toISOString() })
+    .eq("drawer_session_id", drawerSessionId)
+    .eq("staff_id", ctx.staffId);
+  if (error) return { ok: false, error: error.message };
+  revalidatePath("/pos");
+  return { ok: true };
 }
 
 export async function closeDrawer(formData: FormData): Promise<ActionResult> {
@@ -109,21 +167,7 @@ export async function closeDrawer(formData: FormData): Promise<ActionResult> {
   if (closedAt < new Date(session.opened_at)) return { ok: false, error: "The closing time is before the shift opened." };
 
   // Expected cash: float + cash sales − cash refunds − cash paid out − freelancers paid.
-  // Refunds are saved as positive amounts on their own sale, so they come off here.
-  const { data: drawerTxns } = await supabase
-    .from("pos_transactions")
-    .select("original_transaction_id, pos_payments(method, amount_cents), pos_transaction_items(freelance_session_id, payout_cents)")
-    .eq("drawer_session_id", drawerSessionId);
-  const cashOf = (t: { pos_payments: { method: string; amount_cents: number }[] }) =>
-    t.pos_payments.filter((p) => p.method === "cash").reduce((sum, p) => sum + p.amount_cents, 0);
-  const cashSalesCents = (drawerTxns ?? []).filter((t) => !t.original_transaction_id).reduce((sum, t) => sum + cashOf(t), 0);
-  const cashRefundsCents = (drawerTxns ?? []).filter((t) => t.original_transaction_id).reduce((sum, t) => sum + cashOf(t), 0);
-  const freelanceCashCents = (drawerTxns ?? [])
-    .filter((t) => !t.original_transaction_id)
-    .flatMap((t) => t.pos_transaction_items.filter((i) => i.freelance_session_id))
-    .reduce((sum, i) => sum + i.payout_cents, 0);
-  const { data: paidOut } = await supabase.rpc("drawer_cash_paid_out", { p_drawer_session_id: drawerSessionId });
-  const expectedCents = session.opening_amount_cents + cashSalesCents - cashRefundsCents - (paidOut ?? 0) - freelanceCashCents;
+  const expectedCents = expectedCash(session.opening_amount_cents, await getDrawerCash(supabase, drawerSessionId));
   const countedCents = Math.round(countedDollars * 100);
 
   const { error } = await supabase
@@ -269,8 +313,9 @@ export async function checkoutSale(input: {
     const extra = addOns.filter((a) => a.lineIndex === index).reduce((sum, a) => sum + a.minutes, 0);
     let start = item.startAt ? new Date(item.startAt) : null;
     if (start && Number.isNaN(start.getTime())) return { ok: false, error: "A start time isn't valid." };
-    if (start && start.getTime() < now.getTime() - 5 * 60_000) return { ok: false, error: "A start time is in the past. Choose Now or a later time." };
-    if (!start || start < now) start = cursorByStaff.get(item.staffId!) ?? now;
+    // An earlier time is allowed (filled in after a busy rush), up to 24 hours back.
+    if (start && start.getTime() < now.getTime() - 24 * 3600_000) return { ok: false, error: "A start time can't be more than a day ago." };
+    if (!start) start = cursorByStaff.get(item.staffId!) ?? now;
     const end = new Date(start.getTime() + ((item.durationMinutes ?? 60) + extra) * 60_000);
     lineStart.set(index, start);
     lineEnd.set(index, end);
@@ -519,8 +564,10 @@ export async function checkoutSale(input: {
     const sess = sessionByStaff.get(staffId);
     // "In service" with no massage linked (set by hand on the Queue) still takes this one.
     if (!sess || (sess.status === "in_service" && sess.active_item_id)) continue;
+    // A massage entered afterwards that has already finished doesn't put them in service;
+    // the scheduler marks it done at its end time.
     const firstLine = serviceLines
-      .filter(({ item }) => item.staffId === staffId)
+      .filter(({ item, index }) => item.staffId === staffId && lineEnd.get(index)!.getTime() > now.getTime())
       .sort((a, b) => lineStart.get(a.index)!.getTime() - lineStart.get(b.index)!.getTime())[0];
     if (!firstLine || startsLater(firstLine.index)) continue;
     const { error: queueError } = await supabase

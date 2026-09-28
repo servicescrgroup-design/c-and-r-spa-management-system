@@ -1,5 +1,6 @@
 import Link from "next/link";
-import { getStaffBranches, getAllowedRegistersForBranch, getOpenDrawerSession } from "@/lib/pos/session";
+import { getStaffBranches, getAllowedRegistersForBranch, getOpenDrawerSession, getDrawerPeople } from "@/lib/pos/session";
+import { DrawerJoinButton } from "@/components/pos/drawer-join-button";
 import { requireStaffContext } from "@/lib/auth/session";
 import { isOwner } from "@/lib/auth/roles";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -14,10 +15,10 @@ export default async function RegisterPage() {
     branches.map(async (branch) => {
       const registers = await getAllowedRegistersForBranch(branch.id);
       const registersWithStatus = await Promise.all(
-        registers.map(async (register) => ({
-          register,
-          drawer: await getOpenDrawerSession(register.id),
-        })),
+        registers.map(async (register) => {
+          const drawer = await getOpenDrawerSession(register.id);
+          return { register, drawer, people: drawer ? await getDrawerPeople(drawer.id) : [] };
+        }),
       );
       return { branch, registersWithStatus };
     }),
@@ -27,7 +28,10 @@ export default async function RegisterPage() {
     <div className="space-y-6">
       <div>
         <h1 className="text-2xl font-semibold">Choose a register</h1>
-        <p className="text-muted-foreground">Pick the register you&apos;re working today, then open its drawer.</p>
+        <p className="text-muted-foreground">
+          Pick the register you&apos;re working today and open its drawer, or join one that&apos;s already open. Several receptionists can
+          share a register; every sale and expense records who entered it.
+        </p>
       </div>
 
       <div className="grid gap-4 sm:grid-cols-2">
@@ -38,15 +42,23 @@ export default async function RegisterPage() {
               <CardDescription>{registersWithStatus.length} register{registersWithStatus.length === 1 ? "" : "s"}</CardDescription>
             </CardHeader>
             <CardContent className="space-y-2">
-              {registersWithStatus.map(({ register, drawer }) => {
-                const mine = drawer?.opened_by_staff_id === ctx.staffId;
+              {registersWithStatus.map(({ register, drawer, people }) => {
+                const opened = drawer?.opened_by_staff_id === ctx.staffId;
+                const joined = !opened && people.some((p) => p.staffId === ctx.staffId);
+                const mine = opened || joined;
                 return (
                   <div key={register.id} className="flex items-center justify-between gap-3 rounded-lg border border-border p-2.5 text-sm">
                     <div>
                       <p className="font-medium">{register.name}</p>
                       {drawer ? (
                         <p className="text-xs text-muted-foreground">
-                          {mine ? "Open — yours" : `In use by ${drawer.staff?.first_name ?? "another staff member"}`}
+                          {opened ? "Open — you opened it" : joined ? "Open — you joined" : "Open"}
+                          {people.length > 0 && (
+                            <>
+                              {" · "}
+                              <span data-no-translate>{people.map((p) => (p.staffId === ctx.staffId ? "you" : p.name)).join(", ")}</span>
+                            </>
+                          )}
                         </p>
                       ) : (
                         <p className="text-xs text-muted-foreground">Available</p>
@@ -59,8 +71,9 @@ export default async function RegisterPage() {
                             Sell
                           </Link>
                         ) : (
-                          <span className="text-xs text-muted-foreground">Unavailable</span>
+                          <DrawerJoinButton drawerSessionId={drawer.id} mode="join" branchId={branch.id} />
                         )}
+                        {joined && <DrawerJoinButton drawerSessionId={drawer.id} mode="leave" branchId={branch.id} />}
                         {(mine || canCloseOthers) && (
                           <Link
                             href={`/pos/drawer?branchId=${branch.id}&registerId=${register.id}`}

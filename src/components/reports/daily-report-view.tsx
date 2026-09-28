@@ -263,6 +263,7 @@ export function DailyReportView({ report, salesHref }: { report: DailyReport; sa
                 <th className="py-1 pr-3 font-medium">Bill</th>
                 <th className="py-1 pr-3 font-medium">What</th>
                 <th className="py-1 pr-3 font-medium">Paid by</th>
+                <th className="py-1 pr-3 font-medium">Rung up by</th>
                 <th className="py-1 text-right font-medium">Total</th>
               </tr>
             </thead>
@@ -279,12 +280,15 @@ export function DailyReportView({ report, salesHref }: { report: DailyReport; sa
                     {s.lines.filter((l) => !l.isAddOn).map((l) => `${l.description}${l.workerName ? ` (${l.workerName})` : ""}`).join(", ")}
                   </td>
                   <td className="py-1.5 pr-3">{s.payments.map((p) => METHOD[p.method] ?? p.method).join(" + ")}</td>
+                  <td className="py-1.5 pr-3" data-no-translate>
+                    {s.soldBy ?? "—"}
+                  </td>
                   <td className="py-1.5 text-right tabular-nums">{formatCents(s.totalCents)}</td>
                 </tr>
               ))}
               {r.sales.length === 0 && (
                 <tr>
-                  <td colSpan={5} className="py-3 text-center text-muted-foreground">
+                  <td colSpan={6} className="py-3 text-center text-muted-foreground">
                     No sales on this day.
                   </td>
                 </tr>
@@ -512,6 +516,20 @@ export function DailyReportView({ report, salesHref }: { report: DailyReport; sa
                 {d.cashExpensesCents > 0 && <Row label="− Paid out (expenses, transport)" value={formatCents(d.cashExpensesCents)} />}
                 {d.freelanceCashCents > 0 && <Row label="− Freelancers paid" value={formatCents(d.freelanceCashCents)} />}
                 <Row label="Should be in the drawer" value={formatCents(d.expectedCents)} strong />
+                {d.byStaff.length > 0 && (
+                  <div className="mt-1 rounded-lg bg-muted/50 px-2 py-1 text-xs text-muted-foreground">
+                    {d.byStaff.map((b) => (
+                      <div key={b.staffId ?? b.name} className="flex justify-between gap-2 py-0.5">
+                        <span data-no-translate>
+                          {b.name} · {b.bills} bill{b.bills === 1 ? "" : "s"}
+                        </span>
+                        <span className="tabular-nums">
+                          {formatCents(b.totalCents)} · cash {formatCents(b.cashCents)}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                )}
                 {d.countedCents != null && (
                   <>
                     <Row label="Counted at close" value={formatCents(d.countedCents)} />
@@ -579,6 +597,7 @@ function ExpenseRow({
           {" "}
           · {METHOD[expense.method] ?? expense.method}
           {expense.fromDrawer ? " from drawer" : ""}
+          {expense.addedBy ? ` · added by ${expense.addedBy}` : ""}
         </span>
       </td>
       <td className="py-1.5 text-right">

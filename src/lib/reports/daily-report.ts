@@ -2,6 +2,8 @@ import "server-only";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { requireStaffContext } from "@/lib/auth/session";
 import { hasBranchRole, isOwner } from "@/lib/auth/roles";
+import { getDrawerCash, expectedCash, type DrawerCash } from "@/lib/pos/drawer-cash";
+import { getDrawerPeople } from "@/lib/pos/session";
 
 export type ReportLine = {
   id: string;
@@ -26,6 +28,8 @@ export type ReportSale = {
   createdAt: string;
   name: string | null;
   refunded: boolean;
+  /** The receptionist account that rang it up. */
+  soldBy: string | null;
   drawerSessionId: string | null;
   subtotalCents: number;
   discountCents: number;
@@ -45,6 +49,8 @@ export type ReportExpense = {
   amountCents: number;
   method: string;
   staffName: string | null;
+  /** The account that entered the expense. */
+  addedBy: string | null;
   fromDrawer: boolean;
 };
 
@@ -60,6 +66,9 @@ export type ReportDrawer = {
   freelanceCashCents: number;
   expectedCents: number;
   countedCents: number | null;
+  /** People working this drawer, and what each rang up on it. */
+  people: string[];
+  byStaff: DrawerCash["byStaff"];
 };
 
 export type DailyReport = Awaited<ReturnType<typeof getDailyReport>>;
@@ -87,7 +96,7 @@ export async function getDailyReport(branchId: string, date: string, toDate?: st
         .select(
           `id, customer_ref, customer_name, created_at, status, drawer_session_id, original_transaction_id,
            subtotal_cents, discount_cents, tax_cents, tip_cents, card_fee_cents, total_cents,
-           customer:customer_id(first_name, last_name),
+           customer:customer_id(first_name, last_name), rung_by:staff_id(first_name),
            pos_payments(method, amount_cents),
            pos_transaction_items(id, item_type, reference_id, description, is_add_on, staff_id, freelance_session_id,
              duration_minutes, total_cents, payout_cents, transport_cents, ot_cents, staff:staff_id(first_name))`,
@@ -100,7 +109,7 @@ export async function getDailyReport(branchId: string, date: string, toDate?: st
       canSeeCosts
         ? supabase
             .from("expenses")
-            .select("id, category_id, description, amount_cents, tax_cents, payment_method, drawer_session_id, category:category_id(name), staff:staff_id(first_name)")
+            .select("id, category_id, description, amount_cents, tax_cents, payment_method, drawer_session_id, category:category_id(name), staff:staff_id(first_name), added_by:created_by_staff_id(first_name)")
             .eq("branch_id", branchId)
             .gte("expense_date", date)
             .lte("expense_date", to)
@@ -134,6 +143,7 @@ export async function getDailyReport(branchId: string, date: string, toDate?: st
     ref: t.customer_ref,
     createdAt: t.created_at,
     name: t.customer ? `${t.customer.first_name} ${t.customer.last_name}`.trim() : t.customer_name,
+    soldBy: t.rung_by?.first_name ?? null,
     refunded: t.status !== "completed" || refundedIds.has(t.id),
     drawerSessionId: t.drawer_session_id,
     subtotalCents: t.subtotal_cents,
@@ -202,6 +212,7 @@ export async function getDailyReport(branchId: string, date: string, toDate?: st
     amountCents: e.amount_cents + (e.tax_cents ?? 0),
     method: e.payment_method,
     staffName: e.staff?.first_name ?? null,
+    addedBy: e.added_by?.first_name ?? null,
     fromDrawer: Boolean(e.drawer_session_id),
   }));
 
@@ -219,35 +230,21 @@ export async function getDailyReport(branchId: string, date: string, toDate?: st
   // The cash each drawer should hold: float + cash taken − cash refunded − cash paid out − freelancers paid.
   const drawerRows: ReportDrawer[] = [];
   for (const d of drawers ?? []) {
-    const [{ data: drawerTxns }, { data: paidOut }] = await Promise.all([
-      supabase
-        .from("pos_transactions")
-        .select("original_transaction_id, pos_payments(method, amount_cents), pos_transaction_items(freelance_session_id, payout_cents)")
-        .eq("drawer_session_id", d.id),
-      supabase.rpc("drawer_cash_paid_out", { p_drawer_session_id: d.id }),
-    ]);
-    const cashOf = (t: { pos_payments: { method: string; amount_cents: number }[] }) =>
-      sum(t.pos_payments.filter((p) => p.method === "cash").map((p) => p.amount_cents));
-    const cashSalesCents = sum((drawerTxns ?? []).filter((t) => !t.original_transaction_id).map(cashOf));
-    const cashRefundsCents = sum((drawerTxns ?? []).filter((t) => t.original_transaction_id).map(cashOf));
-    const freelanceCashCents = sum(
-      (drawerTxns ?? [])
-        .filter((t) => !t.original_transaction_id)
-        .flatMap((t) => t.pos_transaction_items.filter((i) => i.freelance_session_id).map((i) => i.payout_cents)),
-    );
-    const cashExpensesCents = paidOut ?? 0;
+    const [cash, people] = await Promise.all([getDrawerCash(supabase, d.id), getDrawerPeople(d.id)]);
     drawerRows.push({
       id: d.id,
       register: d.pos_registers.name,
       openedAt: d.opened_at,
       closedAt: d.closed_at,
       openingCents: d.opening_amount_cents,
-      cashSalesCents,
-      cashRefundsCents,
-      cashExpensesCents,
-      freelanceCashCents,
-      expectedCents: d.opening_amount_cents + cashSalesCents - cashRefundsCents - cashExpensesCents - freelanceCashCents,
+      cashSalesCents: cash.cashSalesCents,
+      cashRefundsCents: cash.cashRefundsCents,
+      cashExpensesCents: cash.paidOutCents,
+      freelanceCashCents: cash.freelanceCashCents,
+      expectedCents: expectedCash(d.opening_amount_cents, cash),
       countedCents: d.status === "closed" ? d.counted_amount_cents : null,
+      people: people.map((p) => p.name),
+      byStaff: cash.byStaff,
     });
   }
 
