@@ -272,7 +272,7 @@ export default async function SalesPage({ searchParams }: PageProps<"/pos/sales"
         </Link>
       </div>
 
-      <SalesList sales={sales} services={services} therapists={therapists} rooms={rooms} />
+      <SalesList sales={sales} showCosts={canEdit} services={services} therapists={therapists} rooms={rooms} />
 
       {deleted.length > 0 && <DeletedSales deleted={deleted} />}
     </div>

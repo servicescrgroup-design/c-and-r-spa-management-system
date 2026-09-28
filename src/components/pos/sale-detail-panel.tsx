@@ -11,6 +11,7 @@ import {
   cleanDescription,
   groupSaleLines,
   groupWindow,
+  saleCosts,
   type RoomOption,
   type SaleDetail,
   type SaleGroup,
@@ -61,19 +62,38 @@ export function SaleBreakdown({
   createdAt,
   totalCents,
   rooms,
+  showCosts = false,
 }: {
   detail: SaleDetail;
   createdAt: string;
   totalCents: number;
   rooms: RoomOption[];
+  /** Owners and managers see what each massage cost and what the shop kept. */
+  showCosts?: boolean;
 }) {
   const { groups, other } = groupSaleLines(detail.lines);
   const addOnCents = groups.flatMap((g) => g.addOns).reduce((sum, l) => sum + l.unitPriceCents * l.quantity, 0);
+  const costs = saleCosts(detail.lines);
+  const transportOf = (l: SaleLine) => l.transportCents + (l.drawerTransportCents ?? 0);
+  const profitOf = (l: SaleLine) => l.totalCents - l.payoutCents - transportOf(l) - l.otCents;
+  const money = (cents: number) => (cents ? formatCents(cents) : "");
+  /** Therapist pay, transport, OT and profit cells for one line. */
+  const costCells = (l: SaleLine, pad: string) =>
+    showCosts
+      ? [
+          <td key="pay" className={cn(pad, "text-right tabular-nums text-muted-foreground")}>{money(l.payoutCents)}</td>,
+          <td key="tr" className={cn(pad, "text-right tabular-nums text-muted-foreground")}>{money(transportOf(l))}</td>,
+          <td key="ot" className={cn(pad, "text-right tabular-nums text-muted-foreground")}>{money(l.otCents)}</td>,
+          <td key="profit" className={cn(pad, "bg-primary/5 text-right font-medium tabular-nums", profitOf(l) < 0 && "text-destructive")}>
+            {formatCents(profitOf(l))}
+          </td>,
+        ]
+      : null;
 
   return (
     <div className="space-y-4">
       <div className="overflow-x-auto rounded-xl ring-1 ring-border">
-        <table className="w-full min-w-[640px] text-sm">
+        <table className={cn("w-full text-sm", showCosts ? "min-w-[960px]" : "min-w-[640px]")}>
           <thead className="bg-muted/60 text-left text-xs text-muted-foreground">
             <tr>
               <th className="px-3 py-2 font-medium">Massage</th>
@@ -83,6 +103,14 @@ export function SaleBreakdown({
               <th className="px-3 py-2 text-right font-medium">Price</th>
               <th className="px-3 py-2 text-right font-medium">Discount</th>
               <th className="px-3 py-2 text-right font-medium">Net</th>
+              {showCosts && (
+                <>
+                  <th className="px-3 py-2 text-right font-medium">Therapist cost</th>
+                  <th className="px-3 py-2 text-right font-medium">Transport</th>
+                  <th className="px-3 py-2 text-right font-medium">OT</th>
+                  <th className="bg-primary/5 px-3 py-2 text-right font-medium text-foreground">Profit</th>
+                </>
+              )}
             </tr>
           </thead>
           <tbody className="divide-y divide-border">
@@ -107,12 +135,12 @@ export function SaleBreakdown({
                   </td>
                   <td className="px-3 py-2.5">
                     <TherapistTag line={g.main} />
-                    {g.main.transportCents + (g.main.drawerTransportCents ?? 0) > 0 && (
+                    {!showCosts && g.main.transportCents + (g.main.drawerTransportCents ?? 0) > 0 && (
                       <p className="text-xs text-muted-foreground">
                         Transport {formatCents(g.main.transportCents + (g.main.drawerTransportCents ?? 0))}
                       </p>
                     )}
-                    {g.main.otCents > 0 && (
+                    {!showCosts && g.main.otCents > 0 && (
                       <p className="text-xs text-muted-foreground">OT {formatCents(g.main.otCents)}</p>
                     )}
                   </td>
@@ -128,6 +156,7 @@ export function SaleBreakdown({
                     {g.main.discountCents > 0 ? `−${formatCents(g.main.discountCents)}` : ""}
                   </td>
                   <td className="px-3 py-2.5 text-right font-medium tabular-nums">{formatCents(g.main.totalCents)}</td>
+                  {costCells(g.main, "px-3 py-2.5")}
                 </tr>,
                 ...g.addOns.map((a) => (
                   <tr key={a.id} className="bg-muted/30 text-muted-foreground">
@@ -141,6 +170,7 @@ export function SaleBreakdown({
                       {a.discountCents > 0 ? `−${formatCents(a.discountCents)}` : ""}
                     </td>
                     <td className="px-3 py-1.5 text-right tabular-nums">{formatCents(a.totalCents)}</td>
+                    {costCells(a, "px-3 py-1.5")}
                   </tr>
                 )),
               ];
@@ -157,13 +187,14 @@ export function SaleBreakdown({
                   {l.discountCents > 0 ? `−${formatCents(l.discountCents)}` : ""}
                 </td>
                 <td className="px-3 py-2.5 text-right font-medium tabular-nums">{formatCents(l.totalCents)}</td>
+                {costCells(l, "px-3 py-2.5")}
               </tr>
             ))}
           </tbody>
         </table>
       </div>
 
-      <div className="grid gap-3 sm:grid-cols-2">
+      <div className={cn("grid gap-3 sm:grid-cols-2", showCosts && "lg:grid-cols-3")}>
         <dl className="space-y-1 rounded-xl bg-muted/50 p-3 text-sm">
           <div className="flex justify-between">
             <dt className="text-muted-foreground">Massages and items</dt>
@@ -216,6 +247,40 @@ export function SaleBreakdown({
             ))}
           </ul>
         </div>
+        {showCosts && (
+          <dl className="space-y-1 rounded-xl bg-muted/50 p-3 text-sm sm:col-span-2 lg:col-span-1">
+            <div className="flex justify-between">
+              <dt className="text-muted-foreground">Revenue (before tip)</dt>
+              <dd className="tabular-nums">{formatCents(costs.revenueCents)}</dd>
+            </div>
+            <div className="flex justify-between">
+              <dt className="text-muted-foreground">Therapist cost (ค่ามือ)</dt>
+              <dd className="tabular-nums">−{formatCents(costs.therapistCents)}</dd>
+            </div>
+            {costs.freelanceCents > 0 && (
+              <div className="flex justify-between">
+                <dt className="text-muted-foreground">Freelance cost</dt>
+                <dd className="tabular-nums">−{formatCents(costs.freelanceCents)}</dd>
+              </div>
+            )}
+            <div className="flex justify-between">
+              <dt className="text-muted-foreground">Transport</dt>
+              <dd className="tabular-nums">−{formatCents(costs.transportCents)}</dd>
+            </div>
+            <div className="flex justify-between">
+              <dt className="text-muted-foreground">OT</dt>
+              <dd className="tabular-nums">−{formatCents(costs.otCents)}</dd>
+            </div>
+            <div className="flex justify-between border-t border-border pt-1.5">
+              <dt className="text-muted-foreground">Total cost</dt>
+              <dd className="tabular-nums">{formatCents(costs.totalCostCents)}</dd>
+            </div>
+            <div className={cn("flex justify-between font-semibold", costs.profitCents < 0 ? "text-destructive" : "text-primary")}>
+              <dt>Profit on this bill</dt>
+              <dd className="tabular-nums">{formatCents(costs.profitCents)}</dd>
+            </div>
+          </dl>
+        )}
       </div>
     </div>
   );

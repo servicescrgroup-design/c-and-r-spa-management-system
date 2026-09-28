@@ -128,3 +128,35 @@ export type DeletedSale = {
   deletedBy: string;
   reason: string | null;
 };
+
+export type SaleCosts = {
+  revenueCents: number;
+  therapistCents: number;
+  freelanceCents: number;
+  transportCents: number;
+  otCents: number;
+  totalCostCents: number;
+  profitCents: number;
+};
+
+/**
+ * What a bill cost the shop and what it kept, worked out the same way as the
+ * checkout: what the customer paid for the lines (after discounts, before tip)
+ * minus therapist pay, freelancer pay, transport and OT.
+ */
+export function saleCosts(lines: SaleLine[]): SaleCosts {
+  let revenueCents = 0;
+  let therapistCents = 0;
+  let freelanceCents = 0;
+  let transportCents = 0;
+  let otCents = 0;
+  for (const l of lines) {
+    revenueCents += l.totalCents;
+    if (l.freelancerName) freelanceCents += l.payoutCents;
+    else therapistCents += l.payoutCents;
+    transportCents += l.transportCents + (l.drawerTransportCents ?? 0);
+    otCents += l.otCents;
+  }
+  const totalCostCents = therapistCents + freelanceCents + transportCents + otCents;
+  return { revenueCents, therapistCents, freelanceCents, transportCents, otCents, totalCostCents, profitCents: revenueCents - totalCostCents };
+}

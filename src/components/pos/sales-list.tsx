@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { formatCents, cn } from "@/lib/utils";
 import { SaleBreakdown, SaleEditForm, SaleHistory, type EditorChoices } from "@/components/pos/sale-detail-panel";
-import { bangkokTime, type DeletedSale, type SaleDetail } from "@/lib/pos/sale-detail";
+import { bangkokTime, saleCosts, type DeletedSale, type SaleDetail } from "@/lib/pos/sale-detail";
 
 export type SaleRow = {
   id: string;
@@ -165,7 +165,7 @@ function DeleteConfirm({ sale, onCancel }: { sale: SaleRow; onCancel: () => void
   );
 }
 
-function SalePanel({ sale, choices }: { sale: SaleRow; choices: EditorChoices }) {
+function SalePanel({ sale, choices, showCosts }: { sale: SaleRow; choices: EditorChoices; showCosts: boolean }) {
   const [view, setView] = useState<View>("details");
   const tabs: { id: View; label: string }[] = [
     { id: "details", label: "Details" },
@@ -206,7 +206,13 @@ function SalePanel({ sale, choices }: { sale: SaleRow; choices: EditorChoices })
       </div>
       {view === "details" && (
         <>
-          <SaleBreakdown detail={sale.detail} createdAt={sale.createdAt} totalCents={sale.totalCents} rooms={choices.rooms} />
+          <SaleBreakdown
+            detail={sale.detail}
+            createdAt={sale.createdAt}
+            totalCents={sale.totalCents}
+            rooms={choices.rooms}
+            showCosts={showCosts}
+          />
           {sale.detail.lockedReason && <p className="text-xs text-muted-foreground">{sale.detail.lockedReason}</p>}
         </>
       )}
@@ -227,7 +233,7 @@ function SalePanel({ sale, choices }: { sale: SaleRow; choices: EditorChoices })
   );
 }
 
-export function SalesList({ sales, ...choices }: { sales: SaleRow[] } & EditorChoices) {
+export function SalesList({ sales, showCosts = false, ...choices }: { sales: SaleRow[]; showCosts?: boolean } & EditorChoices) {
   // Every sale starts open; tap its header to fold it away.
   const [collapsed, setCollapsed] = useState<Set<string>>(() => new Set());
   const toggle = (id: string) =>
@@ -242,11 +248,43 @@ export function SalesList({ sales, ...choices }: { sales: SaleRow[] } & EditorCh
     return <p className="rounded-2xl bg-card p-6 text-sm text-muted-foreground">No sales on this day yet.</p>;
   }
 
+  // Refunded and voided bills don't count toward the day's profit.
+  const counted = sales.filter((s) => s.status === "completed").map((s) => saleCosts(s.detail.lines));
+  const day = {
+    revenue: counted.reduce((n, c) => n + c.revenueCents, 0),
+    therapist: counted.reduce((n, c) => n + c.therapistCents + c.freelanceCents, 0),
+    transport: counted.reduce((n, c) => n + c.transportCents, 0),
+    ot: counted.reduce((n, c) => n + c.otCents, 0),
+    cost: counted.reduce((n, c) => n + c.totalCostCents, 0),
+    profit: counted.reduce((n, c) => n + c.profitCents, 0),
+  };
+
   return (
+    <>
+    {showCosts && (
+      <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-6">
+        {[
+          { label: "Revenue", cents: day.revenue },
+          { label: "Therapist cost", cents: day.therapist },
+          { label: "Transport", cents: day.transport },
+          { label: "OT", cents: day.ot },
+          { label: "Total cost", cents: day.cost },
+          { label: "Profit", cents: day.profit, strong: true },
+        ].map((b) => (
+          <div key={b.label} className={cn("rounded-2xl bg-card p-3 ring-1 ring-black/[0.05] dark:ring-white/[0.08]", b.strong && "bg-primary/5")}>
+            <p className="text-xs text-muted-foreground">{b.label}</p>
+            <p className={cn("mt-0.5 font-semibold tabular-nums", b.strong && (b.cents < 0 ? "text-destructive" : "text-primary"))}>
+              {formatCents(b.cents)}
+            </p>
+          </div>
+        ))}
+      </div>
+    )}
     <ul className="divide-y divide-border overflow-hidden rounded-[18px] bg-card ring-1 ring-black/[0.05] dark:ring-white/[0.08]">
       {sales.map((s) => {
         const label = s.customer?.name ?? s.customerName;
         const open = !collapsed.has(s.id);
+        const profit = showCosts ? saleCosts(s.detail.lines).profitCents : null;
         return (
           <li key={s.id} className="p-4">
             <button
@@ -300,15 +338,23 @@ export function SalesList({ sales, ...choices }: { sales: SaleRow[] } & EditorCh
                 </p>
               </div>
               <div className="flex items-center gap-3">
-                <span className="font-semibold tabular-nums">{formatCents(s.totalCents)}</span>
+                <span className="text-right">
+                  <span className="block font-semibold tabular-nums">{formatCents(s.totalCents)}</span>
+                  {profit !== null && (
+                    <span className={cn("block text-xs tabular-nums", profit < 0 ? "text-destructive" : "text-primary")}>
+                      Profit {formatCents(profit)}
+                    </span>
+                  )}
+                </span>
                 <span className="text-sm text-muted-foreground">{open ? "Hide" : "Show"}</span>
               </div>
             </button>
-            {open && <SalePanel sale={s} choices={choices} />}
+            {open && <SalePanel sale={s} choices={choices} showCosts={showCosts} />}
           </li>
         );
       })}
     </ul>
+    </>
   );
 }
 
