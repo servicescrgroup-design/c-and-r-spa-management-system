@@ -4,6 +4,7 @@ import { getTherapistEarnings, resolveRange } from "@/lib/admin/therapist-earnin
 import { getTherapistPortalDataFor } from "@/lib/therapist/portal-data";
 import { EarningsRange } from "@/components/admin/earnings-range";
 import { TherapistPortalView } from "@/components/therapist/therapist-portal-view";
+import { getUiLocale } from "@/lib/i18n/locale";
 import { formatCents } from "@/lib/utils";
 
 const hours = (minutes: number) => (minutes / 60).toLocaleString("en-US", { maximumFractionDigits: 1 });
@@ -129,7 +130,7 @@ export default async function TherapistDetailPage({ params, searchParams }: Page
           </p>
         </div>
         <div className="mx-auto max-w-2xl rounded-[28px] bg-muted/40 p-4 ring-1 ring-border sm:p-6">
-          <TherapistPortalView data={portal} viewer="owner" />
+          <TherapistPortalView data={portal} viewer="owner" locale={await getUiLocale()} />
         </div>
       </section>
     </div>

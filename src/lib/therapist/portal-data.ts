@@ -57,7 +57,7 @@ async function loadTherapistPortal(staffId: string, name: string) {
       .order("day_of_week"),
     supabase
       .from("pos_transaction_items")
-      .select("id, description, payout_cents, transport_cents, ot_cents, duration_minutes, completed_at")
+      .select("id, description, reference_id, is_add_on, payout_cents, transport_cents, ot_cents, duration_minutes, completed_at")
       .eq("staff_id", staffId)
       .not("completed_at", "is", null)
       .gte("completed_at", weekStart.toISOString())
@@ -68,11 +68,22 @@ async function loadTherapistPortal(staffId: string, name: string) {
       .eq("staff_id", staffId),
   ]);
 
-  const todayItems = (items ?? []).filter((i) => bangkokDateString(new Date(i.completed_at!)) === todayStr);
+  // Service names in English and Thai, so the screen can show the therapist's language.
+  const serviceIds = Array.from(new Set((items ?? []).map((i) => i.reference_id).filter((id): id is string => Boolean(id))));
+  const { data: services } = serviceIds.length
+    ? await supabase.from("services").select("id, name, name_th").in("id", serviceIds)
+    : { data: [] };
+  const serviceById = new Map((services ?? []).map((sv) => [sv.id, sv]));
+  const named = (items ?? []).map((i) => {
+    const sv = i.reference_id ? serviceById.get(i.reference_id) : undefined;
+    const fallback = (i.description ?? "").replace(/^Freelance \([^)]*\) · /, "").replace(/^Add-on · /, "").replace(/ · \d+ min$/, "");
+    return { ...i, serviceName: i.is_add_on ? fallback : (sv?.name ?? fallback), serviceNameTh: i.is_add_on ? null : (sv?.name_th ?? null) };
+  });
+  const todayItems = named.filter((i) => bangkokDateString(new Date(i.completed_at!)) === todayStr);
   // ค่ามือ plus transport and OT, all paid to them at payroll.
   const earned = (i: { payout_cents: number; transport_cents: number; ot_cents: number }) => i.payout_cents + i.transport_cents + i.ot_cents;
   const earningsTodayCents = todayItems.reduce((sum, i) => sum + earned(i), 0);
-  const earningsWeekCents = (items ?? []).reduce((sum, i) => sum + earned(i), 0);
+  const earningsWeekCents = named.reduce((sum, i) => sum + earned(i), 0);
 
   const depositBalanceCents = (deposit ?? []).reduce(
     (sum, e) => sum + (e.entry_type === "payment" || e.entry_type === "deduction" ? -e.amount_cents : e.amount_cents),
@@ -84,7 +95,7 @@ async function loadTherapistPortal(staffId: string, name: string) {
     sessions: sessions ?? [],
     schedules: schedules ?? [],
     jobsToday: todayItems,
-    jobsWeek: items ?? [],
+    jobsWeek: named,
     earningsTodayCents,
     earningsWeekCents,
     depositBalanceCents,

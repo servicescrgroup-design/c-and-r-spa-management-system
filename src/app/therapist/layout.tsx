@@ -9,7 +9,8 @@ export default async function TherapistLayout({ children }: LayoutProps<"/therap
   const ctx = await requireStaffContext();
   const canAccessAdmin = ctx.roles.some((r) => r.role === "owner" || r.role === "manager");
   const userLabel = ctx.firstName || ctx.email;
-  const locale = await getUiLocale();
+  // Therapists read Thai, so their app opens in Thai unless they switch to English.
+  const locale = await getUiLocale("th");
 
   return (
     <div className="flex min-h-svh flex-1 flex-col" data-i18n-pending={locale === "th" ? "" : undefined}>
