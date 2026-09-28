@@ -233,7 +233,12 @@ function SalePanel({ sale, choices, showCosts }: { sale: SaleRow; choices: Edito
   );
 }
 
-export function SalesList({ sales, showCosts = false, ...choices }: { sales: SaleRow[]; showCosts?: boolean } & EditorChoices) {
+export function SalesList({
+  sales,
+  showCosts = false,
+  showDate = false,
+  ...choices
+}: { sales: SaleRow[]; showCosts?: boolean; /** Several days listed: show each bill's date. */ showDate?: boolean } & EditorChoices) {
   // Every sale starts open; tap its header to fold it away.
   const [collapsed, setCollapsed] = useState<Set<string>>(() => new Set());
   const toggle = (id: string) =>
@@ -317,6 +322,8 @@ export function SalesList({ sales, showCosts = false, ...choices }: { sales: Sal
                   )}
                 </p>
                 <p className="mt-1 truncate text-sm text-muted-foreground">
+                  {showDate &&
+                    `${new Date(s.createdAt).toLocaleDateString("en-GB", { weekday: "short", day: "numeric", month: "short", timeZone: "Asia/Bangkok" })} `}
                   {new Date(s.createdAt).toLocaleTimeString("en-GB", {
                     hour: "2-digit",
                     minute: "2-digit",

@@ -93,12 +93,12 @@ export function SaleBreakdown({
   return (
     <div className="space-y-4">
       <div className="overflow-x-auto rounded-xl ring-1 ring-border">
-        <table className={cn("w-full text-sm", showCosts ? "min-w-[960px]" : "min-w-[640px]")}>
+        <table className={cn("w-full text-sm", showCosts ? "min-w-[1040px]" : "min-w-[640px]")}>
           <thead className="bg-muted/60 text-left text-xs text-muted-foreground">
             <tr>
-              <th className="px-3 py-2 font-medium">Massage</th>
-              <th className="px-3 py-2 font-medium">Therapist</th>
-              <th className="px-3 py-2 font-medium">Room / bed</th>
+              <th className="min-w-44 px-3 py-2 font-medium">Massage</th>
+              <th className="whitespace-nowrap px-3 py-2 font-medium">Therapist</th>
+              <th className="whitespace-nowrap px-3 py-2 font-medium">Room / bed</th>
               <th className="px-3 py-2 font-medium">Time</th>
               <th className="px-3 py-2 text-right font-medium">Price</th>
               <th className="px-3 py-2 text-right font-medium">Discount</th>

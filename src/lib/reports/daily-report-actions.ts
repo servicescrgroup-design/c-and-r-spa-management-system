@@ -11,6 +11,7 @@ function refresh() {
   revalidatePath("/pos/report");
   revalidatePath("/admin/reports/daily");
   revalidatePath("/pos/sales");
+  revalidatePath("/admin/transactions");
   revalidatePath("/admin/payroll");
   revalidatePath("/admin/expenses");
 }

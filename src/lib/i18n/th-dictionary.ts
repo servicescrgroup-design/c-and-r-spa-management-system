@@ -1469,4 +1469,5 @@ export const TH: Record<string, string> = {
   "Revenue (before tip)": "รายได้ (ไม่รวมทิป)",
   "Total cost": "ต้นทุนรวม",
   "Profit on this bill": "กำไรบิลนี้",
+  "Every bill from both stores, with what each massage cost and what the shop kept. Open a bill to edit it, see its history or delete it.": "ทุกบิลจากทั้งสองสาขา พร้อมต้นทุนแต่ละการนวดและกำไรของร้าน เปิดบิลเพื่อแก้ไข ดูประวัติ หรือลบ",
 };

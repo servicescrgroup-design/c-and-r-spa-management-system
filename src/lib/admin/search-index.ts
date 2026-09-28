@@ -16,6 +16,7 @@ export const SEARCH_INDEX: SearchItem[] = [
   { label: "Branch service availability", href: "/admin/branches", keywords: "which services a branch offers" },
   { label: "Booking links", href: "/admin/branches", keywords: "book online link copy slug embed" },
 
+  { label: "Transactions", href: "/admin/transactions", keywords: "sales bills receipts profit all stores" },
   { label: "Registers", href: "/admin/registers", keywords: "cash till counter drawer" },
 
   { label: "Staff", href: "/admin/staff" },

@@ -289,6 +289,7 @@ export async function sellService(input: {
   revalidatePath("/pos/queue");
   revalidatePath("/pos/sale");
   revalidatePath("/pos/sales");
+  revalidatePath("/admin/transactions");
   return { ok: true, transactionId: txn.id, customerRef: txn.customer_ref };
 }
 
@@ -551,6 +552,7 @@ export async function sellFreelanceService(input: {
   revalidatePath("/pos/queue");
   revalidatePath("/pos/sale");
   revalidatePath("/pos/sales");
+  revalidatePath("/admin/transactions");
   return { ok: true, transactionId: txn.id, customerRef: txn.customer_ref };
 }
 

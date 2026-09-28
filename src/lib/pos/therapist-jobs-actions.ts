@@ -134,6 +134,7 @@ async function loadSale(saleId: string) {
 function refresh() {
   revalidatePath("/pos/queue");
   revalidatePath("/pos/sales");
+  revalidatePath("/admin/transactions");
   revalidatePath("/pos/report");
   revalidatePath("/admin/payroll");
 }

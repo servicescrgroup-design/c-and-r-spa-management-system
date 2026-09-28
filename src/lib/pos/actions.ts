@@ -634,6 +634,7 @@ export async function checkoutSale(input: {
   revalidatePath("/pos/queue");
   revalidatePath("/pos/checkout");
   revalidatePath("/pos/sales");
+  revalidatePath("/admin/transactions");
   revalidatePath("/admin/payroll");
   return { ok: true, transactionId: txn.id, customerRef: txn.customer_ref };
 }

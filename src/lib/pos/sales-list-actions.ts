@@ -24,6 +24,7 @@ export async function setSaleCustomer(
   });
   if (error) return { ok: false, error: error.message };
   revalidatePath("/pos/sales");
+  revalidatePath("/admin/transactions");
   revalidatePath("/admin/scheduling");
   return { ok: true };
 }
@@ -127,6 +128,7 @@ export async function updateSale(
   });
   if (error) return { ok: false, error: error.message };
   revalidatePath("/pos/sales");
+  revalidatePath("/admin/transactions");
   revalidatePath("/pos/queue");
   revalidatePath("/admin/scheduling");
   revalidatePath("/admin/payroll");
@@ -266,6 +268,7 @@ export async function deleteSale(transactionId: string, reason: string): Promise
   });
   if (error) return { ok: false, error: error.message };
   revalidatePath("/pos/sales");
+  revalidatePath("/admin/transactions");
   revalidatePath("/pos/queue");
   revalidatePath("/pos/refunds");
   revalidatePath("/admin/scheduling");

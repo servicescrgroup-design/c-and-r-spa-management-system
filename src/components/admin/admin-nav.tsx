@@ -24,6 +24,7 @@ const I = {
   calendar: <path d="M4 5h12v11.5H4zM4 8.5h12M7.5 3v3.5M12.5 3v3.5" />,
   register: <path d="M3 6.5h14v9a1.5 1.5 0 0 1-1.5 1.5h-11A1.5 1.5 0 0 1 3 15.5v-9ZM5 3.5h10l2 3H3l2-3ZM7 11h6" />,
   expense: <path d="M5 3.5h10v13l-2-1.2-1.5 1.2-1.5-1.2-1.5 1.2L7 15.3l-2 1.2v-13ZM8 7.5h4M8 10.5h4" />,
+  receipt: <path d="M5 2.5h10v15l-2.5-1.5-2.5 1.5-2.5-1.5L5 17.5v-15ZM7.5 6.5h5M7.5 9.5h5M7.5 12.5h3" />,
   accounting: <path d="M4 3.5h12v13H4zM7 7h6M7 10h6M7 13h3" />,
   branch: <path d="M3.5 16.5h13M5 16.5V8l5-4 5 4v8.5M8.5 16.5v-4h3v4" />,
   settings: <path d="M10 12.5a2.5 2.5 0 1 0 0-5 2.5 2.5 0 0 0 0 5ZM10 2.5v2M10 15.5v2M2.5 10h2M15.5 10h2M4.7 4.7l1.4 1.4M13.9 13.9l1.4 1.4M4.7 15.3l1.4-1.4M13.9 6.1l1.4-1.4" />,
@@ -59,6 +60,7 @@ const GROUPS: { title: string; items: NavItem[] }[] = [
   {
     title: "Money",
     items: [
+      { href: "/admin/transactions", label: "Transactions", icon: I.receipt },
       { href: "/admin/registers", label: "Registers", icon: I.register },
       { href: "/admin/expenses", label: "Expenses", icon: I.expense },
       { href: "/admin/accounting", label: "Accounting", icon: I.accounting },
