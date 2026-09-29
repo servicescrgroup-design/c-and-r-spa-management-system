@@ -523,6 +523,7 @@ export type Database = {
           deposit_amount_cents: number | null
           deposit_percent: number | null
           deposit_required: boolean
+          guarantee_leave_grace_minutes: number
           hours: Json
           id: string
           is_active: boolean
@@ -550,6 +551,7 @@ export type Database = {
           deposit_amount_cents?: number | null
           deposit_percent?: number | null
           deposit_required?: boolean
+          guarantee_leave_grace_minutes?: number
           hours?: Json
           id?: string
           is_active?: boolean
@@ -577,6 +579,7 @@ export type Database = {
           deposit_amount_cents?: number | null
           deposit_percent?: number | null
           deposit_required?: boolean
+          guarantee_leave_grace_minutes?: number
           hours?: Json
           id?: string
           is_active?: boolean
@@ -3526,6 +3529,7 @@ export type Database = {
       therapist_clock_sessions: {
         Row: {
           active_item_id: string | null
+          auto_closed: boolean
           branch_id: string
           clock_in_at: string
           clock_in_recorded_at: string | null
@@ -3543,6 +3547,7 @@ export type Database = {
         }
         Insert: {
           active_item_id?: string | null
+          auto_closed?: boolean
           branch_id: string
           clock_in_at?: string
           clock_in_recorded_at?: string | null
@@ -3560,6 +3565,7 @@ export type Database = {
         }
         Update: {
           active_item_id?: string | null
+          auto_closed?: boolean
           branch_id?: string
           clock_in_at?: string
           clock_in_recorded_at?: string | null
@@ -3681,6 +3687,7 @@ export type Database = {
           end_date: string | null
           experience_notes: string | null
           gender: string | null
+          guarantee_enabled: boolean
           guarantee_override_cents: number | null
           line_id: string | null
           min_hours_override: number | null
@@ -3700,6 +3707,7 @@ export type Database = {
           end_date?: string | null
           experience_notes?: string | null
           gender?: string | null
+          guarantee_enabled?: boolean
           guarantee_override_cents?: number | null
           line_id?: string | null
           min_hours_override?: number | null
@@ -3719,6 +3727,7 @@ export type Database = {
           end_date?: string | null
           experience_notes?: string | null
           gender?: string | null
+          guarantee_enabled?: boolean
           guarantee_override_cents?: number | null
           line_id?: string | null
           min_hours_override?: number | null
@@ -3947,6 +3956,7 @@ export type Database = {
           clocked_hours: number
           deduction_cents: number
           gross_pay_cents: number
+          guarantee_status: string
           guarantee_topup_cents: number
           jobs_count: number
           locked: boolean

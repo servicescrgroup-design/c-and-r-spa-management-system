@@ -22,6 +22,7 @@ type Branch = {
   id: string;
   payroll_min_hours: number;
   payroll_guarantee_cents: number;
+  guarantee_leave_grace_minutes: number;
   transportation_fee_cents: number;
   queue_send_to_back: boolean;
   require_documents_for_clockin: boolean;
@@ -65,7 +66,7 @@ function SettingsSection({ branch }: { branch: Branch }) {
 
   return (
     <form onSubmit={handleSubmit} className="space-y-3">
-      <div className="grid grid-cols-3 gap-3">
+      <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
         <div className="space-y-1">
           <Label htmlFor={`min-hours-${branch.id}`} className="text-xs">
             Minimum hours (T)
@@ -83,6 +84,21 @@ function SettingsSection({ branch }: { branch: Branch }) {
             min="0"
             step="1"
             defaultValue={branch.payroll_guarantee_cents / 100}
+          />
+        </div>
+        <div className="space-y-1">
+          <Label htmlFor={`grace-${branch.id}`} className="text-xs">
+            Early clock-out grace (min)
+          </Label>
+          <Input
+            id={`grace-${branch.id}`}
+            name="guaranteeLeaveGraceMinutes"
+            type="number"
+            min="0"
+            max="240"
+            step="1"
+            defaultValue={branch.guarantee_leave_grace_minutes}
+            title="Clocking out this many minutes or less before closing still counts as a full day for the guarantee."
           />
         </div>
         <div className="space-y-1">

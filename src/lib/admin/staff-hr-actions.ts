@@ -106,6 +106,7 @@ export async function updateTherapistProfile(staffId: string, formData: FormData
     notes,
     experience_notes: experienceNotes,
     guarantee_override_cents: guaranteeOverride ? Math.round(Number(guaranteeOverride) * 100) : null,
+    guarantee_enabled: formData.get("guaranteeEnabled") === "on",
     min_hours_override: minHoursOverride ? Number(minHoursOverride) : null,
     updated_at: new Date().toISOString(),
   });
@@ -573,4 +574,21 @@ export async function getTherapistsOverview(staffIds: string[]): Promise<Record<
     };
   }
   return result;
+}
+
+/** Turn the daily guarantee on or off for one therapist (off for trainees). */
+export async function setGuaranteeEnabled(staffId: string, enabled: boolean): Promise<ActionResult> {
+  const ctx = await requireStaffContext();
+  if (!isOwner(ctx) && !ctx.roles.some((r) => r.role === "manager")) {
+    return { ok: false, error: "Only an owner or manager can change this." };
+  }
+  const supabase = await createServerSupabaseClient();
+  const { error } = await supabase
+    .from("therapist_profiles")
+    .upsert({ staff_id: staffId, guarantee_enabled: enabled, updated_at: new Date().toISOString() }, { onConflict: "staff_id" });
+  if (error) return { ok: false, error: error.message };
+  revalidatePath("/admin/therapists");
+  revalidatePath("/admin/payroll");
+  revalidatePath(`/admin/staff/${staffId}`);
+  return { ok: true };
 }

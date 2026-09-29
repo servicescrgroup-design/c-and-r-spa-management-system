@@ -76,6 +76,13 @@ function AdjustmentForm({
   );
 }
 
+/** Why a day has no guarantee top-up, when that isn't obvious from the numbers. */
+const GUARANTEE_NOTE: Record<string, string> = {
+  left_early: "Left early · no guarantee",
+  off: "Trainee · no guarantee",
+  waived: "Guarantee removed",
+};
+
 function JobsDrillDown({ jobs, guaranteeTopupCents }: { jobs: StaffDayJob[]; guaranteeTopupCents: number }) {
   return (
     <ul className="space-y-1 rounded-lg bg-muted/40 p-3 text-sm">
@@ -134,6 +141,16 @@ function DailyRow({ row, showStore }: { row: PayrollDayRow; showStore: boolean }
           <span>E {formatCents(row.payoutCents)}</span>
           <span className={cn(row.guaranteeTopupCents > 0 && "font-medium text-highlight")}>
             U {formatCents(row.guaranteeTopupCents)}
+            {GUARANTEE_NOTE[row.guaranteeStatus] && (
+              <span
+                className={cn(
+                  "ml-1.5 rounded-full px-2 py-0.5 text-[11px] font-medium",
+                  row.guaranteeStatus === "left_early" ? "bg-destructive/10 text-destructive" : "bg-muted text-muted-foreground",
+                )}
+              >
+                {GUARANTEE_NOTE[row.guaranteeStatus]}
+              </span>
+            )}
           </span>
           {row.transportCents > 0 && <span>Transport {formatCents(row.transportCents)}</span>}
           {row.otCents > 0 && <span>OT {formatCents(row.otCents)}</span>}

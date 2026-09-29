@@ -42,6 +42,7 @@ type TherapistProfile = {
   experience_notes: string | null;
   photo_url: string | null;
   guarantee_override_cents: number | null;
+  guarantee_enabled?: boolean;
   min_hours_override: number | null;
 } | null;
 
@@ -134,6 +135,22 @@ function ProfileForm({ staffId, profile }: { staffId: string; profile: Therapist
           <Input id="bankAccountName" name="bankAccountName" defaultValue={profile?.bank_account_name ?? ""} />
         </div>
       </div>
+
+      <label className="flex items-start gap-3 rounded-xl bg-muted/50 p-3 text-sm">
+        <input
+          type="checkbox"
+          name="guaranteeEnabled"
+          defaultChecked={profile?.guarantee_enabled ?? true}
+          className="mt-0.5 size-4 accent-[var(--primary)]"
+        />
+        <span>
+          <span className="font-medium">Gets the daily guarantee</span>
+          <span className="block text-xs text-muted-foreground">
+            Turn off for trainees. They keep their ค่ามือ but are never topped up to the daily minimum. Anyone who clocks out
+            before closing also gets no top-up that day.
+          </span>
+        </span>
+      </label>
 
       <div className="grid grid-cols-2 gap-3">
         <div className="space-y-2">

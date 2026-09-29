@@ -1476,4 +1476,10 @@ export const TH: Record<string, string> = {
   "Gift card, credit, packages": "บัตรของขวัญ เครดิต แพ็กเกจ",
   "One bill": "บิลเดียว",
   "Separate bills": "แยกบิล",
+  "Trainee": "เด็กฝึก",
+  "On": "เปิด",
+  "Left early · no guarantee": "เลิกงานก่อนเวลา · ไม่มีการันตี",
+  "Trainee · no guarantee": "เด็กฝึก · ไม่มีการันตี",
+  "Gets the daily guarantee": "ได้รับการันตีรายวัน",
+  "Early clock-out grace (min)": "ผ่อนผันเลิกงานก่อน (นาที)",
 };

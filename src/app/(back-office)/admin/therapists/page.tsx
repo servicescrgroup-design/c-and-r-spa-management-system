@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { getTherapistEarnings, resolveRange } from "@/lib/admin/therapist-earnings";
 import { EarningsRange } from "@/components/admin/earnings-range";
+import { GuaranteeToggle } from "@/components/admin/guarantee-toggle";
 import { formatCents } from "@/lib/utils";
 
 const hours = (minutes: number) => (minutes / 60).toLocaleString("en-US", { maximumFractionDigits: 1 });
@@ -48,10 +49,11 @@ export default async function TherapistsPage({ searchParams }: PageProps<"/admin
       </div>
 
       <div className="overflow-x-auto rounded-[18px] bg-card ring-1 ring-black/[0.05] dark:ring-white/[0.08]">
-        <table className="w-full min-w-[880px] text-sm">
+        <table className="w-full min-w-[960px] text-sm">
           <thead className="bg-muted/60 text-left text-xs text-muted-foreground">
             <tr>
               <th className="px-4 py-2.5 font-medium">Therapist</th>
+              <th className="px-3 py-2.5 text-center font-medium" title="Daily guarantee. Turn off for trainees.">Guarantee</th>
               <th className="px-4 py-2.5 text-right font-medium">Massages</th>
               <th className="px-4 py-2.5 text-right font-medium">Hours</th>
               <th className="px-4 py-2.5 text-right font-medium">Sales</th>
@@ -72,6 +74,9 @@ export default async function TherapistsPage({ searchParams }: PageProps<"/admin
                   <p className="text-xs text-muted-foreground" data-no-translate>
                     {s.branches.join(", ")}
                   </p>
+                </td>
+                <td className="px-3 py-3 text-center">
+                  <GuaranteeToggle staffId={s.staffId} enabled={s.guaranteeEnabled} />
                 </td>
                 <td className="px-4 py-3 text-right tabular-nums">{s.jobs}</td>
                 <td className="px-4 py-3 text-right tabular-nums">{hours(s.minutes)}</td>
@@ -96,7 +101,7 @@ export default async function TherapistsPage({ searchParams }: PageProps<"/admin
             ))}
             {summaries.length === 0 && (
               <tr>
-                <td colSpan={9} className="px-4 py-6 text-center text-muted-foreground">
+                <td colSpan={10} className="px-4 py-6 text-center text-muted-foreground">
                   No therapists set up yet.
                 </td>
               </tr>
@@ -106,6 +111,7 @@ export default async function TherapistsPage({ searchParams }: PageProps<"/admin
             <tfoot className="border-t-2 border-border font-semibold">
               <tr>
                 <td className="px-4 py-2.5">Total</td>
+                <td />
                 <td className="px-4 py-2.5 text-right tabular-nums">{total.jobs}</td>
                 <td className="px-4 py-2.5 text-right tabular-nums">{hours(total.minutes)}</td>
                 <td className="px-4 py-2.5 text-right tabular-nums">{formatCents(total.sale)}</td>

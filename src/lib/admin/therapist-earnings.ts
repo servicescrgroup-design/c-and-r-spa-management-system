@@ -57,6 +57,8 @@ export type TherapistSummary = {
   payoutCents: number;
   transportCents: number;
   otCents: number;
+  /** Gets the daily guarantee (off for trainees). */
+  guaranteeEnabled: boolean;
 };
 
 /**
@@ -76,12 +78,13 @@ export async function getTherapistEarnings(range: EarningsRange, onlyStaffId?: s
       .from("staff_branch_roles")
       .select("staff_id, branch_id, staff:staff_id(first_name, last_name, employment_status)")
       .eq("role", "therapist"),
-    supabase.from("therapist_profiles").select("staff_id, nickname"),
+    supabase.from("therapist_profiles").select("staff_id, nickname, guarantee_enabled"),
     supabase.from("branches").select("id, name").order("name"),
   ]);
   const branchName = new Map((branches ?? []).map((b) => [b.id, b.name]));
   const visibleBranch = (id: string | null) => allBranches || (id !== null && managerBranches.includes(id));
   const nick = new Map((profiles ?? []).map((p) => [p.staff_id, p.nickname]));
+  const guaranteeOn = new Map((profiles ?? []).map((p) => [p.staff_id, p.guarantee_enabled]));
 
   const summaries = new Map<string, TherapistSummary>();
   for (const r of roles ?? []) {
@@ -105,6 +108,7 @@ export async function getTherapistEarnings(range: EarningsRange, onlyStaffId?: s
       payoutCents: 0,
       transportCents: 0,
       otCents: 0,
+      guaranteeEnabled: guaranteeOn.get(r.staff_id) ?? true,
     });
   }
 

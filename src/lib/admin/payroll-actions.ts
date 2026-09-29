@@ -27,6 +27,8 @@ export type PayrollDayRow = {
   jobsCount: number;
   payoutCents: number;
   guaranteeTopupCents: number;
+  /** Why the day has the top-up it has: topped_up, earned, met_hours, left_early, waived or off. */
+  guaranteeStatus: string;
   tipsCents: number;
   /** Transport and OT on the day's massages, paid with ค่ามือ. */
   transportCents: number;
@@ -61,6 +63,7 @@ export async function getPayrollDays(branchId: string, startDate: string, endDat
     jobsCount: r.jobs_count,
     payoutCents: r.payout_cents,
     guaranteeTopupCents: r.guarantee_topup_cents,
+    guaranteeStatus: r.guarantee_status,
     tipsCents: r.tips_cents,
     transportCents: r.transport_cents,
     otCents: r.ot_cents,
