@@ -7,6 +7,7 @@ import { requireStaffContext } from "@/lib/auth/session";
 import { isOwner } from "@/lib/auth/roles";
 import type { Enums } from "@/types/database.types";
 import { getStaffConflicts } from "@/lib/admin/calendar-data";
+import { getMyOpenDrawer } from "@/lib/pos/session";
 
 type ActionResult = { ok: true } | { ok: false; error: string };
 type BedType = Enums<"bed_type">;
@@ -276,16 +277,6 @@ export async function createStaffAppointment(input: {
       start_at: startAt.toISOString(),
       end_at: endAt.toISOString(),
       bed_id: input.bedId,
-      ...(input.deposit
-        ? {
-            deposit_status: "paid" as const,
-            deposit_amount_cents: input.deposit.amountCents,
-            deposit_method: input.deposit.method,
-            deposit_paid_at: input.deposit.paidAt ?? new Date().toISOString(),
-            deposit_received_by_staff_id: ctx.staffId,
-            deposit_note: input.deposit.note.trim() || null,
-          }
-        : {}),
     })
     .select("id, deposit_card_token")
     .single();
@@ -308,6 +299,25 @@ export async function createStaffAppointment(input: {
     return { ok: false, error: servicesError.message };
   }
 
+  if (input.deposit) {
+    // Held for the guest (not revenue) and counted in the drawer of whoever took it.
+    const drawer = await getMyOpenDrawer(input.branchId);
+    const { error: depositError } = await supabase.rpc("take_appointment_deposit", {
+      p_appointment_id: appointment.id,
+      p_amount_cents: input.deposit.amountCents,
+      p_method: input.deposit.method,
+      p_paid_at: input.deposit.paidAt ?? undefined,
+      p_note: input.deposit.note,
+      p_drawer_session_id: drawer?.id ?? undefined,
+    });
+    if (depositError) {
+      revalidatePath("/admin/scheduling");
+      revalidatePath("/pos/appointments");
+      return { ok: false, error: `The booking was saved, but not the deposit: ${depositError.message} Add it from the booking.` };
+    }
+  }
+
   revalidatePath("/admin/scheduling");
+  revalidatePath("/pos/appointments");
   return { ok: true, appointmentId: appointment.id, depositCardToken: appointment.deposit_card_token };
 }

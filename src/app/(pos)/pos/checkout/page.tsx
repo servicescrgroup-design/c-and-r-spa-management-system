@@ -8,13 +8,25 @@ import { getFreeAtByStaff } from "@/lib/pos/free-at";
 export default async function CheckoutPage({
   searchParams,
 }: PageProps<"/pos/checkout">) {
-  const { branchId: branchIdParam } = await searchParams;
+  const { branchId: branchIdParam, appointment: appointmentParam } = await searchParams;
+  const supabaseEarly = await createServerSupabaseClient();
+  // Checking out a booking: sell at the booking's store.
+  const { data: bookingRow } =
+    typeof appointmentParam === "string"
+      ? await supabaseEarly
+          .from("appointments")
+          .select(
+            "id, branch_id, customer_id, start_at, deposit_status, deposit_amount_cents, deposit_settled, customer:customer_id(first_name, last_name), appointment_services(service_id, duration_minutes, price_cents, staff_id, sort_order)",
+          )
+          .eq("id", appointmentParam)
+          .maybeSingle()
+      : { data: null };
   const branches = await getStaffBranches();
 
   // Owners can have drawers open at several stores; without ?branchId, sell
   // at the store they last picked.
   const working = await getWorkingBranch();
-  let activeBranchId = typeof branchIdParam === "string" ? branchIdParam : (working?.branch.id ?? null);
+  let activeBranchId = bookingRow?.branch_id ?? (typeof branchIdParam === "string" ? branchIdParam : (working?.branch.id ?? null));
   let drawer = activeBranchId ? await getMyOpenDrawer(activeBranchId) : null;
   if (!drawer && working) {
     activeBranchId = working.branch.id;
@@ -151,6 +163,39 @@ export default async function CheckoutPage({
 
   const branchName = branches.find((b) => b.id === activeBranchId)?.name ?? "";
 
+  // The booked massages go into the cart, with the deposit taken off what's left to pay.
+  const booking =
+    bookingRow && bookingRow.branch_id === activeBranchId
+      ? {
+          appointmentId: bookingRow.id,
+          customerId: bookingRow.customer_id,
+          customerName: `${bookingRow.customer?.first_name ?? ""} ${bookingRow.customer?.last_name ?? ""}`.trim() || "Guest",
+          startAt: bookingRow.start_at,
+          depositCents:
+            bookingRow.deposit_status === "paid" && !bookingRow.deposit_settled ? (bookingRow.deposit_amount_cents ?? 0) : 0,
+          depositUsed: Boolean(bookingRow.deposit_settled),
+          lines: [...bookingRow.appointment_services]
+            .sort((a, b) => a.sort_order - b.sort_order)
+            .flatMap((l) => {
+              const svc = serviceList.find((sv) => sv.id === l.service_id);
+              if (!svc) return [];
+              const d = svc.durations.find((x) => x.minutes === l.duration_minutes) ?? svc.durations[0];
+              return [
+                {
+                  itemType: "service" as const,
+                  referenceId: svc.id,
+                  description: `${svc.name} · ${l.duration_minutes} min`,
+                  staffId: l.staff_id,
+                  quantity: 1,
+                  unitPriceCents: l.price_cents > 0 ? l.price_cents : d.priceCents,
+                  durationMinutes: l.duration_minutes,
+                  payoutCents: d.payoutCents,
+                },
+              ];
+            }),
+        }
+      : null;
+
   return (
     <CheckoutCart
       branchId={activeBranchId}
@@ -167,6 +212,7 @@ export default async function CheckoutPage({
       busyBedIds={busyBedIds}
       busyRoomIds={busyRoomIds}
       transportFeeCents={branchRow?.transportation_fee_cents ?? 0}
+      booking={booking}
     />
   );
 }

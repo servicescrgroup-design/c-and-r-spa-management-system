@@ -249,6 +249,7 @@ export function DailyReportView({ report, salesHref }: { report: DailyReport; sa
         <Row label={`Sales (${r.revenue.salesCount})`} value={formatCents(r.revenue.grossCents)} />
         {r.revenue.discountCents > 0 && <Row label="Discounts" value={`−${formatCents(r.revenue.discountCents)}`} />}
         {r.revenue.cardFeeCents > 0 && <Row label="Card surcharges" value={formatCents(r.revenue.cardFeeCents)} />}
+        {r.deposits.keptCents > 0 && <Row label="Deposits kept (no-shows)" value={formatCents(r.deposits.keptCents)} />}
         <Row label="Total revenue" value={formatCents(r.netRevenueCents)} strong />
         {r.revenue.tipCents > 0 && <Row label="Tips collected (go to therapists)" value={formatCents(r.revenue.tipCents)} muted />}
         {r.revenue.taxCents > 0 && <Row label="Tax collected" value={formatCents(r.revenue.taxCents)} muted />}
@@ -494,7 +495,26 @@ export function DailyReportView({ report, salesHref }: { report: DailyReport; sa
         <Row label="PromptPay / transfer" value={formatCents(r.payments.promptpay + r.payments.bankTransfer)} />
         <Row label="Credit card" value={formatCents(r.payments.card)} />
         {r.payments.other > 0 && <Row label="Gift card, credit and packages" value={formatCents(r.payments.other)} />}
+        {r.payments.deposit > 0 && (
+          <Row label="Paid from deposits taken earlier (no new money)" value={formatCents(r.payments.deposit)} muted />
+        )}
       </Section>
+
+      {(r.deposits.takenCents > 0 || r.deposits.usedCents > 0 || r.deposits.keptCents > 0 || r.deposits.refundedCents > 0) && (
+        <Section
+          title="Booking deposits"
+          total={r.deposits.takenCents}
+          hint="Money taken for future bookings is held for the guest, not revenue. It becomes revenue when the guest comes in, or when a no-show's deposit is kept."
+        >
+          <Row label="Taken today (held, not revenue)" value={formatCents(r.deposits.takenCents)} strong />
+          {r.deposits.takenCashCents > 0 && <Row label="· cash, in the drawer" value={formatCents(r.deposits.takenCashCents)} muted />}
+          {r.deposits.takenTransferCents > 0 && <Row label="· PromptPay / transfer" value={formatCents(r.deposits.takenTransferCents)} muted />}
+          {r.deposits.takenCardCents > 0 && <Row label="· card" value={formatCents(r.deposits.takenCardCents)} muted />}
+          {r.deposits.usedCents > 0 && <Row label="Used on today's bills" value={formatCents(r.deposits.usedCents)} />}
+          {r.deposits.keptCents > 0 && <Row label="Kept after a no-show (in revenue)" value={formatCents(r.deposits.keptCents)} />}
+          {r.deposits.refundedCents > 0 && <Row label="Refunded to guests" value={`−${formatCents(r.deposits.refundedCents)}`} />}
+        </Section>
+      )}
 
       <Section title="Cash that should be left" total={expectedCash} defaultOpen hint="For each drawer: float + cash taken − refunds − cash paid out.">
         {r.drawers.length === 0 && <p className="text-muted-foreground">No drawer was opened on this day.</p>}
@@ -514,6 +534,8 @@ export function DailyReportView({ report, salesHref }: { report: DailyReport; sa
                 {d.cashRefundsCents > 0 && <Row label="− Cash refunds" value={formatCents(d.cashRefundsCents)} />}
                 {d.cashExpensesCents > 0 && <Row label="− Paid out (expenses, transport)" value={formatCents(d.cashExpensesCents)} />}
                 {d.freelanceCashCents > 0 && <Row label="− Freelancers paid" value={formatCents(d.freelanceCashCents)} />}
+                {d.cashDepositsCents > 0 && <Row label="+ Cash deposits for bookings" value={formatCents(d.cashDepositsCents)} />}
+                {d.cashDepositRefundsCents > 0 && <Row label="− Deposits given back" value={formatCents(d.cashDepositRefundsCents)} />}
                 <Row label="Should be in the drawer" value={formatCents(d.expectedCents)} strong />
                 {d.byStaff.length > 0 && (
                   <div className="mt-1 rounded-lg bg-muted/50 px-2 py-1 text-xs text-muted-foreground">

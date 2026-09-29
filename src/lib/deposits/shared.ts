@@ -36,3 +36,8 @@ export function validateDeposit(input: DepositInput): string | null {
 export function depositCardPath(token: string) {
   return `/deposit/${token}`;
 }
+
+/** True once a booking's end time has passed. */
+export function hasEnded(endIso: string): boolean {
+  return new Date(endIso).getTime() < Date.now();
+}

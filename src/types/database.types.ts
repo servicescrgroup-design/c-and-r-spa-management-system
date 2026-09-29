@@ -162,6 +162,7 @@ export type Database = {
           customer_id: string
           deposit_amount_cents: number | null
           deposit_card_token: string
+          deposit_drawer_session_id: string | null
           deposit_method:
             | Database["public"]["Enums"]["pos_payment_method"]
             | null
@@ -169,7 +170,11 @@ export type Database = {
           deposit_paid_at: string | null
           deposit_payment_ref: string | null
           deposit_received_by_staff_id: string | null
+          deposit_settle_drawer_session_id: string | null
+          deposit_settled: string | null
+          deposit_settled_at: string | null
           deposit_status: Database["public"]["Enums"]["deposit_status"]
+          deposit_transaction_id: string | null
           discount_cents: number
           end_at: string
           id: string
@@ -190,6 +195,7 @@ export type Database = {
           customer_id: string
           deposit_amount_cents?: number | null
           deposit_card_token?: string
+          deposit_drawer_session_id?: string | null
           deposit_method?:
             | Database["public"]["Enums"]["pos_payment_method"]
             | null
@@ -197,7 +203,11 @@ export type Database = {
           deposit_paid_at?: string | null
           deposit_payment_ref?: string | null
           deposit_received_by_staff_id?: string | null
+          deposit_settle_drawer_session_id?: string | null
+          deposit_settled?: string | null
+          deposit_settled_at?: string | null
           deposit_status?: Database["public"]["Enums"]["deposit_status"]
+          deposit_transaction_id?: string | null
           discount_cents?: number
           end_at: string
           id?: string
@@ -218,6 +228,7 @@ export type Database = {
           customer_id?: string
           deposit_amount_cents?: number | null
           deposit_card_token?: string
+          deposit_drawer_session_id?: string | null
           deposit_method?:
             | Database["public"]["Enums"]["pos_payment_method"]
             | null
@@ -225,7 +236,11 @@ export type Database = {
           deposit_paid_at?: string | null
           deposit_payment_ref?: string | null
           deposit_received_by_staff_id?: string | null
+          deposit_settle_drawer_session_id?: string | null
+          deposit_settled?: string | null
+          deposit_settled_at?: string | null
           deposit_status?: Database["public"]["Enums"]["deposit_status"]
+          deposit_transaction_id?: string | null
           discount_cents?: number
           end_at?: string
           id?: string
@@ -268,10 +283,31 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "appointments_deposit_drawer_session_id_fkey"
+            columns: ["deposit_drawer_session_id"]
+            isOneToOne: false
+            referencedRelation: "cash_drawer_sessions"
+            referencedColumns: ["id"]
+          },
+          {
             foreignKeyName: "appointments_deposit_received_by_staff_id_fkey"
             columns: ["deposit_received_by_staff_id"]
             isOneToOne: false
             referencedRelation: "staff"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "appointments_deposit_settle_drawer_session_id_fkey"
+            columns: ["deposit_settle_drawer_session_id"]
+            isOneToOne: false
+            referencedRelation: "cash_drawer_sessions"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "appointments_deposit_transaction_id_fkey"
+            columns: ["deposit_transaction_id"]
+            isOneToOne: false
+            referencedRelation: "pos_transactions"
             referencedColumns: ["id"]
           },
           {
@@ -3897,6 +3933,10 @@ export type Database = {
       }
     }
     Functions: {
+      apply_appointment_deposit: {
+        Args: { p_appointment_id: string; p_transaction_id: string }
+        Returns: undefined
+      }
       auto_complete_finished_jobs: { Args: never; Returns: number }
       checklist_reopen_midday: {
         Args: { p_branch_id: string; p_work_date: string }
@@ -4089,6 +4129,10 @@ export type Database = {
         }
         Returns: string
       }
+      remove_appointment_deposit: {
+        Args: { p_appointment_id: string }
+        Returns: undefined
+      }
       set_payroll_day_lock: {
         Args: { p_branch_id: string; p_locked: boolean; p_work_date: string }
         Returns: undefined
@@ -4098,6 +4142,14 @@ export type Database = {
           p_customer_id: string
           p_customer_name: string
           p_transaction_id: string
+        }
+        Returns: undefined
+      }
+      settle_appointment_deposit: {
+        Args: {
+          p_appointment_id: string
+          p_drawer_session_id?: string
+          p_outcome: string
         }
         Returns: undefined
       }
@@ -4113,6 +4165,17 @@ export type Database = {
           staff_id: string
           start_at: string
         }[]
+      }
+      take_appointment_deposit: {
+        Args: {
+          p_amount_cents: number
+          p_appointment_id: string
+          p_drawer_session_id?: string
+          p_method: Database["public"]["Enums"]["pos_payment_method"]
+          p_note?: string
+          p_paid_at?: string
+        }
+        Returns: undefined
       }
       therapist_documents_complete: {
         Args: { p_staff_id: string }
@@ -4160,6 +4223,7 @@ export type Database = {
         | "payroll"
         | "manual"
         | "adjustment"
+        | "deposit"
       package_type: "prepaid_services" | "membership"
       payroll_adjustment_type: "bonus" | "deduction" | "advance"
       pos_item_type: "service" | "product" | "package" | "membership_redemption"
@@ -4172,6 +4236,7 @@ export type Database = {
         | "bank_transfer"
         | "card_manual"
         | "promptpay"
+        | "deposit"
       pos_payment_status: "pending" | "succeeded" | "failed" | "refunded"
       pos_transaction_status:
         | "completed"
@@ -4356,6 +4421,7 @@ export const Constants = {
         "payroll",
         "manual",
         "adjustment",
+        "deposit",
       ],
       package_type: ["prepaid_services", "membership"],
       payroll_adjustment_type: ["bonus", "deduction", "advance"],
@@ -4369,6 +4435,7 @@ export const Constants = {
         "bank_transfer",
         "card_manual",
         "promptpay",
+        "deposit",
       ],
       pos_payment_status: ["pending", "succeeded", "failed", "refunded"],
       pos_transaction_status: [

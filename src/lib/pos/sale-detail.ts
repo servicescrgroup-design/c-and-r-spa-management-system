@@ -65,6 +65,7 @@ export const PAYMENT_LABELS: Record<string, string> = {
   gift_card: "Gift card",
   store_credit: "Store credit",
   package_credit: "Package",
+  deposit: "Deposit (paid earlier)",
 };
 
 export const EDITABLE_METHODS = ["cash", "bank_transfer", "promptpay", "card_manual"] as const;

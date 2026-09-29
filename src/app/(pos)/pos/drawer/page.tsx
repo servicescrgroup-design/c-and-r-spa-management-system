@@ -52,7 +52,9 @@ export default async function DrawerPage({
               {" "}+ cash sales {formatCents(cash.cashSalesCents)}
               {cash.cashRefundsCents > 0 && <> − refunds {formatCents(cash.cashRefundsCents)}</>}
               {paidOut > 0 && <> − paid out {formatCents(paidOut)}</>}
-              {cash.freelanceCashCents > 0 && <> − freelancers {formatCents(cash.freelanceCashCents)}</>}. Expected in drawer:{" "}
+              {cash.freelanceCashCents > 0 && <> − freelancers {formatCents(cash.freelanceCashCents)}</>}
+              {cash.cashDepositsCents > 0 && <> + booking deposits {formatCents(cash.cashDepositsCents)}</>}
+              {cash.cashDepositRefundsCents > 0 && <> − deposits given back {formatCents(cash.cashDepositRefundsCents)}</>}. Expected in drawer:{" "}
               {formatCents(expectedCents)}.
             </CardDescription>
             <div className="mt-2 space-y-1 rounded-xl bg-muted p-3 text-sm">

@@ -64,6 +64,9 @@ export type ReportDrawer = {
   cashRefundsCents: number;
   cashExpensesCents: number;
   freelanceCashCents: number;
+  /** Booking deposits taken in cash, and cash deposits given back, on this drawer. */
+  cashDepositsCents: number;
+  cashDepositRefundsCents: number;
   expectedCents: number;
   countedCents: number | null;
   /** People working this drawer, and what each rang up on it. */
@@ -191,6 +194,7 @@ export async function getDailyReport(branchId: string, date: string, toDate?: st
     refundedCents: sum(sales.filter((s) => s.refunded).map((s) => s.totalCents)),
   };
   // What the shop earned: sales after discounts plus card surcharges. Tax and tips aren't the shop's.
+  // A deposit kept after a no-show is earned the day it's kept.
   const netRevenueCents = revenue.grossCents - revenue.discountCents + revenue.cardFeeCents;
 
   const therapistJobs = live.flatMap((s) =>
@@ -216,6 +220,24 @@ export async function getDailyReport(branchId: string, date: string, toDate?: st
     fromDrawer: Boolean(e.drawer_session_id),
   }));
 
+  // Booking deposits: taken (held, not revenue), kept after a no-show (revenue that day), refunded.
+  const { data: depositRows } = await supabase
+    .from("appointments")
+    .select("deposit_amount_cents, deposit_method, deposit_paid_at, deposit_status, deposit_settled, deposit_settled_at")
+    .eq("branch_id", branchId)
+    .or(`and(deposit_paid_at.gte.${start},deposit_paid_at.lt.${end}),and(deposit_settled_at.gte.${start},deposit_settled_at.lt.${end})`);
+  const startMs = new Date(start).getTime();
+  const endMs = new Date(end).getTime();
+  const inRange = (iso: string | null) => {
+    const t = iso ? new Date(iso).getTime() : NaN;
+    return t >= startMs && t < endMs;
+  };
+  const taken = (depositRows ?? []).filter((d) => (d.deposit_status === "paid" || d.deposit_status === "refunded") && inRange(d.deposit_paid_at));
+  const takenBy = (methods: string[]) =>
+    sum(taken.filter((d) => methods.includes(d.deposit_method ?? "")).map((d) => d.deposit_amount_cents ?? 0));
+  const settledIn = (kind: string) =>
+    sum((depositRows ?? []).filter((d) => d.deposit_settled === kind && inRange(d.deposit_settled_at)).map((d) => d.deposit_amount_cents ?? 0));
+
   // Payment totals for sales that weren't refunded.
   const byMethod = new Map<string, number>();
   for (const s of live) for (const p of s.payments) byMethod.set(p.method, (byMethod.get(p.method) ?? 0) + p.amountCents);
@@ -225,6 +247,17 @@ export async function getDailyReport(branchId: string, date: string, toDate?: st
     bankTransfer: byMethod.get("bank_transfer") ?? 0,
     card: (byMethod.get("card_manual") ?? 0) + (byMethod.get("card_stripe") ?? 0),
     other: (byMethod.get("gift_card") ?? 0) + (byMethod.get("store_credit") ?? 0) + (byMethod.get("package_credit") ?? 0),
+    /** Paid from a deposit the guest gave earlier (no new money today). */
+    deposit: byMethod.get("deposit") ?? 0,
+  };
+  const deposits = {
+    takenCents: sum(taken.map((d) => d.deposit_amount_cents ?? 0)),
+    takenCashCents: takenBy(["cash"]),
+    takenTransferCents: takenBy(["bank_transfer", "promptpay"]),
+    takenCardCents: takenBy(["card_manual", "card_stripe"]),
+    usedCents: payments.deposit,
+    keptCents: settledIn("kept"),
+    refundedCents: settledIn("refunded"),
   };
 
   // The cash each drawer should hold: float + cash taken − cash refunded − cash paid out − freelancers paid.
@@ -241,6 +274,8 @@ export async function getDailyReport(branchId: string, date: string, toDate?: st
       cashRefundsCents: cash.cashRefundsCents,
       cashExpensesCents: cash.paidOutCents,
       freelanceCashCents: cash.freelanceCashCents,
+      cashDepositsCents: cash.cashDepositsCents,
+      cashDepositRefundsCents: cash.cashDepositRefundsCents,
       expectedCents: expectedCash(d.opening_amount_cents, cash),
       countedCents: d.status === "closed" ? d.counted_amount_cents : null,
       people: people.map((p) => p.name),
@@ -262,13 +297,14 @@ export async function getDailyReport(branchId: string, date: string, toDate?: st
     canSeeCosts,
     sales,
     revenue,
-    netRevenueCents,
+    netRevenueCents: netRevenueCents + deposits.keptCents,
     therapistJobs,
     topups,
     freelanceJobs,
     expenses: expenseRows,
     categories: categories ?? [],
     payments,
+    deposits,
     drawers: drawerRows,
     totals: {
       therapistCostCents,
@@ -278,7 +314,7 @@ export async function getDailyReport(branchId: string, date: string, toDate?: st
       freelanceCostCents,
       otherExpensesCents,
       netProfitCents:
-        netRevenueCents - therapistCostCents - topupCents - transportCents - otCents - freelanceCostCents - otherExpensesCents,
+        netRevenueCents + deposits.keptCents - therapistCostCents - topupCents - transportCents - otCents - freelanceCostCents - otherExpensesCents,
     },
     zeroPayoutJobs: therapistJobs.filter((j) => j.payoutCents === 0 && (j.suggestedPayoutCents ?? 0) > 0).length,
   };
@@ -315,6 +351,16 @@ export function mergeReports(reports: DailyReport[]): DailyReport {
       bankTransfer: sum((r) => r.payments.bankTransfer),
       card: sum((r) => r.payments.card),
       other: sum((r) => r.payments.other),
+      deposit: sum((r) => r.payments.deposit),
+    },
+    deposits: {
+      takenCents: sum((r) => r.deposits.takenCents),
+      takenCashCents: sum((r) => r.deposits.takenCashCents),
+      takenTransferCents: sum((r) => r.deposits.takenTransferCents),
+      takenCardCents: sum((r) => r.deposits.takenCardCents),
+      usedCents: sum((r) => r.deposits.usedCents),
+      keptCents: sum((r) => r.deposits.keptCents),
+      refundedCents: sum((r) => r.deposits.refundedCents),
     },
     drawers: reports.flatMap((r) => r.drawers),
     totals: {

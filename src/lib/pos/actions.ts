@@ -288,6 +288,8 @@ export async function checkoutSale(input: {
   discountType?: "percent" | "fixed";
   discountValue?: number;
   discountReason?: string;
+  /** A booking whose deposit pays part of this sale. The server adds the deposit payment itself. */
+  depositAppointmentId?: string | null;
 }): Promise<ActionResult & { transactionId?: string; customerRef?: string | null }> {
   const ctx = await requireStaffContext();
   if (input.items.length === 0) {
@@ -313,11 +315,26 @@ export async function checkoutSale(input: {
   if (hasPackage && !input.customerId) {
     return { ok: false, error: "A customer is required to sell a package." };
   }
-  if (input.payments.length === 0) {
+  if (input.payments.length === 0 && !input.depositAppointmentId) {
     return { ok: false, error: "Add at least one payment." };
   }
 
   const supabase = await createServerSupabaseClient();
+
+  // A booking's deposit already paid part of this: it's used as a "deposit" payment line.
+  let depositCents = 0;
+  if (input.depositAppointmentId) {
+    const { data: booking } = await supabase
+      .from("appointments")
+      .select("deposit_status, deposit_amount_cents, deposit_settled, customer_id")
+      .eq("id", input.depositAppointmentId)
+      .maybeSingle();
+    if (!booking || booking.deposit_status !== "paid" || booking.deposit_settled || !booking.deposit_amount_cents) {
+      return { ok: false, error: "That booking's deposit was already used, kept or refunded." };
+    }
+    depositCents = booking.deposit_amount_cents;
+    if (!input.customerId && booking.customer_id) input = { ...input, customerId: booking.customer_id };
+  }
 
   const { data: drawerSession } = await supabase
     .from("cash_drawer_sessions")
@@ -461,7 +478,10 @@ export async function checkoutSale(input: {
   }
 
   const totalCents = subtotalCents - discountCents + input.taxCents + input.tipCents + input.cardFeeCents;
-  const paidCents = input.payments.reduce((sum, p) => sum + p.amountCents, 0);
+  const paidCents = input.payments.reduce((sum, p) => sum + p.amountCents, 0) + depositCents;
+  if (depositCents > totalCents) {
+    return { ok: false, error: `The deposit (${depositCents / 100}) is more than this sale. Add the booked massages first.` };
+  }
 
   if (paidCents !== totalCents) {
     return {
@@ -588,19 +608,27 @@ export async function checkoutSale(input: {
     });
   }
 
-  const { error: paymentError } = await supabase.from("pos_payments").insert(
-    input.payments.map((p) => ({
-      transaction_id: txn.id,
-      method: p.method,
-      amount_cents: p.amountCents,
-    })),
-  );
+  const { error: paymentError } = await supabase.from("pos_payments").insert([
+    ...input.payments
+      .filter((p) => p.amountCents !== 0)
+      .map((p) => ({ transaction_id: txn.id, method: p.method, amount_cents: p.amountCents })),
+    ...(depositCents > 0 ? [{ transaction_id: txn.id, method: "deposit" as const, amount_cents: depositCents }] : []),
+  ]);
   if (paymentError) return { ok: false, error: paymentError.message };
 
   const { error: postError } = await supabase.rpc("post_pos_transaction", {
     p_transaction_id: txn.id,
   });
   if (postError) return { ok: false, error: `Sale saved but posting failed: ${postError.message}` };
+
+  if (input.depositAppointmentId && depositCents > 0) {
+    const { error: depositError } = await supabase.rpc("apply_appointment_deposit", {
+      p_appointment_id: input.depositAppointmentId,
+      p_transaction_id: txn.id,
+    });
+    if (depositError) return { ok: false, error: `Sale saved but the booking's deposit wasn't marked as used: ${depositError.message}` };
+    revalidatePath("/pos/appointments");
+  }
 
   // Therapists whose massage starts now go into service now. Massages booked
   // for later are started on time by the database scheduler.

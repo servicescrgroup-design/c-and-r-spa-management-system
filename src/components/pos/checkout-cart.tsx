@@ -145,6 +145,7 @@ export function CheckoutCart({
   busyBedIds,
   busyRoomIds,
   transportFeeCents,
+  booking = null,
 }: {
   branchId: string;
   branchName: string;
@@ -160,6 +161,16 @@ export function CheckoutCart({
   busyBedIds: string[];
   busyRoomIds: string[];
   transportFeeCents: number;
+  /** Checking out a booking: its massages start in the cart and its deposit is taken off what's left to pay. */
+  booking?: {
+    appointmentId: string;
+    customerId: string;
+    customerName: string;
+    startAt: string;
+    depositCents: number;
+    depositUsed: boolean;
+    lines: CartItem[];
+  } | null;
 }) {
   const router = useRouter();
   // Which massage in the cart the floor/bed boxes are placing.
@@ -172,13 +183,16 @@ export function CheckoutCart({
   const [discountMode, setDiscountMode] = useState<"percent" | "fixed">("percent");
   const [discountValue, setDiscountValue] = useState("");
   const [discountReason, setDiscountReason] = useState("");
-  const [cart, setCart] = useState<CartItem[]>([]);
+  const [cart, setCart] = useState<CartItem[]>(() => booking?.lines ?? []);
+  const bookingCustomerKnown = Boolean(booking && customers.some((c) => c.id === booking.customerId));
+  // The deposit stays on this sale until it's charged; after that the cart is a normal sale again.
+  const [bookingDeposit, setBookingDeposit] = useState(booking?.depositCents ?? 0);
   const [taxPercent, setTaxPercent] = useState("0");
   const [tip, setTip] = useState("0");
   const [cardFeePercent, setCardFeePercent] = useState("0");
   const [cardFeeDollars, setCardFeeDollars] = useState("0");
-  const [customerId, setCustomerId] = useState("");
-  const [customerName, setCustomerName] = useState("");
+  const [customerId, setCustomerId] = useState(() => (bookingCustomerKnown ? booking!.customerId : ""));
+  const [customerName, setCustomerName] = useState(() => (booking && !bookingCustomerKnown ? booking.customerName : ""));
   const [categoryIds, setCategoryIds] = useState<string[]>([]);
   const [payments, setPayments] = useState<PaymentRow[]>([{ method: "cash", amount: "0" }]);
   const [error, setError] = useState<string | null>(null);
@@ -327,6 +341,8 @@ export function CheckoutCart({
   const tipCents = Math.round((Number(tip) || 0) * 100);
   const cardFeeCents = Math.round((Number(cardFeeDollars) || 0) * 100);
   const totalCents = afterDiscountCents + taxCents + tipCents + cardFeeCents;
+  // What the guest still pays today after their booking deposit.
+  const dueCents = totalCents - bookingDeposit;
 
   // What this sale costs to deliver: each therapist's pay (ค่ามือ, add-ons included) and transport.
   const workerName = (item: CartItem) =>
@@ -447,7 +463,11 @@ export function CheckoutCart({
       setError("Select a customer before selling a package.");
       return;
     }
-    if (separate && cart.length > 1) {
+    if (bookingDeposit > 0 && dueCents < 0) {
+      setError("The deposit is more than this sale. Add the booked massages first.");
+      return;
+    }
+    if (separate && cart.length > 1 && bookingDeposit === 0) {
       setLoading(true);
       setError(null);
       await handleSeparateCheckout();
@@ -464,9 +484,12 @@ export function CheckoutCart({
       tipCents,
       cardFeeCents,
       payments:
-        payments.length === 1
-          ? [{ method: payments[0].method, amountCents: totalCents }]
-          : payments.map((p) => ({ method: p.method, amountCents: Math.round((Number(p.amount) || 0) * 100) })),
+        dueCents === 0
+          ? []
+          : payments.length === 1
+            ? [{ method: payments[0].method, amountCents: dueCents }]
+            : payments.map((p) => ({ method: p.method, amountCents: Math.round((Number(p.amount) || 0) * 100) })),
+      depositAppointmentId: bookingDeposit > 0 ? booking?.appointmentId : null,
       customerId: customerId || null,
       customerName: customerId ? null : customerName.trim() || null,
       addOns,
@@ -482,6 +505,10 @@ export function CheckoutCart({
     }
     setReceipt({ total: totalCents, ref: result.customerRef ?? null });
     resetCart();
+    if (booking) {
+      setBookingDeposit(0);
+      router.replace("/pos/checkout");
+    }
     router.refresh();
   }
 
@@ -536,10 +563,10 @@ export function CheckoutCart({
 
   const paidCents =
     payments.length === 1
-      ? totalCents
+      ? dueCents
       : payments.reduce((sum, p) => sum + Math.round((Number(p.amount) || 0) * 100), 0);
-  const splitting = separate && cart.length > 1;
-  const paymentsBalanced = splitting || paidCents === totalCents;
+  const splitting = separate && cart.length > 1 && bookingDeposit === 0;
+  const paymentsBalanced = splitting || paidCents === dueCents;
   const billTotals = splitting ? splitBills().map((b) => b.totalCents) : [];
 
   return (
@@ -759,7 +786,7 @@ export function CheckoutCart({
       <Card id="cart" className="h-fit scroll-mt-16 lg:sticky lg:top-16 lg:self-start">
         <CardHeader className="flex flex-row items-center justify-between gap-3 space-y-0">
           <CardTitle>Cart</CardTitle>
-          <div className="flex rounded-full bg-muted p-0.5 text-xs" role="group" aria-label="Bills">
+          {bookingDeposit === 0 && <div className="flex rounded-full bg-muted p-0.5 text-xs" role="group" aria-label="Bills">
             {[
               { on: false, label: "One bill" },
               { on: true, label: "Separate bills" },
@@ -777,10 +804,25 @@ export function CheckoutCart({
                 {o.label}
               </button>
             ))}
-          </div>
+          </div>}
         </CardHeader>
         <CardContent className="space-y-4">
-          {separate && (
+          {booking && (
+            <div className="rounded-xl bg-primary/5 px-3 py-2.5 text-sm ring-1 ring-primary/20">
+              <p className="font-medium">
+                Booking · <span data-no-translate>{booking.customerName}</span> ·{" "}
+                {new Date(booking.startAt).toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit", timeZone: "Asia/Bangkok" })}
+              </p>
+              <p className="text-xs text-muted-foreground">
+                {bookingDeposit > 0
+                  ? `Deposit ${formatCents(bookingDeposit)} already paid. It comes off what the guest pays now.`
+                  : booking.depositUsed
+                    ? "This booking's deposit was already used, kept or refunded."
+                    : "No deposit on this booking."}
+              </p>
+            </div>
+          )}
+          {separate && bookingDeposit === 0 && (
             <p className="rounded-lg bg-primary/5 px-3 py-2 text-xs text-muted-foreground">
               Each massage or item is its own bill with its own payment. Discount, tax, tip and card fee are shared by each bill&apos;s
               part of the subtotal.
@@ -1210,7 +1252,7 @@ export function CheckoutCart({
             </div>
           </div>
 
-          {!splitting && <PaymentRowsEditor rows={payments} setRows={setPayments} totalCents={totalCents} />}
+          {!splitting && dueCents > 0 && <PaymentRowsEditor rows={payments} setRows={setPayments} totalCents={dueCents} />}
 
           <div className="space-y-1 border-t border-border pt-3 text-sm">
             <div className="flex justify-between">
@@ -1241,6 +1283,18 @@ export function CheckoutCart({
               <span>Total</span>
               <span>{formatCents(totalCents)}</span>
             </div>
+            {bookingDeposit > 0 && (
+              <>
+                <div className="flex justify-between text-primary">
+                  <span>Deposit already paid</span>
+                  <span>-{formatCents(bookingDeposit)}</span>
+                </div>
+                <div className="flex justify-between text-base font-semibold">
+                  <span>To pay now</span>
+                  <span className={cn(dueCents < 0 && "text-destructive")}>{formatCents(dueCents)}</span>
+                </div>
+              </>
+            )}
           </div>
 
           {costLines.length > 0 && (
