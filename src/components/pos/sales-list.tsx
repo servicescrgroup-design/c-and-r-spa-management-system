@@ -332,12 +332,15 @@ export function SalesList({
                 <p className="mt-1 truncate text-sm text-muted-foreground">
                   {showDate &&
                     `${new Date(s.startAt ?? s.createdAt).toLocaleDateString("en-GB", { weekday: "short", day: "numeric", month: "short", timeZone: "Asia/Bangkok" })} `}
-                  <span className="font-medium text-foreground tabular-nums">
-                    {bangkokTime(s.startAt ?? s.createdAt)}
-                    {s.endAt ? `–${bangkokTime(s.endAt)}` : ""}
-                  </span>
-                  {s.startAt && Math.abs(new Date(s.startAt).getTime() - new Date(s.createdAt).getTime()) > 2 * 60_000 && (
-                    <> · sold {bangkokTime(s.createdAt)}</>
+                  Sold <span className="tabular-nums">{bangkokTime(s.createdAt)}</span>
+                  {s.startAt && s.endAt && (
+                    <>
+                      {" "}
+                      · Massage{" "}
+                      <span className="font-medium text-foreground tabular-nums">
+                        {bangkokTime(s.startAt)}–{bangkokTime(s.endAt)}
+                      </span>
+                    </>
                   )}
                   {s.soldBy && (
                     <>

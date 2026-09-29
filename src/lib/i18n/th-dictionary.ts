@@ -1511,4 +1511,5 @@ export const TH: Record<string, string> = {
   "Refunded to guests": "คืนให้ลูกค้า",
   "+ Cash deposits for bookings": "+ มัดจำเงินสดสำหรับการจอง",
   "− Deposits given back": "− มัดจำที่คืน",
+  "Sold": "ขายเวลา",
 };
