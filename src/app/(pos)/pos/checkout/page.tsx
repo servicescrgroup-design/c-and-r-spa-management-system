@@ -85,7 +85,7 @@ export default async function CheckoutPage({
     // One shared queue: today's check-ins at either store.
     supabase
       .from("therapist_clock_sessions")
-      .select("staff_id, branch_id, status, current_room_id, current_bed_id, active_item_id, staff:staff_id(first_name, last_name), branch:branch_id(name)")
+      .select("staff_id, branch_id, status, current_room_id, current_bed_id, active_item_id, queue_position, clock_in_at, staff:staff_id(first_name, last_name), branch:branch_id(name)")
       .eq("work_date", new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Bangkok" }).format(new Date()))
       .is("clock_out_at", null),
     supabase
@@ -152,14 +152,20 @@ export default async function CheckoutPage({
     (sessions ?? []).map((s) => s.active_item_id).filter((id): id is string => Boolean(id)),
   );
   const seen = new Set<string>();
+  // Same order and numbers as the Queue page: queue position, then check-in time.
+  const queueNumber = new Map(
+    [...(sessions ?? [])]
+      .sort((a, b) => a.queue_position - b.queue_position || a.clock_in_at.localeCompare(b.clock_in_at))
+      .map((s, i) => [s.staff_id, i + 1]),
+  );
   const therapists = roleRows
     .filter((r) => !seen.has(r.staff_id) && seen.add(r.staff_id))
     .map((r) => {
       const full = `${r.staff?.first_name ?? ""} ${r.staff?.last_name ?? ""}`.trim();
       const nick = nicknames.get(r.staff_id);
-      return { id: r.staff_id, name: nick ? `${nick} (${full})` : full || "Therapist", status: statusByStaff.get(r.staff_id) ?? null, freeAt: freeAtByStaff.get(r.staff_id) ?? null, otherStore: otherStoreByStaff.get(r.staff_id) ?? null };
+      return { id: r.staff_id, name: nick ? `${nick} (${full})` : full || "Therapist", status: statusByStaff.get(r.staff_id) ?? null, freeAt: freeAtByStaff.get(r.staff_id) ?? null, otherStore: otherStoreByStaff.get(r.staff_id) ?? null, queueNumber: queueNumber.get(r.staff_id) ?? null };
     })
-    .sort((a, b) => Number(!a.status) - Number(!b.status) || a.name.localeCompare(b.name));
+    .sort((a, b) => (a.queueNumber ?? 999) - (b.queueNumber ?? 999) || a.name.localeCompare(b.name));
 
   const branchName = branches.find((b) => b.id === activeBranchId)?.name ?? "";
 

@@ -1523,4 +1523,5 @@ export const TH: Record<string, string> = {
   "Vendor": "ร้านค้า",
   "Doesn't touch the drawer.": "ไม่กระทบลิ้นชัก",
   "Open or join a drawer to pay cash out of it.": "เปิดหรือเข้าร่วมลิ้นชักเพื่อจ่ายเงินสด",
+  "Queue (#1 is next)": "คิว (#1 คือคนถัดไป)",
 };

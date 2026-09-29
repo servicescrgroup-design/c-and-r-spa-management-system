@@ -22,6 +22,8 @@ type Therapist = {
   freeAt?: string | null;
   /** Checked in today at the other store (the queue is shared). */
   otherStore?: string | null;
+  /** Place in today's shared queue, as numbered on the Queue page. */
+  queueNumber?: number | null;
 };
 
 const hhmm = (iso: string) =>
@@ -899,12 +901,12 @@ export function CheckoutCart({
                     >
                       <option value="">Choose therapist...</option>
                       {therapists.some((t) => t.status) && (
-                        <optgroup label="Checked in today">
+                        <optgroup label="Queue (#1 is next)">
                           {therapists
                             .filter((t) => t.status)
                             .map((t) => (
                               <option key={t.id} value={`staff:${t.id}`}>
-                                {isFreeNow(t, Date.now()) ? "🟢" : "🔴"} {t.name} · {STATUS_TEXT[t.status!] ?? t.status}
+                                {isFreeNow(t, Date.now()) ? "🟢" : "🔴"} {t.queueNumber ? `#${t.queueNumber} ` : ""}{t.name} · {STATUS_TEXT[t.status!] ?? t.status}
                                 {t.freeAt && new Date(t.freeAt).getTime() > Date.now() ? ` · free at ${hhmm(t.freeAt)}` : ""}
                                 {t.otherStore ? ` · at ${t.otherStore}` : ""}
                               </option>
