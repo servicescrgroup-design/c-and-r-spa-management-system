@@ -6,6 +6,7 @@ import { requireStaffContext } from "@/lib/auth/session";
 import { hasBranchRole, isOwner } from "@/lib/auth/roles";
 import { SalesList, DeletedSales, type SaleRow } from "@/components/pos/sales-list";
 import { cn } from "@/lib/utils";
+import { StoreTabs } from "@/components/store-tabs";
 import { freelancerFromDescription, type DeletedSale, type RoomOption, type ServiceOption } from "@/lib/pos/sale-detail";
 
 function bangkokToday() {
@@ -143,6 +144,7 @@ export async function SalesPageView({
     return {
       id: t.id,
       branchName: allStores ? (branchName.get(t.branch_id) ?? null) : null,
+      branchColor: branches.find((b) => b.id === t.branch_id)?.brand_color ?? null,
       soldBy: t.rung_by?.first_name ?? null,
       ref: t.customer_ref,
       createdAt: t.created_at,
@@ -324,22 +326,11 @@ export async function SalesPageView({
 
       <div className="flex flex-wrap items-center justify-between gap-2">
       {branches.length > 1 && (
-        <div className="flex flex-wrap gap-2">
-          {[{ id: "all", name: "All stores" }, ...branches].map((b) => (
-            <Link
-              key={b.id}
-              href={`${basePath}?branchId=${b.id}&date=${date}${rangeQs}${newestFirst ? "&sort=newest" : ""}`}
-              className={
-                b.id === branchId
-                  ? "h-9 rounded-full bg-foreground px-4 text-sm leading-9 text-background"
-                  : "h-9 rounded-full bg-muted px-4 text-sm leading-9 hover:bg-secondary"
-              }
-              data-no-translate
-            >
-              {b.name}
-            </Link>
-          ))}
-        </div>
+        <StoreTabs
+          stores={branches}
+          activeId={branchId}
+          hrefFor={(id) => `${basePath}?branchId=${id}&date=${date}${rangeQs}${newestFirst ? "&sort=newest" : ""}`}
+        />
       )}
         <Link
           href={`${basePath}?branchId=${branchId}&date=${date}${rangeQs}${newestFirst ? "" : "&sort=newest"}`}

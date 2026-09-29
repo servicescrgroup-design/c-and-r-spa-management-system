@@ -23,6 +23,7 @@ type Branch = {
   payroll_min_hours: number;
   payroll_guarantee_cents: number;
   guarantee_leave_grace_minutes: number;
+  brand_color: string;
   transportation_fee_cents: number;
   queue_send_to_back: boolean;
   require_documents_for_clockin: boolean;
@@ -66,6 +67,19 @@ function SettingsSection({ branch }: { branch: Branch }) {
 
   return (
     <form onSubmit={handleSubmit} className="space-y-3">
+      <label className="flex items-center gap-3 text-sm">
+        <input
+          type="color"
+          name="brandColor"
+          defaultValue={branch.brand_color}
+          className="h-9 w-12 cursor-pointer rounded-lg border border-border bg-card p-1"
+          aria-label="Store colour"
+        />
+        <span>
+          <span className="font-medium">Store colour</span>
+          <span className="block text-xs text-muted-foreground">Used for this store&apos;s tabs, badges and charts. Combined views blend the store colours.</span>
+        </span>
+      </label>
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
         <div className="space-y-1">
           <Label htmlFor={`min-hours-${branch.id}`} className="text-xs">

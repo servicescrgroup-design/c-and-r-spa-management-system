@@ -1,14 +1,16 @@
-import Link from "next/link";
 import { getStaffBranches, getWorkingBranch } from "@/lib/pos/session";
 import { getDailyReport, mergeReports, type DailyReport } from "@/lib/reports/daily-report";
 import { bangkokToday } from "@/lib/checklists";
 import { DailyReportView } from "@/components/reports/daily-report-view";
 import { formatCents, cn } from "@/lib/utils";
+import { StoreTabs } from "@/components/store-tabs";
+import { storeColor, storesGradient, tint, type BrandedStore } from "@/lib/store-colors";
 
 const isDate = (v: unknown): v is string => typeof v === "string" && /^\d{4}-\d{2}-\d{2}$/.test(v);
 
 /** Stores side by side: revenue, each cost, and profit for the chosen day or days. */
-function StoreComparison({ reports, total }: { reports: DailyReport[]; total: DailyReport }) {
+function StoreComparison({ reports, total, stores }: { reports: DailyReport[]; total: DailyReport; stores: BrandedStore[] }) {
+  const storeOf = (id: string) => stores.find((s) => s.id === id);
   const cols = [...reports, total];
   const rows: { label: string; value: (r: DailyReport) => number; tone?: "cost" | "result" | "muted"; strong?: boolean }[] = [
     { label: "Sales (bills)", value: (r) => r.revenue.salesCount, tone: "muted" },
@@ -40,11 +42,19 @@ function StoreComparison({ reports, total }: { reports: DailyReport[]; total: Da
         <thead className="bg-muted/60 text-xs text-muted-foreground">
           <tr>
             <th className="px-4 py-2.5 text-left font-medium" />
-            {cols.map((c, i) => (
-              <th key={c.branch.id + i} className={cn("px-4 py-2.5 text-right font-medium", i === cols.length - 1 && "text-foreground")} data-no-translate>
-                {i === cols.length - 1 ? "All stores" : c.branch.name}
-              </th>
-            ))}
+            {cols.map((c, i) => {
+              const last = i === cols.length - 1;
+              return (
+                <th
+                  key={c.branch.id + i}
+                  className="px-4 py-2.5 text-right font-semibold text-white"
+                  style={{ background: last ? storesGradient(stores) : storeColor(storeOf(c.branch.id)) }}
+                  data-no-translate
+                >
+                  {last ? "All stores" : c.branch.name}
+                </th>
+              );
+            })}
           </tr>
         </thead>
         <tbody className="divide-y divide-border">
@@ -56,9 +66,12 @@ function StoreComparison({ reports, total }: { reports: DailyReport[]; total: Da
                 return (
                   <td
                     key={c.branch.id + i}
+                    style={{
+                      background:
+                        i === cols.length - 1 ? storesGradient(stores, 0.08) : tint(storeColor(storeOf(c.branch.id)), 0.05),
+                    }}
                     className={cn(
                       "px-4 py-2 text-right tabular-nums",
-                      i === cols.length - 1 && "bg-muted/30",
                       row.tone === "result" && (v < 0 ? "text-destructive" : "text-primary"),
                     )}
                   >
@@ -103,21 +116,7 @@ export async function DailyReportPage({
   return (
     <div className="mx-auto max-w-3xl space-y-4">
       <div className="flex flex-wrap items-center justify-between gap-2" data-print-hide>
-        <div className="flex flex-wrap gap-2">
-          {[...(branches.length > 1 ? [{ id: "all", name: "All stores" }] : []), ...branches].map((b) => (
-            <Link
-              key={b.id}
-              href={`${basePath}?branchId=${b.id}&date=${from}${range}`}
-              className={cn(
-                "h-9 rounded-full px-4 text-sm leading-9",
-                b.id === selected ? "bg-foreground text-background" : "bg-muted hover:bg-secondary",
-              )}
-              data-no-translate
-            >
-              {b.name}
-            </Link>
-          ))}
-        </div>
+        <StoreTabs stores={branches} activeId={selected} hrefFor={(id) => `${basePath}?branchId=${id}&date=${from}${range}`} />
         <form action={basePath} className="flex flex-wrap items-center gap-2">
           <input type="hidden" name="branchId" value={selected} />
           <input type="date" name="date" defaultValue={from} aria-label="From" className="h-9 rounded-full border border-border bg-card px-3 text-sm" />
@@ -129,7 +128,7 @@ export async function DailyReportPage({
         </form>
       </div>
 
-      {showComparison && <StoreComparison reports={reports} total={total} />}
+      {showComparison && <StoreComparison reports={reports} total={total} stores={branches} />}
 
       <DailyReportView report={report} salesHref={salesHref(selected, from)} />
     </div>

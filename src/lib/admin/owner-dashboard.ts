@@ -14,6 +14,8 @@ const bangkokHour = () =>
   Number(new Intl.DateTimeFormat("en-GB", { timeZone: "Asia/Bangkok", hour: "2-digit", hour12: false }).format(new Date()));
 
 export type StoreMoney = {
+  /** The store's brand colour ("All stores" has none: it's shown as a gradient). */
+  color?: string | null;
   id: string;
   name: string;
   bills: number;
@@ -102,7 +104,7 @@ export async function getOwnerDashboard(range: DashboardRange) {
   const today = bangkokToday();
   const todayStart = new Date(`${today}T00:00:00+07:00`).toISOString();
 
-  const { data: branches } = await supabase.from("branches").select("id, name").order("sort_order").order("name");
+  const { data: branches } = await supabase.from("branches").select("id, name, brand_color").order("sort_order").order("name");
   const branchList = branches ?? [];
   const branchName = new Map(branchList.map((b) => [b.id, b.name]));
 
@@ -171,7 +173,7 @@ export async function getOwnerDashboard(range: DashboardRange) {
   ]);
 
   // Money
-  const stores = reports.map(storeMoney);
+  const stores = reports.map((r) => ({ ...storeMoney(r), color: branchList.find((b) => b.id === r.branch.id)?.brand_color ?? null }));
   const all = storeMoney(mergeReports(reports));
   all.name = "All stores";
 

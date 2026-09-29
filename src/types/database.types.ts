@@ -554,6 +554,7 @@ export type Database = {
           address: string | null
           allowed_embed_origins: string[]
           booking_enabled: boolean
+          brand_color: string
           code: string
           created_at: string
           deposit_amount_cents: number | null
@@ -582,6 +583,7 @@ export type Database = {
           address?: string | null
           allowed_embed_origins?: string[]
           booking_enabled?: boolean
+          brand_color?: string
           code: string
           created_at?: string
           deposit_amount_cents?: number | null
@@ -610,6 +612,7 @@ export type Database = {
           address?: string | null
           allowed_embed_origins?: string[]
           booking_enabled?: boolean
+          brand_color?: string
           code?: string
           created_at?: string
           deposit_amount_cents?: number | null

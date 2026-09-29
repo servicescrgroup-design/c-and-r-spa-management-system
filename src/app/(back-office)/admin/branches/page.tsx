@@ -15,7 +15,7 @@ export default async function BranchesPage() {
       supabase
         .from("branches")
         .select(
-          "id, name, slug, is_active, booking_enabled, deposit_required, payroll_min_hours, payroll_guarantee_cents, guarantee_leave_grace_minutes, transportation_fee_cents, queue_send_to_back, require_documents_for_clockin, hours, map_url",
+          "id, name, slug, is_active, booking_enabled, deposit_required, payroll_min_hours, payroll_guarantee_cents, guarantee_leave_grace_minutes, brand_color, transportation_fee_cents, queue_send_to_back, require_documents_for_clockin, hours, map_url",
         )
         .order("created_at"),
       supabase

@@ -98,7 +98,7 @@ export function resolveRange(sp: {
   };
 }
 
-export type BranchSeries = { branchId: string; branchName: string; values: number[] };
+export type BranchSeries = { branchId: string; branchName: string; values: number[]; color?: string | null };
 
 export type RevenueDashboard = {
   buckets: string[];
@@ -134,7 +134,7 @@ export async function getRevenueDashboard(range: DashboardRange): Promise<Revenu
   const supabase = await createServerSupabaseClient();
 
   const [{ data: branches }, { data: transactions }] = await Promise.all([
-    supabase.from("branches").select("id, name").order("name"),
+    supabase.from("branches").select("id, name, brand_color").order("sort_order").order("name"),
     supabase
       .from("pos_transactions")
       .select("branch_id, total_cents, created_at")
@@ -146,9 +146,9 @@ export async function getRevenueDashboard(range: DashboardRange): Promise<Revenu
   const buckets = bucketsFor(range);
   const bucketIndex = new Map(buckets.map((b, i) => [b, i]));
 
-  const byBranch = new Map<string, { name: string; values: number[]; revenue: number; count: number }>();
+  const byBranch = new Map<string, { name: string; color: string; values: number[]; revenue: number; count: number }>();
   for (const b of branches ?? []) {
-    byBranch.set(b.id, { name: b.name, values: new Array(buckets.length).fill(0), revenue: 0, count: 0 });
+    byBranch.set(b.id, { name: b.name, color: b.brand_color, values: new Array(buckets.length).fill(0), revenue: 0, count: 0 });
   }
 
   let totalRevenueCents = 0;
@@ -173,6 +173,7 @@ export async function getRevenueDashboard(range: DashboardRange): Promise<Revenu
       branchId,
       branchName: v.name,
       values: v.values,
+      color: v.color,
     })),
     summary: {
       totalRevenueCents,

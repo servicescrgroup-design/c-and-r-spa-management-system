@@ -4,6 +4,7 @@ import { requireStaffContext } from "@/lib/auth/session";
 import { isOwner } from "@/lib/auth/roles";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { getStaffBranches } from "@/lib/pos/session";
+import { StoreTabs } from "@/components/store-tabs";
 import { ensureDefaultExpenseCategory } from "@/lib/admin/accounting-actions";
 import { ExpenseComposer } from "@/components/expenses/expense-composer";
 import { ExpenseTable, type ExpenseRow } from "@/components/admin/expense-table";
@@ -183,23 +184,7 @@ export default async function ExpensesPage({ searchParams }: PageProps<"/admin/e
           </form>
         </div>
         {branches.length > 1 && (
-          <div className="flex flex-wrap gap-2">
-            <Link
-              href={href({ branch: "all" })}
-              className={cn(PILL, "border", branchId === "all" ? "border-primary bg-primary text-primary-foreground" : "border-border")}
-            >
-              Both stores
-            </Link>
-            {branches.map((b) => (
-              <Link
-                key={b.id}
-                href={href({ branch: b.id })}
-                className={cn(PILL, "border", branchId === b.id ? "border-primary bg-primary text-primary-foreground" : "border-border")}
-              >
-                {b.name}
-              </Link>
-            ))}
-          </div>
+          <StoreTabs stores={branches} activeId={branchId} allLabel="Both stores" hrefFor={(id) => href({ branch: id })} />
         )}
       </div>
 

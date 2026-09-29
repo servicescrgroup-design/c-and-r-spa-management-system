@@ -71,6 +71,7 @@ export async function updateBranchSettings(branchId: string, formData: FormData)
   const transportationFeeDollars = Number(formData.get("transportationFeeDollars") ?? 0);
   const queueSendToBack = formData.get("queueSendToBack") === "on";
   const graceMinutes = Number(formData.get("guaranteeLeaveGraceMinutes") ?? 30);
+  const brandColor = String(formData.get("brandColor") ?? "").trim();
   const requireDocumentsForClockin = formData.get("requireDocumentsForClockin") === "on";
 
   if (!Number.isFinite(payrollMinHours) || payrollMinHours <= 0) {
@@ -79,6 +80,7 @@ export async function updateBranchSettings(branchId: string, formData: FormData)
   if (!Number.isFinite(payrollGuaranteeDollars) || payrollGuaranteeDollars < 0) {
     return { ok: false, error: "Guarantee must be zero or more." };
   }
+  if (brandColor && !/^#[0-9a-fA-F]{6}$/.test(brandColor)) return { ok: false, error: "Pick a store colour." };
   if (!Number.isInteger(graceMinutes) || graceMinutes < 0 || graceMinutes > 240) {
     return { ok: false, error: "Grace minutes must be a whole number from 0 to 240." };
   }
@@ -95,6 +97,7 @@ export async function updateBranchSettings(branchId: string, formData: FormData)
       transportation_fee_cents: Math.round(transportationFeeDollars * 100),
       queue_send_to_back: queueSendToBack,
       guarantee_leave_grace_minutes: graceMinutes,
+      ...(brandColor ? { brand_color: brandColor } : {}),
       require_documents_for_clockin: requireDocumentsForClockin,
     })
     .eq("id", branchId);

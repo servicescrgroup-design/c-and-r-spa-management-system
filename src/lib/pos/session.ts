@@ -11,7 +11,7 @@ export async function getStaffBranches() {
 
   // Owners, and anyone whose role was saved for "All branches", see every branch.
   if (isOwner(ctx) || ctx.roles.some((r) => r.branchId === null && r.role !== "therapist")) {
-    const { data } = await supabase.from("branches").select("id, name").order("sort_order").order("name");
+    const { data } = await supabase.from("branches").select("id, name, brand_color").order("sort_order").order("name");
     return data ?? [];
   }
 
@@ -20,7 +20,7 @@ export async function getStaffBranches() {
 
   const { data } = await supabase
     .from("branches")
-    .select("id, name")
+    .select("id, name, brand_color")
     .in("id", branchIds)
     .order("sort_order")
     .order("name");

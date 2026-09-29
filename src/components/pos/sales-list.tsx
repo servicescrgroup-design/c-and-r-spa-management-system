@@ -6,6 +6,7 @@ import { setSaleCustomer, searchCustomers, createCustomerForSale, deleteSale, ty
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { formatCents, cn } from "@/lib/utils";
+import { StoreBadge } from "@/components/store-tabs";
 import { SaleBreakdown, SaleEditForm, SaleHistory, type EditorChoices } from "@/components/pos/sale-detail-panel";
 import { bangkokTime, saleCosts, type DeletedSale, type SaleDetail } from "@/lib/pos/sale-detail";
 
@@ -13,6 +14,7 @@ export type SaleRow = {
   id: string;
   /** Set when several stores are shown together. */
   branchName?: string | null;
+  branchColor?: string | null;
   /** The receptionist account that rang the bill up. */
   soldBy?: string | null;
   ref: string | null;
@@ -309,11 +311,7 @@ export function SalesList({
               <div className="min-w-0">
                 <p className="flex flex-wrap items-center gap-2">
                   <span className="rounded-md bg-muted px-2 py-0.5 font-mono text-xs tabular-nums">{s.ref ?? "—"}</span>
-                  {s.branchName && (
-                    <span className="rounded-full bg-accent/10 px-2 py-0.5 text-[11px] text-accent" data-no-translate>
-                      {s.branchName}
-                    </span>
-                  )}
+                  {s.branchName && <StoreBadge store={{ id: s.id, name: s.branchName, brand_color: s.branchColor }} />}
                   <span className={cn("font-medium", !label && "text-muted-foreground")} data-no-translate={label ? true : undefined}>
                     {label ?? "No name"}
                   </span>

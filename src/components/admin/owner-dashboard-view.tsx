@@ -4,6 +4,7 @@ import { useState } from "react";
 import Link from "next/link";
 import type { OwnerDashboard, StoreMoney } from "@/lib/admin/owner-dashboard";
 import { formatCents, cn } from "@/lib/utils";
+import { storesGradient } from "@/lib/store-colors";
 
 type Tab = "overview" | "money" | "team" | "fix";
 
@@ -29,6 +30,26 @@ function VizStyles() {
       }
       :root[data-theme="dark"] .viz-root { --series-1:#3987e5; --series-2:#d95926; --seq:#3987e5; --seq-track:#26303d; }
     `}</style>
+  );
+}
+
+/** A store's name in its brand colour; "All stores" as a gradient chip. */
+function StoreHeading({ store, stores }: { store: StoreMoney; stores: StoreMoney[] }) {
+  if (store.id === "all") {
+    return (
+      <span
+        className="inline-block rounded-full px-2.5 py-0.5 text-xs font-semibold text-white"
+        style={{ background: storesGradient(stores.map((s) => ({ id: s.id, name: s.name, brand_color: s.color }))) }}
+      >
+        {store.name}
+      </span>
+    );
+  }
+  return (
+    <span className="inline-flex items-center justify-end gap-1.5 text-xs font-semibold" style={{ color: store.color ?? undefined }}>
+      <span className="size-2 rounded-full" style={{ background: store.color ?? "currentColor" }} aria-hidden />
+      {store.name}
+    </span>
   );
 }
 
@@ -66,7 +87,7 @@ function StoreComparison({ stores }: { stores: StoreMoney[] }) {
     { label: "Net profit", value: (s) => s.profitCents },
   ];
   const max = Math.max(1, ...stores.flatMap((s) => metrics.map((m) => Math.abs(m.value(s)))));
-  const color = (i: number) => (i === 0 ? "var(--series-1)" : "var(--series-2)");
+  const color = (i: number) => stores[i]?.color || (i === 0 ? "var(--series-1)" : "var(--series-2)");
   return (
     <div className="space-y-4">
       <div className="flex flex-wrap gap-4 text-xs text-muted-foreground" aria-label="Legend">
@@ -136,8 +157,8 @@ function MoneyBreakdown({ stores, all }: { stores: StoreMoney[]; all: StoreMoney
           <tr className="border-b border-border">
             <th className="py-2 pr-3 text-left font-medium" />
             {cols.map((c) => (
-              <th key={c.id} className="px-3 py-2 text-right font-medium" data-no-translate>
-                {c.name}
+              <th key={c.id} className="px-3 py-2 text-right" data-no-translate>
+                <StoreHeading store={c} stores={stores} />
               </th>
             ))}
           </tr>
@@ -328,8 +349,8 @@ export function OwnerDashboardView({
                   <tr className="border-b border-border">
                     <th className="py-2 text-left font-medium" />
                     {[...stores, all].map((c) => (
-                      <th key={c.id} className="px-2 py-2 text-right font-medium" data-no-translate>
-                        {c.name}
+                      <th key={c.id} className="px-2 py-2 text-right" data-no-translate>
+                        <StoreHeading store={c} stores={stores} />
                       </th>
                     ))}
                   </tr>

@@ -6,6 +6,7 @@ import { bangkokToday } from "@/lib/checklists";
 import { depositMethodLabel, hasEnded } from "@/lib/deposits/shared";
 import { NewAppointmentModal } from "@/components/admin/new-appointment-modal";
 import { AppointmentActions } from "@/components/pos/appointment-actions";
+import { StoreTabs } from "@/components/store-tabs";
 import { formatCents, cn } from "@/lib/utils";
 
 const DAY_MS = 86_400_000;
@@ -157,22 +158,7 @@ export default async function PosAppointmentsPage({ searchParams }: PageProps<"/
       </div>
 
       {branches.length > 1 && (
-        <div className="flex flex-wrap gap-2">
-          {[{ id: "all", name: "All stores" }, ...branches].map((b) => (
-            <Link
-              key={b.id}
-              href={qs({ branchId: b.id })}
-              className={
-                b.id === wanted
-                  ? "h-9 rounded-full bg-foreground px-4 text-sm leading-9 text-background"
-                  : "h-9 rounded-full bg-muted px-4 text-sm leading-9 hover:bg-secondary"
-              }
-              data-no-translate
-            >
-              {b.name}
-            </Link>
-          ))}
-        </div>
+        <StoreTabs stores={branches} activeId={wanted} hrefFor={(id) => qs({ branchId: id })} />
       )}
 
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">

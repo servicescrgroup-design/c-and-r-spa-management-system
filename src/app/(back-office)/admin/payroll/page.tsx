@@ -3,6 +3,7 @@ import { requireStaffContext } from "@/lib/auth/session";
 import { isOwner } from "@/lib/auth/roles";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { getStaffBranches } from "@/lib/pos/session";
+import { StoreTabs } from "@/components/store-tabs";
 import { getPayrollDaysForBranches, getDocumentExpiryList } from "@/lib/admin/payroll-actions";
 import { getReceptionistPayroll } from "@/lib/admin/receptionist-payroll-actions";
 import { PayrollBoard } from "@/components/admin/payroll-board";
@@ -142,31 +143,12 @@ export default async function PayrollPage({ searchParams }: PageProps<"/admin/pa
             </Link>
           )}
         </div>
-        <div className="flex flex-wrap gap-2">
-          {branches.length > 1 && (
-            <Link
-              href={`/admin/payroll?branchId=all&view=${view}&date=${date}&month=${month}`}
-              className={cn(
-                "rounded-full border px-3.5 py-1.5 text-sm transition-colors",
-                branchId === "all" ? "border-primary bg-primary text-primary-foreground" : "border-border",
-              )}
-            >
-              Both stores
-            </Link>
-          )}
-          {branches.map((b) => (
-            <Link
-              key={b.id}
-              href={`/admin/payroll?branchId=${b.id}&view=${view}&date=${date}&month=${month}`}
-              className={cn(
-                "rounded-full border px-3.5 py-1.5 text-sm transition-colors",
-                b.id === branchId ? "border-primary bg-primary text-primary-foreground" : "border-border",
-              )}
-            >
-              {b.name}
-            </Link>
-          ))}
-        </div>
+        <StoreTabs
+          stores={branches}
+          activeId={branchId}
+          allLabel="Both stores"
+          hrefFor={(id) => `/admin/payroll?branchId=${id}&view=${view}&date=${date}&month=${month}`}
+        />
       </div>
 
       <div className="flex flex-wrap items-center gap-4">

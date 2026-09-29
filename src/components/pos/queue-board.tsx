@@ -22,9 +22,10 @@ import { setTherapistSkills } from "@/lib/admin/staff-hr-actions";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
+import { storesGradient, tint } from "@/lib/store-colors";
 
 type Status = CombinedQueueEntry["status"];
-type Branch = { id: string; name: string };
+type Branch = { id: string; name: string; brand_color?: string | null };
 
 const STATUS_LABEL: Record<Status, string> = {
   available: "Available",
@@ -259,7 +260,7 @@ export function QueueBoard({
 
   const branchName = useMemo(() => new Map(branches.map((b) => [b.id, b.name])), [branches]);
   const branchColor = useMemo(
-    () => new Map(branches.map((b, i) => [b.id, STORE_COLORS[i % STORE_COLORS.length]])),
+    () => new Map(branches.map((b, i) => [b.id, b.brand_color || STORE_COLORS[i % STORE_COLORS.length]])),
     [branches],
   );
 
@@ -335,17 +336,30 @@ export function QueueBoard({
             One shared queue for both stores. #1 is next. Drag a row (or use ▲▼) to change the order.
           </p>
           {branches.length > 1 && (
-            <div className="flex rounded-full bg-muted p-0.5 text-[13px]">
-              {[{ id: "all", name: "Both stores" }, ...branches].map((b) => (
-                <button
-                  key={b.id}
-                  type="button"
-                  onClick={() => setFilter(b.id)}
-                  className={cn("rounded-full px-3 py-1", filter === b.id ? "bg-card font-medium shadow-sm" : "text-foreground/70")}
-                >
-                  <span data-no-translate={b.id !== "all" ? true : undefined}>{b.name}</span>
-                </button>
-              ))}
+            <div className="flex flex-wrap gap-1.5 text-[13px]">
+              {[{ id: "all", name: "Both stores" }, ...branches].map((b) => {
+                const on = filter === b.id;
+                const color = branchColor.get(b.id);
+                const background =
+                  b.id === "all"
+                    ? storesGradient(branches, on ? 1 : 0.14)
+                    : on
+                      ? (color ?? "#8e8e93")
+                      : tint(color ?? "#8e8e93", 0.1);
+                return (
+                  <button
+                    key={b.id}
+                    type="button"
+                    aria-pressed={on}
+                    onClick={() => setFilter(b.id)}
+                    style={{ background }}
+                    className={cn("inline-flex items-center gap-1.5 rounded-full px-3 py-1.5", on ? "font-medium text-white shadow-sm" : "text-foreground")}
+                  >
+                    {!on && b.id !== "all" && <span className="size-2 rounded-full" style={{ background: color }} aria-hidden />}
+                    <span data-no-translate={b.id !== "all" ? true : undefined}>{b.name}</span>
+                  </button>
+                );
+              })}
             </div>
           )}
         </div>

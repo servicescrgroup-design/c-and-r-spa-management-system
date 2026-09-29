@@ -87,7 +87,7 @@ export function RevenueChart({ buckets, series, granularity }: { buckets: string
       <div className="flex flex-wrap gap-4">
         {series.map((s, i) => (
           <div key={s.branchId} className="flex items-center gap-1.5 text-sm">
-            <span className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: `var(--series-${(i % 4) + 1})` }} />
+            <span className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: s.color || `var(--series-${(i % 4) + 1})` }} />
             <span className="text-muted-foreground">{s.branchName}</span>
           </div>
         ))}
@@ -125,7 +125,7 @@ export function RevenueChart({ buckets, series, granularity }: { buckets: string
               key={s.branchId}
               d={pathFor(s.values)}
               fill="none"
-              stroke={`var(--series-${(i % 4) + 1})`}
+              stroke={s.color || `var(--series-${(i % 4) + 1})`}
               strokeWidth={2}
               strokeLinecap="round"
               strokeLinejoin="round"
@@ -150,7 +150,7 @@ export function RevenueChart({ buckets, series, granularity }: { buckets: string
                 cx={xFor(hoverIndex)}
                 cy={yFor(s.values[hoverIndex])}
                 r={4}
-                fill={`var(--series-${(i % 4) + 1})`}
+                fill={s.color || `var(--series-${(i % 4) + 1})`}
                 stroke="var(--color-card)"
                 strokeWidth={1.5}
               />
@@ -175,7 +175,7 @@ export function RevenueChart({ buckets, series, granularity }: { buckets: string
             {series.map((s, i) => (
               <div key={s.branchId} className="flex items-center justify-between gap-6">
                 <span className="flex items-center gap-1.5 text-muted-foreground">
-                  <span className="h-2 w-2 rounded-full" style={{ backgroundColor: `var(--series-${(i % 4) + 1})` }} />
+                  <span className="h-2 w-2 rounded-full" style={{ backgroundColor: s.color || `var(--series-${(i % 4) + 1})` }} />
                   {s.branchName}
                 </span>
                 <span>{formatCents(s.values[hoverIndex])}</span>
