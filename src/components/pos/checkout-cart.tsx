@@ -35,6 +35,65 @@ function todayAt(time: string): string {
   return new Date(`${date}T${time}:00+07:00`).toISOString();
 }
 
+/** Reads "15:23", "1523", "923", "3:23pm" or "3.23 pm" as a 24-hour "HH:MM", or null. */
+function parseTime(raw: string): string | null {
+  const t = raw.trim().toLowerCase().replace(/\s+/g, "");
+  const m = t.match(/^(\d{1,2})(?:[:.]?(\d{2}))?(am|pm)?$/);
+  if (!m) return null;
+  let h = Number(m[1]);
+  const min = Number(m[2] ?? "0");
+  if (m[3] === "pm" && h < 12) h += 12;
+  if (m[3] === "am" && h === 12) h = 0;
+  if (h > 23 || min > 59) return null;
+  return `${String(h).padStart(2, "0")}:${String(min).padStart(2, "0")}`;
+}
+
+/** A 24-hour start time box: type the exact time, no AM/PM to get wrong. Saves on Enter or leaving the box. */
+function StartTimeField({ value, onChange }: { value: string | null; onChange: (time: string | null) => void }) {
+  const [draft, setDraft] = useState<string | null>(null);
+  const [bad, setBad] = useState(false);
+  const shown = draft ?? (value ? hhmm(value) : "");
+  function commit() {
+    if (draft === null) return;
+    if (draft.trim() === "") {
+      onChange(null);
+    } else {
+      const time = parseTime(draft);
+      if (!time) {
+        setBad(true);
+        return;
+      }
+      onChange(time);
+    }
+    setDraft(null);
+    setBad(false);
+  }
+  return (
+    <input
+      inputMode="numeric"
+      aria-label="Start time, 24-hour"
+      placeholder="now"
+      value={shown}
+      onChange={(e) => {
+        setDraft(e.target.value);
+        setBad(false);
+      }}
+      onBlur={commit}
+      onKeyDown={(e) => {
+        if (e.key === "Enter") {
+          e.preventDefault();
+          commit();
+        }
+      }}
+      title="24-hour time, e.g. 15:30"
+      className={cn(
+        "h-8 w-20 rounded-lg border bg-card px-2 text-center text-xs tabular-nums outline-none focus:ring-2 focus:ring-primary/30",
+        bad ? "border-destructive" : "border-border",
+      )}
+    />
+  );
+}
+
 const STATUS_TEXT: Record<string, string> = {
   available: "Available",
   in_service: "In service",
@@ -257,7 +316,8 @@ export function CheckoutCart({
               freelanceSessionId: kind === "free" ? id : null,
               transportCents: kind === "staff" ? c.transportCents : null,
               otCents: kind === "staff" ? c.otCents : null,
-              startAt: suggested ?? (c.startAt && new Date(c.startAt).getTime() > Date.now() ? c.startAt : null),
+              // A time already typed in (earlier or later) stays; otherwise book for when they're free.
+              startAt: c.startAt ?? suggested,
             }
           : c,
       ),
@@ -1085,12 +1145,9 @@ export function CheckoutCart({
                       return (
                         <div className="flex items-center gap-2 text-xs">
                           <span className="shrink-0 text-muted-foreground">Start</span>
-                          <Input
-                            type="time"
-                            aria-label="Start time"
-                            value={startIso ? hhmm(startIso) : ""}
-                            onChange={(e) => setLineStart(i, e.target.value ? todayAt(e.target.value) : null)}
-                            className="h-8 w-28 text-xs"
+                          <StartTimeField
+                            value={item.startAt ?? null}
+                            onChange={(time) => setLineStart(i, time ? todayAt(time) : null)}
                           />
                           {startIso ? (
                             <button
