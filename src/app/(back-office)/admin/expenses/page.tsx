@@ -5,9 +5,8 @@ import { isOwner } from "@/lib/auth/roles";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { getStaffBranches } from "@/lib/pos/session";
 import { ensureDefaultExpenseCategory } from "@/lib/admin/accounting-actions";
-import { NewExpenseForm } from "@/components/admin/new-expense-form";
-import { NewVendorForm } from "@/components/admin/new-vendor-form";
-import { ExpenseTable, NewCategoryForm, type ExpenseRow } from "@/components/admin/expense-table";
+import { ExpenseComposer } from "@/components/expenses/expense-composer";
+import { ExpenseTable, type ExpenseRow } from "@/components/admin/expense-table";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { formatCents, cn } from "@/lib/utils";
 
@@ -269,39 +268,20 @@ export default async function ExpensesPage({ searchParams }: PageProps<"/admin/e
         </CardContent>
       </Card>
 
-      <div className="grid gap-4 lg:grid-cols-3">
-        <Card className="lg:col-span-2">
-          <CardHeader>
-            <CardTitle>Record an expense</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <NewExpenseForm
-              branches={branchId === "all" ? branches : branches.filter((b) => b.id === branchId)}
-              categories={categories ?? []}
-              vendors={vendors ?? []}
-            />
-          </CardContent>
-        </Card>
-        <div className="space-y-4">
-          <Card>
-            <CardHeader>
-              <CardTitle>Add a category</CardTitle>
-              <CardDescription>{(categories ?? []).map((c) => c.name).join(", ")}</CardDescription>
-            </CardHeader>
-            <CardContent>
-              <NewCategoryForm />
-            </CardContent>
-          </Card>
-          <Card>
-            <CardHeader>
-              <CardTitle>Add a vendor</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <NewVendorForm />
-            </CardContent>
-          </Card>
+      <section className="rounded-[28px] bg-card px-5 py-8 ring-1 ring-black/[0.05] sm:px-10 sm:py-10 dark:ring-white/[0.08]">
+        <div className="mx-auto max-w-2xl space-y-8">
+          <div className="text-center">
+            <h2 className="font-display text-4xl font-semibold tracking-tight sm:text-5xl">Record an expense</h2>
+            <p className="mt-2 text-muted-foreground">It posts to the ledger straight away. Add a new category or vendor from its list.</p>
+          </div>
+          <ExpenseComposer
+            mode="admin"
+            branches={branchId === "all" ? branches : branches.filter((b) => b.id === branchId)}
+            categories={categories ?? []}
+            vendors={vendors ?? []}
+          />
         </div>
-      </div>
+      </section>
     </div>
   );
 }

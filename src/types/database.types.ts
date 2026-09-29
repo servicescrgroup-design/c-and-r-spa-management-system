@@ -3933,6 +3933,8 @@ export type Database = {
       }
     }
     Functions: {
+      add_expense_category: { Args: { p_name: string }; Returns: string }
+      add_vendor: { Args: { p_name: string }; Returns: string }
       apply_appointment_deposit: {
         Args: { p_appointment_id: string; p_transaction_id: string }
         Returns: undefined
@@ -4120,6 +4122,18 @@ export type Database = {
         }
         Returns: undefined
       }
+      record_pos_expense: {
+        Args: {
+          p_amount_cents: number
+          p_branch_id: string
+          p_category_id: string
+          p_description?: string
+          p_drawer_session_id?: string
+          p_method: string
+          p_vendor_id?: string
+        }
+        Returns: string
+      }
       record_transportation_fee: {
         Args: {
           p_amount_cents: number
@@ -4133,6 +4147,7 @@ export type Database = {
         Args: { p_appointment_id: string }
         Returns: undefined
       }
+      remove_pos_expense: { Args: { p_expense_id: string }; Returns: undefined }
       set_payroll_day_lock: {
         Args: { p_branch_id: string; p_locked: boolean; p_work_date: string }
         Returns: undefined

@@ -40,6 +40,11 @@ const TABS = [
     icon: <path d="M4 5.5 5.5 7 8 4.5M4 10.5 5.5 12 8 9.5M4 15.5 5.5 17 8 14.5M10.5 6h6M10.5 11h6M10.5 16h6" />,
   },
   {
+    href: "/pos/expenses",
+    label: "Expenses",
+    icon: <path d="M5 3.5h10v13l-2-1.2-1.5 1.2-1.5-1.2-1.5 1.2L7 15.3l-2 1.2v-13ZM8 7.5h4M8 10.5h4" />,
+  },
+  {
     href: "/pos/report",
     label: "Report",
     icon: <path d="M4 16.5h12M6.5 13.5V9M10 13.5V5.5M13.5 13.5v-6" />,
