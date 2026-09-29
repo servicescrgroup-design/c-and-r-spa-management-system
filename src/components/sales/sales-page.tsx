@@ -12,6 +12,27 @@ function bangkokToday() {
   return new Date(Date.now() + 7 * 3600_000).toISOString().slice(0, 10);
 }
 
+/** Earliest massage start and latest finish on a bill, from the start times chosen at checkout. */
+function massageWindow(
+  createdAt: string,
+  items: { item_type: string; is_add_on: boolean; start_at: string | null; duration_minutes: number | null; staff_id: string | null; id: string }[],
+): { startAt: string | null; endAt: string | null } {
+  const mains = items.filter((i) => i.item_type === "service" && !i.is_add_on);
+  if (mains.length === 0) return { startAt: null, endAt: null };
+  let first = Infinity;
+  let last = -Infinity;
+  for (const m of mains) {
+    const start = new Date(m.start_at ?? createdAt).getTime();
+    // Add-ons for the same therapist run on after their massage.
+    const extra = items
+      .filter((a) => a.is_add_on && a.staff_id === m.staff_id)
+      .reduce((n, a) => n + (a.duration_minutes ?? 0), 0);
+    first = Math.min(first, start);
+    last = Math.max(last, start + ((m.duration_minutes ?? 0) + extra) * 60_000);
+  }
+  return { startAt: new Date(first).toISOString(), endAt: new Date(last).toISOString() };
+}
+
 const LOCKED_METHODS = new Set(["card_stripe", "gift_card", "store_credit", "package_credit"]);
 
 type SearchParams = Record<string, string | string[] | undefined>;
@@ -125,6 +146,7 @@ export async function SalesPageView({
       soldBy: t.rung_by?.first_name ?? null,
       ref: t.customer_ref,
       createdAt: t.created_at,
+      ...massageWindow(t.created_at, items),
       customerName: t.customer_name,
       customer: t.customer
         ? { id: t.customer.id, name: `${t.customer.first_name} ${t.customer.last_name}`.trim() || "Customer" }
@@ -171,6 +193,9 @@ export async function SalesPageView({
       },
     };
   });
+  // Listed by when the massages happen (the time chosen at checkout), not when the bill was rung up.
+  const when = (x: SaleRow) => new Date(x.startAt ?? x.createdAt).getTime();
+  sales.sort((a, b) => (newestFirst ? when(b) - when(a) : when(a) - when(b)));
 
   // Bills deleted from these days, newest first.
   let deleted: DeletedSale[] = [];

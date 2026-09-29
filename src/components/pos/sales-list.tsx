@@ -17,6 +17,9 @@ export type SaleRow = {
   soldBy?: string | null;
   ref: string | null;
   createdAt: string;
+  /** When the massages run, from the start time chosen at checkout (null for product-only bills). */
+  startAt?: string | null;
+  endAt?: string | null;
   customerName: string | null;
   customer: { id: string; name: string } | null;
   items: string[];
@@ -328,12 +331,14 @@ export function SalesList({
                 </p>
                 <p className="mt-1 truncate text-sm text-muted-foreground">
                   {showDate &&
-                    `${new Date(s.createdAt).toLocaleDateString("en-GB", { weekday: "short", day: "numeric", month: "short", timeZone: "Asia/Bangkok" })} `}
-                  {new Date(s.createdAt).toLocaleTimeString("en-GB", {
-                    hour: "2-digit",
-                    minute: "2-digit",
-                    timeZone: "Asia/Bangkok",
-                  })}
+                    `${new Date(s.startAt ?? s.createdAt).toLocaleDateString("en-GB", { weekday: "short", day: "numeric", month: "short", timeZone: "Asia/Bangkok" })} `}
+                  <span className="font-medium text-foreground tabular-nums">
+                    {bangkokTime(s.startAt ?? s.createdAt)}
+                    {s.endAt ? `–${bangkokTime(s.endAt)}` : ""}
+                  </span>
+                  {s.startAt && Math.abs(new Date(s.startAt).getTime() - new Date(s.createdAt).getTime()) > 2 * 60_000 && (
+                    <> · sold {bangkokTime(s.createdAt)}</>
+                  )}
                   {s.soldBy && (
                     <>
                       {" "}
