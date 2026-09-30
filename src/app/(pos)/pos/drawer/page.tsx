@@ -57,6 +57,18 @@ export default async function DrawerPage({
               {cash.cashDepositRefundsCents > 0 && <> − deposits given back {formatCents(cash.cashDepositRefundsCents)}</>}. Expected in drawer:{" "}
               {formatCents(expectedCents)}.
             </CardDescription>
+            <div className="mt-2 grid grid-cols-2 gap-2 text-sm">
+              <div className="rounded-xl bg-muted p-3">
+                <p className="text-xs text-muted-foreground">Keep in the drawer</p>
+                <p className="text-lg font-semibold tabular-nums">{formatCents(drawer.opening_amount_cents)}</p>
+                <p className="text-[11px] text-muted-foreground">Float for tomorrow</p>
+              </div>
+              <div className="rounded-xl bg-primary/10 p-3">
+                <p className="text-xs text-muted-foreground">Cash to send</p>
+                <p className="text-lg font-semibold tabular-nums text-primary">{formatCents(expectedCents - drawer.opening_amount_cents)}</p>
+                <p className="text-[11px] text-muted-foreground">Everything above the float</p>
+              </div>
+            </div>
             <div className="mt-2 space-y-1 rounded-xl bg-muted p-3 text-sm">
               <p>
                 <span className="text-muted-foreground">Opened:</span>{" "}

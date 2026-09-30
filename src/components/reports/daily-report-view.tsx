@@ -162,6 +162,9 @@ export function DailyReportView({ report, salesHref }: { report: DailyReport; sa
 
   const editable = r.canSeeCosts;
   const expectedCash = r.drawers.reduce((n, d) => n + d.expectedCents, 0);
+  // The opening float stays in the drawer for the next day; everything above it is sent.
+  const floatKept = r.drawers.reduce((n, d) => n + d.openingCents, 0);
+  const cashToSend = expectedCash - floatKept;
   const countedDrawers = r.drawers.filter((d) => d.countedCents != null);
   const countedCash = countedDrawers.reduce((n, d) => n + (d.countedCents ?? 0), 0);
 
@@ -200,7 +203,11 @@ export function DailyReportView({ report, salesHref }: { report: DailyReport; sa
                 { label: "Net profit", value: r.totals.netProfitCents, sub: "revenue minus all costs", result: true },
               ]
             : []),
-          { label: "Cash that should be in the drawer", value: expectedCash, sub: countedDrawers.length ? `counted ${formatCents(countedCash)}` : "not counted yet" },
+          {
+            label: "Cash to send",
+            value: cashToSend,
+            sub: `${formatCents(floatKept)} float stays in the drawer${countedDrawers.length ? ` · counted ${formatCents(countedCash)}` : ""}`,
+          },
         ].map((b) => (
           <div
             key={b.label}
@@ -516,7 +523,12 @@ export function DailyReportView({ report, salesHref }: { report: DailyReport; sa
         </Section>
       )}
 
-      <Section title="Cash that should be left" total={expectedCash} defaultOpen hint="For each drawer: float + cash taken − refunds − cash paid out.">
+      <Section
+        title="Cash to send"
+        total={cashToSend}
+        defaultOpen
+        hint="For each drawer: float + cash taken − refunds − cash paid out. The float stays in the drawer for the next day; send the rest."
+      >
         {r.drawers.length === 0 && <p className="text-muted-foreground">No drawer was opened on this day.</p>}
         <div className="space-y-4">
           {r.drawers.map((d) => {
@@ -536,7 +548,13 @@ export function DailyReportView({ report, salesHref }: { report: DailyReport; sa
                 {d.freelanceCashCents > 0 && <Row label="− Freelancers paid" value={formatCents(d.freelanceCashCents)} />}
                 {d.cashDepositsCents > 0 && <Row label="+ Cash deposits for bookings" value={formatCents(d.cashDepositsCents)} />}
                 {d.cashDepositRefundsCents > 0 && <Row label="− Deposits given back" value={formatCents(d.cashDepositRefundsCents)} />}
-                <Row label="Should be in the drawer" value={formatCents(d.expectedCents)} strong />
+                <Row label="Should be in the drawer" value={formatCents(d.expectedCents)} />
+                <Row label="− Keep in the drawer (float for tomorrow)" value={formatCents(d.openingCents)} />
+                <Row
+                  label="Cash to send"
+                  value={<span className={cn(d.expectedCents - d.openingCents < 0 && "text-destructive")}>{formatCents(d.expectedCents - d.openingCents)}</span>}
+                  strong
+                />
                 {d.byStaff.length > 0 && (
                   <div className="mt-1 rounded-lg bg-muted/50 px-2 py-1 text-xs text-muted-foreground">
                     {d.byStaff.map((b) => (
@@ -554,6 +572,7 @@ export function DailyReportView({ report, salesHref }: { report: DailyReport; sa
                 {d.countedCents != null && (
                   <>
                     <Row label="Counted at close" value={formatCents(d.countedCents)} />
+                    <Row label="Send from the count (after keeping the float)" value={formatCents(d.countedCents - d.openingCents)} muted />
                     <Row
                       label={diff === 0 ? "Matches" : diff! > 0 ? "Over by" : "Short by"}
                       value={<span className={cn(diff === 0 ? "text-primary" : "text-destructive")}>{formatCents(Math.abs(diff!))}</span>}

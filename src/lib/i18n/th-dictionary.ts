@@ -1525,4 +1525,10 @@ export const TH: Record<string, string> = {
   "Open or join a drawer to pay cash out of it.": "เปิดหรือเข้าร่วมลิ้นชักเพื่อจ่ายเงินสด",
   "Queue (#1 is next)": "คิว (#1 คือคนถัดไป)",
   "Store colour": "สีของสาขา",
+  "Cash to send": "เงินสดที่ต้องส่ง",
+  "Keep in the drawer": "เก็บไว้ในลิ้นชัก",
+  "Float for tomorrow": "เงินทอนสำหรับพรุ่งนี้",
+  "Everything above the float": "ทุกอย่างที่เกินเงินทอน",
+  "− Keep in the drawer (float for tomorrow)": "− เก็บไว้ในลิ้นชัก (เงินทอนสำหรับพรุ่งนี้)",
+  "Send from the count (after keeping the float)": "ส่งตามที่นับได้ (หลังเก็บเงินทอน)",
 };
