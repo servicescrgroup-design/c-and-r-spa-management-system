@@ -95,10 +95,15 @@ export async function updateAppointmentFromCalendar(appointmentId: string, edit:
   const supabase = await createServerSupabaseClient();
   const { data: appt } = await supabase
     .from("appointments")
-    .select("id, start_at, appointment_services(id, sort_order)")
+    .select("id, start_at, appointment_services(id, sort_order, guest_number, start_offset_minutes)")
     .eq("id", appointmentId)
     .maybeSingle();
   if (!appt) return { ok: false, error: "Booking not found." };
+  // This form edits one massage. Saving it over a group booking would put
+  // every guest on one therapist and one price.
+  if ((appt.appointment_services ?? []).some((l) => l.guest_number > 1 || l.start_offset_minutes > 0)) {
+    return { ok: false, error: "This booking has several guests or massages. Cancel it and book it again to change it." };
+  }
 
   const start = edit.startAt ? new Date(edit.startAt) : new Date(appt.start_at);
   if (Number.isNaN(start.getTime())) return { ok: false, error: "Enter a valid start time." };

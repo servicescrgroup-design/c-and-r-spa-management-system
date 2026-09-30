@@ -4,6 +4,7 @@ import { getStaffBranches, getMyOpenDrawer, getWorkingBranch } from "@/lib/pos/s
 import { CheckoutCart } from "@/components/pos/checkout-cart";
 import { getFreelanceSessions } from "@/lib/pos/sale-actions";
 import { getFreeAtByStaff } from "@/lib/pos/free-at";
+import { bookedLineStart } from "@/lib/pos/booking-lines";
 
 export default async function CheckoutPage({
   searchParams,
@@ -16,7 +17,7 @@ export default async function CheckoutPage({
       ? await supabaseEarly
           .from("appointments")
           .select(
-            "id, branch_id, customer_id, start_at, deposit_status, deposit_amount_cents, deposit_settled, customer:customer_id(first_name, last_name), appointment_services(service_id, duration_minutes, price_cents, staff_id, sort_order)",
+            "id, branch_id, customer_id, start_at, deposit_status, deposit_amount_cents, deposit_settled, customer:customer_id(first_name, last_name), appointment_services(service_id, duration_minutes, price_cents, staff_id, sort_order, guest_number, guest_name, start_offset_minutes)",
           )
           .eq("id", appointmentParam)
           .maybeSingle()
@@ -182,7 +183,7 @@ export default async function CheckoutPage({
           depositUsed: Boolean(bookingRow.deposit_settled),
           lines: [...bookingRow.appointment_services]
             .sort((a, b) => a.sort_order - b.sort_order)
-            .flatMap((l) => {
+            .flatMap((l, _i, all) => {
               const svc = serviceList.find((sv) => sv.id === l.service_id);
               if (!svc) return [];
               const d = svc.durations.find((x) => x.minutes === l.duration_minutes) ?? svc.durations[0];
@@ -192,6 +193,9 @@ export default async function CheckoutPage({
                   referenceId: svc.id,
                   description: `${svc.name} · ${l.duration_minutes} min`,
                   staffId: l.staff_id,
+                  // Group bookings: each massage stays with its guest (Guest 1, Guest 2, ...).
+                  customerName: all.some((x) => x.guest_number > 1) ? l.guest_name || `Guest ${l.guest_number}` : null,
+                  startAt: bookedLineStart(bookingRow.start_at, l.start_offset_minutes),
                   quantity: 1,
                   unitPriceCents: l.price_cents > 0 ? l.price_cents : d.priceCents,
                   durationMinutes: l.duration_minutes,

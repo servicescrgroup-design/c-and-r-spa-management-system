@@ -105,29 +105,38 @@ export type Database = {
         Row: {
           appointment_id: string
           duration_minutes: number
+          guest_name: string | null
+          guest_number: number
           id: string
           price_cents: number
           service_id: string
           sort_order: number
           staff_id: string | null
+          start_offset_minutes: number
         }
         Insert: {
           appointment_id: string
           duration_minutes: number
+          guest_name?: string | null
+          guest_number?: number
           id?: string
           price_cents: number
           service_id: string
           sort_order?: number
           staff_id?: string | null
+          start_offset_minutes?: number
         }
         Update: {
           appointment_id?: string
           duration_minutes?: number
+          guest_name?: string | null
+          guest_number?: number
           id?: string
           price_cents?: number
           service_id?: string
           sort_order?: number
           staff_id?: string | null
+          start_offset_minutes?: number
         }
         Relationships: [
           {

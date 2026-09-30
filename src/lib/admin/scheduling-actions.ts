@@ -205,19 +205,28 @@ export async function getBedAvailability(input: {
   return result;
 }
 
+/** One massage for one guest: a service (or a combo of services) at a set length and price. */
+export type BookedMassage = { serviceIds: string[]; durationMinutes: number; priceCents: number; staffId: string | null };
+/** A guest on the booking (Guest 1, Guest 2, ...). Their massages run back to back. */
+export type BookedGuest = { name: string; massages: BookedMassage[] };
+
 export async function createStaffAppointment(input: {
   branchId: string;
   bedId: string | null;
-  staffId?: string | null;
   customer: { name: string; email: string; phone: string; nationality: string };
-  serviceIds: string[];
-  durationMinutes: number;
-  priceCents: number;
+  guests: BookedGuest[];
   startAt: string;
   deposit?: DepositInput | null;
 }): Promise<ActionResult & { appointmentId?: string; depositCardToken?: string }> {
   const ctx = await requireStaffContext();
-  if (input.serviceIds.length === 0) return { ok: false, error: "Select at least one service." };
+  const guests = input.guests.filter((g) => g.massages.length > 0);
+  if (guests.length === 0) return { ok: false, error: "Add at least one massage." };
+  for (const [g, guest] of guests.entries()) {
+    for (const m of guest.massages) {
+      if (m.serviceIds.length === 0) return { ok: false, error: `Guest ${g + 1}: choose a massage.` };
+      if (!(m.durationMinutes > 0)) return { ok: false, error: `Guest ${g + 1}: choose how long each massage is.` };
+    }
+  }
   if (!input.customer.name.trim()) return { ok: false, error: "Customer name is required." };
   if (input.deposit) {
     const problem = validateDeposit(input.deposit);
@@ -255,14 +264,47 @@ export async function createStaffAppointment(input: {
     customerId = created.id;
   }
 
+  // Each guest's massages run back to back from the booking start. The booking
+  // ends when the guest with the most massage time finishes.
   const startAt = new Date(input.startAt);
-  const endAt = new Date(startAt.getTime() + input.durationMinutes * 60_000);
+  if (Number.isNaN(startAt.getTime())) return { ok: false, error: "Enter a valid date and time." };
+  const lines = guests.flatMap((guest, g) => {
+    let offset = 0;
+    return guest.massages.map((m) => {
+      const line = { guest: g + 1, guestName: guest.name.trim() || null, massage: m, offset };
+      offset += m.durationMinutes;
+      return line;
+    });
+  });
+  const totalMinutes = Math.max(...lines.map((l) => l.offset + l.massage.durationMinutes));
+  const endAt = new Date(startAt.getTime() + totalMinutes * 60_000);
+  const windowOf = (l: (typeof lines)[number]) => ({
+    start: startAt.getTime() + l.offset * 60_000,
+    end: startAt.getTime() + (l.offset + l.massage.durationMinutes) * 60_000,
+  });
 
-  // A therapist can only do one service at a time, across both branches.
-  if (input.staffId) {
-    const conflicts = await getStaffConflicts([input.staffId], startAt.toISOString(), endAt.toISOString());
-    const reason = conflicts.get(input.staffId);
-    if (reason) return { ok: false, error: `That therapist isn't free: ${reason}. Pick another therapist or time.` };
+  // A therapist can only do one massage at a time: within this booking...
+  const withStaff = lines.filter((l) => l.massage.staffId);
+  for (const [i, a] of withStaff.entries()) {
+    for (const b of withStaff.slice(i + 1)) {
+      if (a.massage.staffId !== b.massage.staffId) continue;
+      const wa = windowOf(a);
+      const wb = windowOf(b);
+      if (wa.start < wb.end && wb.start < wa.end) {
+        return {
+          ok: false,
+          error: `The same therapist is on Guest ${a.guest} and Guest ${b.guest} at the same time. Pick another therapist for one of them.`,
+        };
+      }
+    }
+  }
+  // ...and across both branches.
+  for (const l of withStaff) {
+    const w = windowOf(l);
+    const staffId = l.massage.staffId!;
+    const conflicts = await getStaffConflicts([staffId], new Date(w.start).toISOString(), new Date(w.end).toISOString());
+    const reason = conflicts.get(staffId);
+    if (reason) return { ok: false, error: `Guest ${l.guest}'s therapist isn't free: ${reason}. Pick another therapist or time.` };
   }
 
   const { data: appointment, error: apptError } = await supabase
@@ -282,15 +324,22 @@ export async function createStaffAppointment(input: {
     .single();
   if (apptError || !appointment) return { ok: false, error: apptError?.message ?? "Could not create appointment." };
 
+  let sortOrder = 0;
   const { error: servicesError } = await supabase.from("appointment_services").insert(
-    input.serviceIds.map((serviceId, i) => ({
-      appointment_id: appointment.id,
-      service_id: serviceId,
-      price_cents: i === 0 ? input.priceCents : 0,
-      duration_minutes: input.durationMinutes,
-      sort_order: i,
-      staff_id: input.staffId ?? null,
-    })),
+    // A combo is several services sold as one massage: its price sits on the first.
+    lines.flatMap((l) =>
+      l.massage.serviceIds.map((serviceId, i) => ({
+        appointment_id: appointment.id,
+        service_id: serviceId,
+        price_cents: i === 0 ? l.massage.priceCents : 0,
+        duration_minutes: l.massage.durationMinutes,
+        sort_order: sortOrder++,
+        staff_id: l.massage.staffId,
+        guest_number: l.guest,
+        guest_name: l.guestName,
+        start_offset_minutes: l.offset,
+      })),
+    ),
   );
   if (servicesError) {
     // Don't leave a half-created appointment behind (e.g. the database's

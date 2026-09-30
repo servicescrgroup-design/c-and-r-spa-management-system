@@ -63,7 +63,7 @@ export default async function PosAppointmentsPage({ searchParams }: PageProps<"/
         `id, branch_id, start_at, end_at, status, source, notes,
          deposit_status, deposit_amount_cents, deposit_method, deposit_paid_at, deposit_settled, deposit_note,
          customer:customer_id(first_name, last_name, phone),
-         appointment_services(duration_minutes, price_cents, staff_id, sort_order, service:service_id(name), staff:staff_id(first_name))`,
+         appointment_services(duration_minutes, price_cents, staff_id, sort_order, guest_number, guest_name, service:service_id(name), staff:staff_id(first_name))`,
       )
       .in("branch_id", branchIds)
       .gte("start_at", new Date(`${from}T00:00:00+07:00`).toISOString())
@@ -90,6 +90,8 @@ export default async function PosAppointmentsPage({ searchParams }: PageProps<"/
       phone: a.customer?.phone ?? null,
       notes: a.notes,
       lines: lines.map((l) => ({
+        guest: l.guest_number,
+        guestName: l.guest_name,
         name: l.service?.name ?? "Massage",
         minutes: l.duration_minutes,
         therapist: l.staff_id ? nick.get(l.staff_id) || l.staff?.first_name || "Therapist" : null,
@@ -206,16 +208,12 @@ export default async function PosAppointmentsPage({ searchParams }: PageProps<"/
                         {STATUS_LABEL[b.status] ?? b.status}
                       </span>
                     </p>
-                    <p className="mt-0.5 text-sm text-muted-foreground">
-                      {branches.length > 1 && (
-                        <>
-                          <span data-no-translate>{b.store}</span> ·{" "}
-                        </>
-                      )}
-                      <span data-no-translate>
-                        {b.lines.map((l) => `${l.name} · ${l.minutes} min${l.therapist ? ` · ${l.therapist}` : ""}`).join(", ") || "No massage chosen"}
-                      </span>
-                    </p>
+                    {branches.length > 1 && (
+                      <p className="mt-0.5 text-sm text-muted-foreground" data-no-translate>
+                        {b.store}
+                      </p>
+                    )}
+                    <BookingLines lines={b.lines} />
                     {b.notes && <p className="text-xs text-muted-foreground" data-no-translate>{b.notes}</p>}
                   </div>
                   <div className="text-right text-sm">
@@ -252,5 +250,35 @@ export default async function PosAppointmentsPage({ searchParams }: PageProps<"/
         </section>
       ))}
     </div>
+  );
+}
+
+type BookingLine = { guest: number; guestName: string | null; name: string; minutes: number; therapist: string | null };
+
+/** The booked massages, one row per guest once a booking has more than one. */
+function BookingLines({ lines }: { lines: BookingLine[] }) {
+  const text = (ls: BookingLine[]) => ls.map((l) => `${l.name} · ${l.minutes} min${l.therapist ? ` · ${l.therapist}` : ""}`).join(", ");
+  if (lines.length === 0) return <p className="mt-0.5 text-sm text-muted-foreground">No massage chosen</p>;
+  const guests = Array.from(new Set(lines.map((l) => l.guest))).sort((a, b) => a - b);
+  if (guests.length === 1) {
+    return (
+      <p className="mt-0.5 text-sm text-muted-foreground" data-no-translate>
+        {text(lines)}
+      </p>
+    );
+  }
+  return (
+    <ul className="mt-1 space-y-0.5 text-sm text-muted-foreground">
+      {guests.map((g) => {
+        const ls = lines.filter((l) => l.guest === g);
+        const name = ls.find((l) => l.guestName)?.guestName;
+        return (
+          <li key={g}>
+            <span className="font-medium text-foreground">Guest {g}</span>
+            {name && <span data-no-translate> ({name})</span>}: <span data-no-translate>{text(ls)}</span>
+          </li>
+        );
+      })}
+    </ul>
   );
 }

@@ -15,6 +15,178 @@ import { depositCardPath } from "@/lib/deposits/shared";
 type Service = { id: string; name: string; category_id: string | null };
 type Category = { id: string; name: string };
 
+type MassageDraft = {
+  key: number;
+  serviceIds: string[];
+  options: PricedDuration[];
+  durationMinutes: number | null;
+  staffId: string | null;
+};
+type GuestDraft = { key: number; name: string; massages: MassageDraft[] };
+
+let lastKey = 0;
+const newKey = () => ++lastKey;
+const newMassage = (): MassageDraft => ({ key: newKey(), serviceIds: [], options: [], durationMinutes: null, staffId: null });
+const newGuest = (): GuestDraft => ({ key: newKey(), name: "", massages: [newMassage()] });
+
+const priceOf = (m: MassageDraft) => m.options.find((o) => o.durationMinutes === m.durationMinutes)?.priceCents ?? 0;
+const hhmm = (ms: number) =>
+  new Intl.DateTimeFormat("en-GB", { timeZone: "Asia/Bangkok", hour: "2-digit", minute: "2-digit", hour12: false }).format(new Date(ms));
+
+const CHIP = "rounded-full border px-3 py-1.5 text-sm";
+const CHIP_ON = "border-primary bg-primary text-primary-foreground";
+
+/** One massage for one guest: what, how long, and who does it. */
+function MassageEditor({
+  index,
+  massage,
+  branchId,
+  services,
+  categories,
+  startMs,
+  onChange,
+  onRemove,
+}: {
+  index: number;
+  massage: MassageDraft;
+  branchId: string;
+  services: Service[];
+  categories: Category[];
+  /** When this massage starts (after the guest's earlier massages). */
+  startMs: number;
+  onChange: (patch: Partial<MassageDraft>) => void;
+  onRemove: (() => void) | null;
+}) {
+  const [categoryId, setCategoryId] = useState("all");
+  const [therapists, setTherapists] = useState<TherapistAvailability[]>([]);
+  const filtered = services.filter((s) => categoryId === "all" || s.category_id === categoryId);
+  const duration = massage.durationMinutes;
+  const endMs = duration ? startMs + duration * 60_000 : null;
+
+  useEffect(() => {
+    if (!endMs) return;
+    let stale = false;
+    getTherapistAvailability({ branchId, startAt: new Date(startMs).toISOString(), endAt: new Date(endMs).toISOString() }).then((list) => {
+      if (!stale) setTherapists(list);
+    });
+    return () => {
+      stale = true;
+    };
+  }, [branchId, startMs, endMs]);
+
+  async function toggleService(id: string) {
+    const serviceIds = massage.serviceIds.includes(id) ? massage.serviceIds.filter((x) => x !== id) : [...massage.serviceIds, id];
+    onChange({ serviceIds });
+    const options = serviceIds.length ? await getDurationOptions(serviceIds, branchId) : [];
+    const keep = options.some((o) => o.durationMinutes === massage.durationMinutes);
+    onChange({ serviceIds, options, durationMinutes: keep ? massage.durationMinutes : (options[0]?.durationMinutes ?? null) });
+  }
+
+  const picked = therapists.find((t) => t.id === massage.staffId);
+
+  return (
+    <div className="space-y-3 rounded-xl border border-border p-3">
+      <div className="flex items-center justify-between gap-2">
+        <p className="text-sm font-medium">
+          Massage {index + 1}
+          {endMs && (
+            <span className="ml-2 font-normal text-muted-foreground tabular-nums">
+              {hhmm(startMs)}–{hhmm(endMs)}
+            </span>
+          )}
+        </p>
+        <div className="flex items-center gap-2">
+          <select
+            value={categoryId}
+            onChange={(e) => setCategoryId(e.target.value)}
+            aria-label="Category"
+            className="h-8 rounded-lg border border-border bg-card px-2 text-xs"
+          >
+            <option value="all">All categories</option>
+            {categories.map((c) => (
+              <option key={c.id} value={c.id}>
+                {c.name}
+              </option>
+            ))}
+          </select>
+          {onRemove && (
+            <button type="button" onClick={onRemove} className="text-xs text-muted-foreground hover:text-destructive">
+              Remove
+            </button>
+          )}
+        </div>
+      </div>
+
+      <div className="flex max-h-32 flex-wrap gap-2 overflow-y-auto">
+        {filtered.map((s) => (
+          <button
+            key={s.id}
+            type="button"
+            onClick={() => toggleService(s.id)}
+            className={cn(CHIP, massage.serviceIds.includes(s.id) ? CHIP_ON : "border-border")}
+          >
+            {s.name}
+          </button>
+        ))}
+      </div>
+
+      {massage.serviceIds.length > 0 &&
+        (massage.options.length === 0 ? (
+          <p className="text-sm text-destructive">No price set for this combination.</p>
+        ) : (
+          <div className="flex flex-wrap gap-2">
+            {massage.options.map((o) => (
+              <button
+                key={o.durationMinutes}
+                type="button"
+                onClick={() => onChange({ durationMinutes: o.durationMinutes })}
+                className={cn(CHIP, duration === o.durationMinutes ? CHIP_ON : "border-border")}
+              >
+                {o.durationMinutes} min · {formatCents(o.priceCents)}
+              </button>
+            ))}
+          </div>
+        ))}
+
+      {duration && (
+        <div className="space-y-1.5">
+          <p className="text-xs font-medium text-muted-foreground">Therapist</p>
+          <div className="flex flex-wrap gap-2">
+            <button
+              type="button"
+              onClick={() => onChange({ staffId: null })}
+              className={cn(CHIP, massage.staffId === null ? CHIP_ON : "border-border")}
+            >
+              Any available
+            </button>
+            {therapists.map((t) => (
+              <button
+                key={t.id}
+                type="button"
+                disabled={t.busy && massage.staffId !== t.id}
+                title={t.reason ?? undefined}
+                onClick={() => onChange({ staffId: t.id })}
+                className={cn(
+                  CHIP,
+                  massage.staffId === t.id
+                    ? CHIP_ON
+                    : t.busy
+                      ? "cursor-not-allowed border-destructive/30 bg-destructive/5 text-muted-foreground line-through"
+                      : "border-[#1f7a35]/40 bg-[#1f7a35]/5",
+                )}
+              >
+                <span data-no-translate>{t.name}</span>
+                {t.busy && t.reason && <span className="ml-1 text-xs no-underline">({t.reason})</span>}
+              </button>
+            ))}
+          </div>
+          {picked?.busy && <p className="text-xs text-destructive">{picked.name} isn&apos;t free at this time. Pick someone else.</p>}
+        </div>
+      )}
+    </div>
+  );
+}
+
 export function NewAppointmentModal({
   branchId,
   services,
@@ -32,10 +204,7 @@ export function NewAppointmentModal({
   const [phone, setPhone] = useState("");
   const [nationality, setNationality] = useState("");
 
-  const [categoryId, setCategoryId] = useState<string | "all">("all");
-  const [selectedServiceIds, setSelectedServiceIds] = useState<string[]>([]);
-  const [durationOptions, setDurationOptions] = useState<PricedDuration[]>([]);
-  const [durationMinutes, setDurationMinutes] = useState<number | null>(null);
+  const [guests, setGuests] = useState<GuestDraft[]>(() => [newGuest()]);
 
   const [date, setDate] = useState(() => new Date().toISOString().slice(0, 10));
   const [time, setTime] = useState("10:00");
@@ -45,8 +214,6 @@ export function NewAppointmentModal({
   const [roomId, setRoomId] = useState<string | null>(null);
   const [bedId, setBedId] = useState<string | null>(null);
 
-  const [therapists, setTherapists] = useState<TherapistAvailability[]>([]);
-  const [staffId, setStaffId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
@@ -57,41 +224,30 @@ export function NewAppointmentModal({
     if (open) getRoomsWithBeds(branchId).then(setRooms);
   }, [open, branchId]);
 
-  useEffect(() => {
-    if (selectedServiceIds.length === 0) return;
-    getDurationOptions(selectedServiceIds, branchId).then((opts) => {
-      setDurationOptions(opts);
-      setDurationMinutes(opts[0]?.durationMinutes ?? null);
-    });
-  }, [selectedServiceIds, branchId]);
+  const startMs = useMemo(() => new Date(`${date}T${time}:00+07:00`).getTime(), [date, time]);
 
-  const startAtISO = useMemo(() => new Date(`${date}T${time}:00+07:00`).toISOString(), [date, time]);
-  const active = durationOptions.find((o) => o.durationMinutes === durationMinutes) ?? null;
+  // Each guest's massages run back to back; the booking lasts as long as the longest guest.
+  const guestMinutes = guests.map((g) => g.massages.reduce((n, m) => n + (m.durationMinutes ?? 0), 0));
+  const totalMinutes = Math.max(0, ...guestMinutes);
+  const totalCents = guests.reduce((n, g) => n + g.massages.reduce((k, m) => k + priceOf(m), 0), 0);
+  const allServiceIds = useMemo(() => Array.from(new Set(guests.flatMap((g) => g.massages.flatMap((m) => m.serviceIds)))), [guests]);
+  const massageCount = guests.reduce((n, g) => n + g.massages.filter((m) => m.durationMinutes).length, 0);
 
   useEffect(() => {
-    if (!open || !active) return;
-    const endAtISO = new Date(new Date(startAtISO).getTime() + active.durationMinutes * 60_000).toISOString();
-    getBedAvailability({ branchId, startAt: startAtISO, endAt: endAtISO, serviceIds: selectedServiceIds }).then(setAvailability);
-    getTherapistAvailability({ branchId, startAt: startAtISO, endAt: endAtISO }).then((list) => {
-      setTherapists(list);
-      // Drop a picked therapist who is busy at the new time.
-      setStaffId((current) => (current && list.find((t) => t.id === current)?.busy ? null : current));
-    });
-  }, [open, active, startAtISO, branchId, selectedServiceIds]);
+    if (!open || totalMinutes === 0 || Number.isNaN(startMs)) return;
+    getBedAvailability({
+      branchId,
+      startAt: new Date(startMs).toISOString(),
+      endAt: new Date(startMs + totalMinutes * 60_000).toISOString(),
+      serviceIds: allServiceIds,
+    }).then(setAvailability);
+  }, [open, startMs, totalMinutes, branchId, allServiceIds]);
 
-  const filteredServices = services.filter((s) => categoryId === "all" || s.category_id === categoryId);
-
-  function toggleService(id: string) {
-    setSelectedServiceIds((prev) => {
-      const next = prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id];
-      if (next.length === 0) {
-        setDurationOptions([]);
-        setDurationMinutes(null);
-      }
-      return next;
-    });
-    setRoomId(null);
-    setBedId(null);
+  function updateGuest(guestKey: number, fn: (g: GuestDraft) => GuestDraft) {
+    setGuests((prev) => prev.map((g) => (g.key === guestKey ? fn(g) : g)));
+  }
+  function updateMassage(guestKey: number, massageKey: number, patch: Partial<MassageDraft>) {
+    updateGuest(guestKey, (g) => ({ ...g, massages: g.massages.map((m) => (m.key === massageKey ? { ...m, ...patch } : m)) }));
   }
 
   function roomStatus(room: RoomWithBeds): "green" | "red" | "empty" {
@@ -106,24 +262,33 @@ export function NewAppointmentModal({
   async function handleSubmit() {
     setError(null);
     setSuccess(null);
-    if (!active) return setError("Choose a duration that has a configured price.");
-    if (!bedId) return setError("Select a room and bed.");
-    if (staffId && therapists.find((t) => t.id === staffId)?.busy) {
-      return setError("That therapist is busy at this time. Pick another therapist or time.");
+    if (!name.trim()) return setError("Enter the customer's name.");
+    if (Number.isNaN(startMs)) return setError("Enter a valid date and time.");
+    for (const [g, guest] of guests.entries()) {
+      for (const [m, massage] of guest.massages.entries()) {
+        const label = guests.length > 1 ? `Guest ${g + 1}, massage ${m + 1}` : `Massage ${m + 1}`;
+        if (massage.serviceIds.length === 0) return setError(`${label}: choose a massage, or remove it.`);
+        if (!massage.durationMinutes) return setError(`${label}: choose a length that has a price.`);
+      }
     }
 
     setLoading(true);
     const result = await createStaffAppointment({
       branchId,
       bedId,
-      staffId,
       customer: { name, email, phone, nationality },
-      serviceIds: selectedServiceIds,
-      durationMinutes: active.durationMinutes,
-      priceCents: active.priceCents,
-      startAt: startAtISO,
+      guests: guests.map((g, i) => ({
+        name: g.name.trim() || (i === 0 ? name.trim() : ""),
+        massages: g.massages.map((m) => ({
+          serviceIds: m.serviceIds,
+          durationMinutes: m.durationMinutes!,
+          priceCents: priceOf(m),
+          staffId: m.staffId,
+        })),
+      })),
+      startAt: new Date(startMs).toISOString(),
       deposit: deposit.enabled ? draftToDepositInput(deposit) : null,
-    });
+    }).catch(() => ({ ok: false as const, error: "Couldn't save. Try again." }));
     setLoading(false);
     if (!result.ok) return setError(result.error);
 
@@ -134,13 +299,12 @@ export function NewAppointmentModal({
     setEmail("");
     setPhone("");
     setNationality("");
-    setSelectedServiceIds([]);
+    setGuests([newGuest()]);
     setRoomId(null);
     setBedId(null);
-    setStaffId(null);
     router.refresh();
     // With a deposit, stay open so the deposit card can be printed or sent.
-    if (withDeposit && result.depositCardToken) setDepositCardToken(result.depositCardToken);
+    if (withDeposit && "depositCardToken" in result && result.depositCardToken) setDepositCardToken(result.depositCardToken);
     else setTimeout(() => setOpen(false), 800);
   }
 
@@ -216,117 +380,75 @@ export function NewAppointmentModal({
             </div>
           </div>
 
-          <div className="space-y-2">
-            <Label>Category</Label>
-            <div className="flex flex-wrap gap-2">
+          {guests.map((guest, g) => (
+            <div key={guest.key} className="space-y-3 rounded-2xl bg-muted/50 p-4">
+              <div className="flex items-center gap-3">
+                <p className="shrink-0 font-medium">Guest {g + 1}</p>
+                <Input
+                  value={guest.name}
+                  onChange={(e) => updateGuest(guest.key, (x) => ({ ...x, name: e.target.value }))}
+                  placeholder={g === 0 ? name.trim() || "Name (optional)" : "Name (optional)"}
+                  aria-label={`Guest ${g + 1} name`}
+                  className="h-9 bg-card"
+                />
+                {guests.length > 1 && (
+                  <button
+                    type="button"
+                    onClick={() => setGuests((prev) => prev.filter((x) => x.key !== guest.key))}
+                    className="shrink-0 text-xs text-muted-foreground hover:text-destructive"
+                  >
+                    Remove guest
+                  </button>
+                )}
+              </div>
+
+              {guest.massages.map((massage, m) => {
+                const offset = guest.massages.slice(0, m).reduce((n, x) => n + (x.durationMinutes ?? 0), 0);
+                return (
+                  <MassageEditor
+                    key={massage.key}
+                    index={m}
+                    massage={massage}
+                    branchId={branchId}
+                    services={services}
+                    categories={categories}
+                    startMs={startMs + offset * 60_000}
+                    onChange={(patch) => updateMassage(guest.key, massage.key, patch)}
+                    onRemove={
+                      guest.massages.length > 1
+                        ? () => updateGuest(guest.key, (x) => ({ ...x, massages: x.massages.filter((y) => y.key !== massage.key) }))
+                        : null
+                    }
+                  />
+                );
+              })}
+
               <button
                 type="button"
-                onClick={() => setCategoryId("all")}
-                className={cn("rounded-full border px-3 py-1.5 text-sm", categoryId === "all" ? "border-primary bg-primary text-primary-foreground" : "border-border")}
+                onClick={() => updateGuest(guest.key, (x) => ({ ...x, massages: [...x.massages, newMassage()] }))}
+                className="text-sm font-medium text-primary"
               >
-                All
+                + Add another massage for Guest {g + 1}
               </button>
-              {categories.map((c) => (
-                <button
-                  key={c.id}
-                  type="button"
-                  onClick={() => setCategoryId(c.id)}
-                  className={cn("rounded-full border px-3 py-1.5 text-sm", categoryId === c.id ? "border-primary bg-primary text-primary-foreground" : "border-border")}
-                >
-                  {c.name}
-                </button>
-              ))}
             </div>
+          ))}
+
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <Button type="button" variant="outline" onClick={() => setGuests((prev) => [...prev, newGuest()])}>
+              + Add guest
+            </Button>
+            {massageCount > 0 && (
+              <p className="text-sm text-muted-foreground">
+                {guests.length} {guests.length === 1 ? "guest" : "guests"} · {massageCount}{" "}
+                {massageCount === 1 ? "massage" : "massages"} · {hhmm(startMs)}–{hhmm(startMs + totalMinutes * 60_000)} ·{" "}
+                <span className="font-semibold text-foreground">{formatCents(totalCents)}</span>
+              </p>
+            )}
           </div>
 
-          <div className="space-y-2">
-            <Label>Services</Label>
-            <div className="flex max-h-40 flex-wrap gap-2 overflow-y-auto">
-              {filteredServices.map((s) => (
-                <button
-                  key={s.id}
-                  type="button"
-                  onClick={() => toggleService(s.id)}
-                  className={cn(
-                    "rounded-full border px-3 py-1.5 text-sm",
-                    selectedServiceIds.includes(s.id) ? "border-primary bg-primary text-primary-foreground" : "border-border",
-                  )}
-                >
-                  {s.name}
-                </button>
-              ))}
-            </div>
-          </div>
-
-          {selectedServiceIds.length > 0 && (
-            <div className="space-y-2">
-              <Label>Duration</Label>
-              {durationOptions.length === 0 ? (
-                <p className="text-sm text-destructive">No price configured for this combination.</p>
-              ) : (
-                <div className="flex flex-wrap gap-2">
-                  {durationOptions.map((o) => (
-                    <button
-                      key={o.durationMinutes}
-                      type="button"
-                      onClick={() => setDurationMinutes(o.durationMinutes)}
-                      className={cn(
-                        "rounded-full border px-3 py-1.5 text-sm",
-                        durationMinutes === o.durationMinutes ? "border-primary bg-primary text-primary-foreground" : "border-border",
-                      )}
-                    >
-                      {o.durationMinutes} min · {formatCents(o.priceCents)}
-                    </button>
-                  ))}
-                </div>
-              )}
-            </div>
-          )}
-
-          {active && (
-            <div className="space-y-2">
-              <Label>Therapist</Label>
-              <div className="flex flex-wrap gap-2">
-                <button
-                  type="button"
-                  onClick={() => setStaffId(null)}
-                  className={cn(
-                    "rounded-full border px-3 py-1.5 text-sm",
-                    staffId === null ? "border-primary bg-primary text-primary-foreground" : "border-border",
-                  )}
-                >
-                  Any available
-                </button>
-                {therapists.map((t) => (
-                  <button
-                    key={t.id}
-                    type="button"
-                    disabled={t.busy}
-                    title={t.reason ?? undefined}
-                    onClick={() => setStaffId(t.id)}
-                    className={cn(
-                      "rounded-full border px-3 py-1.5 text-sm",
-                      staffId === t.id
-                        ? "border-primary bg-primary text-primary-foreground"
-                        : t.busy
-                          ? "cursor-not-allowed border-destructive/30 bg-destructive/5 text-muted-foreground line-through"
-                          : "border-[#1f7a35]/40 bg-[#1f7a35]/5",
-                    )}
-                  >
-                    <span data-no-translate>{t.name}</span>
-                    {t.busy && t.reason && <span className="ml-1 text-xs no-underline">({t.reason})</span>}
-                  </button>
-                ))}
-              </div>
-              {therapists.length === 0 && (
-                <p className="text-xs text-muted-foreground">No therapists are assigned to this branch yet.</p>
-              )}
-            </div>
-          )}
-
-          {active && (
+          {totalMinutes > 0 && (
             <div className="space-y-3">
-              <Label>Room</Label>
+              <Label>Room and bed (optional)</Label>
               <div className="flex flex-wrap gap-2">
                 {rooms.map((room) => {
                   const status = roomStatus(room);
@@ -335,7 +457,7 @@ export function NewAppointmentModal({
                       key={room.id}
                       type="button"
                       onClick={() => {
-                        setRoomId(room.id);
+                        setRoomId(roomId === room.id ? null : room.id);
                         setBedId(null);
                       }}
                       className={cn(
@@ -367,7 +489,7 @@ export function NewAppointmentModal({
                             key={bed.id}
                             type="button"
                             disabled={disabled}
-                            onClick={() => setBedId(bed.id)}
+                            onClick={() => setBedId(bedId === bed.id ? null : bed.id)}
                             className={cn(
                               "rounded-lg border px-3 py-2 text-sm disabled:cursor-not-allowed disabled:opacity-50",
                               bedId === bed.id && "ring-2 ring-ring",
@@ -383,13 +505,16 @@ export function NewAppointmentModal({
                   </div>
                 </>
               )}
+              {guests.length > 1 && (
+                <p className="text-xs text-muted-foreground">Leave it empty for groups. Front desk places each guest at check out.</p>
+              )}
             </div>
           )}
 
-          {active && (
+          {totalCents > 0 && (
             <div className="space-y-2">
               <Label>Deposit</Label>
-              <DepositFields draft={deposit} onChange={setDeposit} totalCents={active.priceCents} />
+              <DepositFields draft={deposit} onChange={setDeposit} totalCents={totalCents} />
             </div>
           )}
 

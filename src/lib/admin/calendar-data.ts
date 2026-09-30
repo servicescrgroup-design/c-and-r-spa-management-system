@@ -105,7 +105,7 @@ export async function getCalendarDay(date: string, view: CalendarView = "day"): 
       supabase
         .from("appointments")
         .select(
-          "id, branch_id, status, start_at, end_at, bed_id, discount_cents, payment_method, deposit_status, deposit_amount_cents, deposit_method, deposit_paid_at, deposit_note, deposit_card_token, customer:customer_id(first_name, last_name), appointment_services(service_id, staff_id, sort_order, price_cents, duration_minutes, service:service_id(name), staff:staff_id(first_name, last_name))",
+          "id, branch_id, status, start_at, end_at, bed_id, discount_cents, payment_method, deposit_status, deposit_amount_cents, deposit_method, deposit_paid_at, deposit_note, deposit_card_token, customer:customer_id(first_name, last_name), appointment_services(service_id, staff_id, sort_order, price_cents, duration_minutes, guest_number, service:service_id(name), staff:staff_id(first_name, last_name))",
         )
         .in("branch_id", branchIds)
         .not("status", "in", "(cancelled,no_show)")
@@ -148,7 +148,11 @@ export async function getCalendarDay(date: string, view: CalendarView = "day"): 
       bedName: bed?.name ?? null,
       therapist: withStaff ? therapistLabel(withStaff.staff_id, withStaff.staff) : null,
       service: lines.map((l) => l.service?.name).filter(Boolean).join(" + ") || "Appointment",
-      customer: personName(a.customer),
+      customer: (() => {
+        const guests = new Set(lines.map((l) => l.guest_number)).size;
+        const who = personName(a.customer);
+        return guests > 1 && who ? `${who} +${guests - 1}` : who;
+      })(),
       saleRef: null,
       saleName: null,
       saleCustomerId: null,
