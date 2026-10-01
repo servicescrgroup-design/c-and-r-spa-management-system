@@ -101,7 +101,7 @@ export function PosNav({
         <div className="mx-auto flex h-12 max-w-[1280px] items-center justify-between gap-4 px-4 sm:px-6">
           <div className="min-w-0">
             <p className="text-[15px] font-semibold leading-tight tracking-tight">
-              C&amp;R <span className="font-normal text-muted-foreground">Point of Sale</span>
+              HB <span className="font-normal text-muted-foreground">Point of Sale</span>
             </p>
             <div className="flex items-center gap-1.5 text-[11px] leading-tight">
               <Link

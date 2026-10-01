@@ -222,7 +222,7 @@ export default async function StaffPage() {
       <div className="grid gap-4 lg:grid-cols-2">
         <Card>
           <CardHeader>
-            <CardTitle>Invite staff</CardTitle>
+            <CardTitle>Add staff</CardTitle>
           </CardHeader>
           <CardContent>
             <InviteStaffForm branches={branches ?? []} />

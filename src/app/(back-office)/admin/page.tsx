@@ -8,6 +8,7 @@ import { getRevenueDashboard, resolveRange } from "@/lib/admin/dashboard-data";
 import { getOwnerDashboard } from "@/lib/admin/owner-dashboard";
 import { OwnerDashboardView } from "@/components/admin/owner-dashboard-view";
 import { cn } from "@/lib/utils";
+import { getSetupProgress } from "@/lib/admin/setup-progress";
 
 const DEPOSIT_LABEL: Record<string, string> = {
   not_required: "Pay at shop",
@@ -61,12 +62,29 @@ export default async function AdminDashboardPage({ searchParams }: PageProps<"/a
     return `/admin?${new URLSearchParams(merged).toString()}`;
   };
 
+  const setup = isOwner(ctx) ? await getSetupProgress() : [];
+  const setupDone = setup.filter((step) => step.done).length;
+
   return (
     <div className="space-y-6">
+      {setup.length > 0 && setupDone < setup.length && (
+        <Link
+          href="/admin/get-started"
+          className="flex items-center justify-between gap-3 rounded-2xl bg-primary/10 px-5 py-4 transition-colors hover:bg-primary/15"
+        >
+          <span>
+            <span className="block font-medium">Get started: {setupDone} of {setup.length} steps done</span>
+            <span className="block text-sm text-muted-foreground">
+              Next: {setup.find((step) => !step.done)?.title}. Plus a short list of features to try.
+            </span>
+          </span>
+          <span className="text-primary">›</span>
+        </Link>
+      )}
       <div>
         <h1 className="font-display text-3xl font-medium tracking-tight">Welcome back, {ctx.firstName || ctx.email}</h1>
         <p className="text-muted-foreground">
-          {isOwner(ctx) ? "Both stores at a glance: money, team and what still needs filling in." : "Your branch overview"}
+          {isOwner(ctx) ? "Every store at a glance: money, team and what still needs filling in." : "Your branch overview"}
         </p>
       </div>
 

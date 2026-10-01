@@ -28,6 +28,7 @@ const I = {
   accounting: <path d="M4 3.5h12v13H4zM7 7h6M7 10h6M7 13h3" />,
   branch: <path d="M3.5 16.5h13M5 16.5V8l5-4 5 4v8.5M8.5 16.5v-4h3v4" />,
   settings: <path d="M10 12.5a2.5 2.5 0 1 0 0-5 2.5 2.5 0 0 0 0 5ZM10 2.5v2M10 15.5v2M2.5 10h2M15.5 10h2M4.7 4.7l1.4 1.4M13.9 13.9l1.4 1.4M4.7 15.3l1.4-1.4M13.9 6.1l1.4-1.4" />,
+  start: <path d="M10 17.5a7.5 7.5 0 1 0 0-15 7.5 7.5 0 0 0 0 15ZM7 10.2l2 2 4-4.4" />,
   all: <path d="M4 4h4.5v4.5H4zM11.5 4H16v4.5h-4.5zM4 11.5h4.5V16H4zM11.5 11.5H16V16h-4.5z" />,
 };
 
@@ -37,6 +38,7 @@ const GROUPS: { title: string; items: NavItem[] }[] = [
     title: "Today",
     items: [
       { href: "/admin", label: "Dashboard", icon: I.home },
+      { href: "/admin/get-started", label: "Get started", icon: I.start },
       { href: "/admin/reports", label: "Reports", icon: I.report },
       { href: "/admin/checklists", label: "Checklists", icon: I.check },
     ],
@@ -145,7 +147,7 @@ export function AdminNav({
       <header className="glass-bar sticky top-0 z-40 border-b border-black/5 dark:border-white/10 lg:pl-60">
         <nav className="flex h-12 items-center gap-3 px-4 sm:px-6">
           <Link href="/admin" className="shrink-0 text-[15px] font-semibold tracking-tight lg:hidden">
-            C&amp;R
+            HB
           </Link>
           <p className="min-w-0 flex-1 truncate text-[15px] font-semibold lg:text-[13px] lg:font-medium lg:text-muted-foreground">
             {current?.label}
@@ -186,7 +188,7 @@ export function AdminNav({
       {/* Sidebar, wide screens */}
       <aside className="fixed inset-y-0 left-0 z-40 hidden w-60 flex-col border-r border-black/5 bg-muted/40 backdrop-blur-xl dark:border-white/10 lg:flex">
         <Link href="/admin" className="flex h-12 shrink-0 items-center px-5 text-[17px] font-semibold tracking-tight">
-          C&amp;R <span className="ml-1.5 font-normal text-muted-foreground">Spa</span>
+          HB <span className="ml-1.5 font-normal text-muted-foreground">Spa Management</span>
         </Link>
         <nav aria-label="Back office" className="flex-1 overflow-y-auto px-3 pb-6">
           {GROUPS.map((group) => (

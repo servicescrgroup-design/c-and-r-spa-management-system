@@ -16,8 +16,8 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "C&R Spa Management",
-  description: "Back office, POS, accounting, and online booking for C&R Spa.",
+  title: "HB Spa Management System",
+  description: "Point of sale, therapist queue, bookings, payroll and reports for spas and massage shops.",
 };
 
 export default function RootLayout({ children }: LayoutProps<"/">) {

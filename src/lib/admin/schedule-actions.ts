@@ -44,30 +44,98 @@ export async function addScheduleBlock(formData: FormData): Promise<ActionResult
   return { ok: true };
 }
 
-export async function inviteStaff(formData: FormData): Promise<ActionResult> {
-  const ctx = await requireStaffContext();
-  const email = String(formData.get("email") ?? "").trim().toLowerCase();
-  const role = String(formData.get("role") ?? "");
-  const branchId = String(formData.get("branchId") ?? "") || null;
+const STAFF_ROLES = ["owner", "manager", "front_desk", "therapist"] as const;
+type StaffRole = (typeof STAFF_ROLES)[number];
 
-  if (!email) return { ok: false, error: "Email is required." };
-  if (!["owner", "manager", "front_desk", "therapist"].includes(role)) {
-    return { ok: false, error: "Choose a valid role." };
+/** Owners can add anyone. Managers can add front desk and therapists. */
+function canAddRole(ctx: Awaited<ReturnType<typeof requireStaffContext>>, role: StaffRole): boolean {
+  if (isOwner(ctx)) return true;
+  return ctx.roles.some((r) => r.role === "manager") && (role === "front_desk" || role === "therapist");
+}
+
+/** The business the signed-in staff member works for. */
+async function myOrgId(staffId: string): Promise<string | null> {
+  const supabase = await createServerSupabaseClient();
+  const { data } = await supabase.from("staff").select("org_id").eq("id", staffId).maybeSingle();
+  return data?.org_id ?? null;
+}
+
+function readStaffForm(formData: FormData) {
+  return {
+    email: String(formData.get("email") ?? "").trim().toLowerCase(),
+    role: String(formData.get("role") ?? "") as StaffRole,
+    branchId: String(formData.get("branchId") ?? "") || null,
+  };
+}
+
+async function createInvite(
+  ctx: Awaited<ReturnType<typeof requireStaffContext>>,
+  input: { email: string; role: StaffRole; branchId: string | null },
+): Promise<{ ok: true; id: string; token: string } | { ok: false; error: string }> {
+  if (!input.email || !input.email.includes("@")) return { ok: false, error: "Enter a valid email." };
+  if (!STAFF_ROLES.includes(input.role)) return { ok: false, error: "Choose a valid role." };
+  if (!canAddRole(ctx, input.role)) {
+    return { ok: false, error: "Only an owner can add owners and admins. Managers can add front desk and therapists." };
   }
+  const orgId = await myOrgId(ctx.staffId);
+  if (!orgId) return { ok: false, error: "Your account isn't linked to a business." };
 
   const supabase = await createServerSupabaseClient();
-  const { data: org } = await supabase.from("organizations").select("id").limit(1).single();
-  if (!org) return { ok: false, error: "No organization found." };
+  const { data, error } = await supabase
+    .from("staff_invites")
+    .insert({ org_id: orgId, branch_id: input.branchId, email: input.email, role: input.role, invited_by_staff_id: ctx.staffId })
+    .select("id, token")
+    .single();
+  if (error || !data) return { ok: false, error: error?.message ?? "Couldn't create the invite." };
+  return { ok: true, id: data.id, token: data.token };
+}
 
-  const { error } = await supabase.from("staff_invites").insert({
-    org_id: org.id,
-    branch_id: branchId,
-    email,
-    role: role as "owner" | "manager" | "front_desk" | "therapist",
-    invited_by_staff_id: ctx.staffId,
+/** Invite by link: the staff member opens it and picks their own password. */
+export async function inviteStaff(formData: FormData): Promise<(ActionResult & { token?: string })> {
+  const ctx = await requireStaffContext();
+  const invite = await createInvite(ctx, readStaffForm(formData));
+  if (!invite.ok) return invite;
+  revalidatePath("/admin/staff");
+  return { ok: true, token: invite.token };
+}
+
+/** Create the login straight away with a password you hand to the staff member. */
+export async function createStaffLogin(formData: FormData): Promise<ActionResult> {
+  const ctx = await requireStaffContext();
+  const firstName = String(formData.get("firstName") ?? "").trim();
+  const lastName = String(formData.get("lastName") ?? "").trim();
+  const password = String(formData.get("password") ?? "");
+  if (!firstName) return { ok: false, error: "Enter their first name." };
+  if (password.length < 8) return { ok: false, error: "The password needs at least 8 characters." };
+
+  const invite = await createInvite(ctx, readStaffForm(formData));
+  if (!invite.ok) return invite;
+
+  // The database turns the pending invite into the staff record and role when the login is created.
+  const admin = createAdminSupabaseClient();
+  const { data: created, error: createError } = await admin.auth.admin.createUser({
+    email: readStaffForm(formData).email,
+    password,
+    email_confirm: true,
+    user_metadata: { first_name: firstName, last_name: lastName },
   });
+  if (createError || !created.user) {
+    await admin.from("staff_invites").delete().eq("id", invite.id);
+    const taken = createError?.message.toLowerCase().includes("already");
+    return { ok: false, error: taken ? "That email already has a login. Use another email." : (createError?.message ?? "Couldn't create the login.") };
+  }
 
-  if (error) return { ok: false, error: error.message };
+  const { data: staff } = await admin
+    .from("staff")
+    .update({ first_name: firstName, last_name: lastName })
+    .eq("id", created.user.id)
+    .select("id")
+    .maybeSingle();
+  if (!staff) {
+    await admin.auth.admin.deleteUser(created.user.id);
+    await admin.from("staff_invites").delete().eq("id", invite.id);
+    return { ok: false, error: "The login couldn't be linked to your business. Try again." };
+  }
 
   revalidatePath("/admin/staff");
   return { ok: true };

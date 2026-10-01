@@ -5,6 +5,7 @@ export type SearchItem = { label: string; href: string; keywords?: string };
  * something buried a click or two deep instead of just top-level nav. */
 export const SEARCH_INDEX: SearchItem[] = [
   { label: "Dashboard", href: "/admin" },
+  { label: "Get started guide", href: "/admin/get-started", keywords: "setup walkthrough onboarding tips checklist try new store help" },
   { label: "Revenue by branch", href: "/admin", keywords: "chart revenue sales dashboard custom range" },
 
   { label: "Branches", href: "/admin/branches" },

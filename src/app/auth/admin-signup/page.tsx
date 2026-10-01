@@ -14,7 +14,7 @@ export default async function AdminSignupPage() {
           <CardDescription>
             {ownerExists
               ? "An admin account already exists for this system."
-              : "This is the first account for C&R Spa Management. It gets full control — branches, staff invites, services, and accounting."}
+              : "This is the first account for HB Spa Management System. It gets full control — branches, staff invites, services, and accounting."}
           </CardDescription>
         </CardHeader>
         <CardContent>

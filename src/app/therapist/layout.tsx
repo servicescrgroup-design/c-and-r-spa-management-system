@@ -18,7 +18,7 @@ export default async function TherapistLayout({ children }: LayoutProps<"/therap
       <header className="glass-bar sticky top-0 z-40 border-b border-black/5 dark:border-white/10">
         <div className="mx-auto flex h-12 max-w-2xl items-center justify-between gap-3 px-4 sm:px-6">
           <p className="text-[15px] font-semibold tracking-tight">
-            C&amp;R <span className="font-normal text-muted-foreground">Team</span>
+            HB <span className="font-normal text-muted-foreground">Team</span>
           </p>
           <div className="flex items-center gap-1">
             <LanguageToggle locale={locale} />

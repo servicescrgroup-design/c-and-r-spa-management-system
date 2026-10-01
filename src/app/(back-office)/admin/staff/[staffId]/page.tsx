@@ -90,7 +90,7 @@ export default async function StaffDetailPage({ params }: PageProps<"/admin/staf
       <Card>
         <CardHeader>
           <CardTitle>Lifetime &amp; current pay period</CardTitle>
-          <CardDescription>Total hours massaged and money earned at C&amp;R, plus the current bi-weekly period ({lifetimeStats.currentPeriodLabel}).</CardDescription>
+          <CardDescription>Total hours massaged and money earned here, plus the current bi-weekly period ({lifetimeStats.currentPeriodLabel}).</CardDescription>
         </CardHeader>
         <CardContent>
           <div className="grid gap-4 sm:grid-cols-2">
@@ -102,7 +102,7 @@ export default async function StaffDetailPage({ params }: PageProps<"/admin/staf
               </p>
             </div>
             <div className="rounded-xl bg-primary/10 p-3">
-              <p className="text-xs font-medium text-muted-foreground">Lifetime revenue at C&amp;R</p>
+              <p className="text-xs font-medium text-muted-foreground">Lifetime revenue</p>
               <p className="font-display mt-1 text-xl text-primary">{formatCents(lifetimeStats.lifetimeRevenueCents)}</p>
               <p className="text-xs text-muted-foreground">
                 {lifetimeStats.lifetimeHours}h massaged &middot; {formatCents(lifetimeStats.lifetimeEarningsCents)} paid out
