@@ -10,6 +10,7 @@ import { RoleCapabilitiesCard } from "@/components/admin/role-capabilities-card"
 import { RequiredDocumentsForm } from "@/components/admin/required-documents-form";
 import { CertificationsManager } from "@/components/admin/certifications-manager";
 import { HomepageImagesCard } from "@/components/admin/homepage-images-card";
+import { BookingPageCard } from "@/components/admin/booking-page-card";
 import { getSiteContent } from "@/lib/admin/site-content-actions";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 
@@ -62,11 +63,21 @@ export default async function SettingsPage() {
         </CardContent>
       </Card>
 
+      <Card id="booking-page">
+        <CardHeader>
+          <CardTitle>Your booking page</CardTitle>
+          <CardDescription>Guests book here without an account. Only your stores and menu show on it.</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <BookingPageCard slug={org.slug} tagline={siteContent.tagline} intro={siteContent.intro} />
+        </CardContent>
+      </Card>
+
       <Card id="homepage">
         <CardHeader>
-          <CardTitle>Homepage photos</CardTitle>
+          <CardTitle>Booking page photos</CardTitle>
           <CardDescription>
-            Background photos for your public homepage. Wide landscape photos work best (at least 2000 px wide).
+            Background photos for your booking page. Wide landscape photos work best (at least 2000 px wide).
           </CardDescription>
         </CardHeader>
         <CardContent>

@@ -13,6 +13,7 @@ const DEFAULT_REQUIRED_DOC_TYPES: DocType[] = ["national_id", "work_permit", "he
 export type OrganizationSettings = {
   id: string;
   name: string;
+  slug: string;
   currency: string;
   timezone: string;
 };
@@ -20,7 +21,7 @@ export type OrganizationSettings = {
 export async function getOrganization(): Promise<OrganizationSettings | null> {
   await requireStaffContext();
   const supabase = await createServerSupabaseClient();
-  const { data } = await supabase.from("organizations").select("id, name, currency, timezone").limit(1).maybeSingle();
+  const { data } = await supabase.from("organizations").select("id, name, slug, currency, timezone").limit(1).maybeSingle();
   return data;
 }
 

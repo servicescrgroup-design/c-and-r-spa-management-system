@@ -11,7 +11,7 @@ export default async function BranchBookingPage({
   const supabase = await createServerSupabaseClient();
   const { data: branch } = await supabase
     .from("branches")
-    .select("id, name, address, phone, deposit_required")
+    .select("id, org_id, name, address, phone, deposit_required")
     .eq("slug", branchSlug)
     .eq("is_active", true)
     .eq("booking_enabled", true)
@@ -25,14 +25,16 @@ export default async function BranchBookingPage({
       .select(
         "id, name, name_th, description, description_th, translations, category_id, image_url, background_color, duration_minutes, default_price_cents, service_price_options(duration_minutes, price_cents)",
       )
+      .eq("org_id", branch.org_id)
       .eq("is_active", true)
       .order("name"),
     supabase
       .from("service_categories")
       .select("id, name, name_th, name_zh, name_ko, name_ja, description, image_url, background_color")
+      .eq("org_id", branch.org_id)
       .order("sort_order"),
     supabase.from("branch_service_overrides").select("service_id, is_offered").eq("branch_id", branch.id),
-    getSiteContent(),
+    getSiteContent(branch.org_id),
   ]);
 
   const notOffered = new Set((overrides ?? []).filter((o) => !o.is_offered).map((o) => o.service_id));

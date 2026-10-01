@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { createAdminSupabaseClient } from "@/lib/supabase/admin";
+import { allStaffInMyBusiness } from "@/lib/auth/same-business";
 import { requireStaffContext } from "@/lib/auth/session";
 import { isOwner } from "@/lib/auth/roles";
 import { getRequiredDocumentTypes } from "@/lib/admin/org-actions";
@@ -34,6 +35,7 @@ export async function updateStaffAccount(
   if (input.password && input.password.length < 8) {
     return { ok: false, error: "Password must be at least 8 characters." };
   }
+  if (!(await allStaffInMyBusiness([staffId]))) return { ok: false, error: "That staff member isn't part of your business." };
 
   const admin = createAdminSupabaseClient();
   const authUpdate: { email?: string; password?: string } = { email };
@@ -60,6 +62,7 @@ export async function bulkSetStaffPasswords(staffIds: string[], password: string
   if (!isOwner(ctx)) return { ok: false, error: "Only an owner can reset passwords." };
   if (staffIds.length === 0) return { ok: false, error: "Select at least one staff member." };
   if (password.length < 8) return { ok: false, error: "Password must be at least 8 characters." };
+  if (!(await allStaffInMyBusiness([...staffIds]))) return { ok: false, error: "That staff member isn't part of your business." };
 
   const admin = createAdminSupabaseClient();
   for (const staffId of staffIds) {

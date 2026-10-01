@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 
-export function CustomerSignupForm() {
+export function CustomerSignupForm({ business = "candr" }: { business?: string }) {
   const router = useRouter();
   const [firstName, setFirstName] = useState("");
   const [lastName, setLastName] = useState("");
@@ -28,7 +28,7 @@ export function CustomerSignupForm() {
       email,
       password,
       options: {
-        data: { first_name: firstName, last_name: lastName, phone },
+        data: { first_name: firstName, last_name: lastName, phone, business },
       },
     });
 

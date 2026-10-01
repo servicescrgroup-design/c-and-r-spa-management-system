@@ -16,7 +16,7 @@ import { Label } from "@/components/ui/label";
  * dashboard under Authentication > Providers > Phone before it can send
  * anything.
  */
-export function PhoneAuthForm() {
+export function PhoneAuthForm({ business = "candr" }: { business?: string }) {
   const router = useRouter();
   const [step, setStep] = useState<"phone" | "code">("phone");
   const [phone, setPhone] = useState("");
@@ -29,7 +29,7 @@ export function PhoneAuthForm() {
     setLoading(true);
     setError(null);
     const supabase = createClient();
-    const { error: otpError } = await supabase.auth.signInWithOtp({ phone });
+    const { error: otpError } = await supabase.auth.signInWithOtp({ phone, options: { data: { business } } });
     setLoading(false);
     if (otpError) {
       setError(otpError.message);

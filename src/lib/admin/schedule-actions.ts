@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { createAdminSupabaseClient } from "@/lib/supabase/admin";
+import { allStaffInMyBusiness } from "@/lib/auth/same-business";
 import { requireStaffContext } from "@/lib/auth/session";
 import { isOwner } from "@/lib/auth/roles";
 
@@ -185,6 +186,7 @@ export async function deleteStaffMember(staffId: string): Promise<ActionResult> 
   const ctx = await requireStaffContext();
   if (!isOwner(ctx)) return { ok: false, error: "Only an owner can delete staff." };
   if (staffId === ctx.staffId) return { ok: false, error: "You can't delete your own account." };
+  if (!(await allStaffInMyBusiness([staffId]))) return { ok: false, error: "That staff member isn't part of your business." };
 
   const admin = createAdminSupabaseClient();
   const { error } = await admin.from("staff").delete().eq("id", staffId);

@@ -145,7 +145,7 @@ export async function getSetupProgress(): Promise<SetupStep[]> {
       title: "Take a booking",
       why: "Bookings hold a therapist and bed for later. A deposit stays separate from sales until the guest comes.",
       how: ["Open Appointments on the POS.", "Add the guest, the time, and each massage.", "Take a deposit if you ask for one."],
-      tip: "Send guests your booking page link so they can book themselves.",
+      tip: "Copy your booking page link from Settings and add it to Google Maps, Facebook and LINE so guests can book themselves.",
       href: "/pos/appointments",
       cta: "Open Appointments",
       done: bookings > 0,

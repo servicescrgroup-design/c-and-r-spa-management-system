@@ -6,7 +6,7 @@ const BASE = "inline-flex h-10 items-center justify-center rounded-full px-4 tex
 const BUTTON = `${BASE} bg-white ring-1 ring-black/10 hover:bg-[#f5f5f7]`;
 const PRIMARY = `${BASE} bg-[#1f7a35] text-white hover:bg-[#1a6b2e]`;
 
-export function DepositCardActions({ summary, mapUrl }: { summary: string; mapUrl: string | null }) {
+export function DepositCardActions({ summary, mapUrl, businessName }: { summary: string; mapUrl: string | null; businessName: string }) {
   const [copied, setCopied] = useState(false);
 
   function link() {
@@ -60,7 +60,7 @@ export function DepositCardActions({ summary, mapUrl }: { summary: string; mapUr
         <button
           type="button"
           onClick={() => {
-            window.location.href = `mailto:?subject=${encodeURIComponent("Your C&R Thai Massage deposit card")}&body=${message()}`;
+            window.location.href = `mailto:?subject=${encodeURIComponent(`Your ${businessName} deposit card`)}&body=${message()}`;
           }}
           className={BUTTON}
         >

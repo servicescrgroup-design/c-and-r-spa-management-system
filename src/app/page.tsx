@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { buttonVariants } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
+import { HbHeader } from "@/components/hb-header";
 
 export const metadata = {
   title: "HB Spa Management System",
@@ -43,21 +44,7 @@ const STEPS = [
 export default function HomePage() {
   return (
     <main className="flex flex-1 flex-col bg-background">
-      <header className="glass-bar sticky top-0 z-40 border-b border-black/5 dark:border-white/10">
-        <nav className="mx-auto flex h-12 max-w-[1024px] items-center justify-between gap-6 px-4 sm:px-6">
-          <Link href="/" className="text-[15px] font-semibold tracking-tight">
-            HB <span className="font-normal text-muted-foreground">Spa Management System</span>
-          </Link>
-          <div className="flex items-center gap-5 text-[13px] text-foreground/80 sm:gap-7">
-            <Link href="/auth/staff-login" className="hover:text-foreground">
-              Log in
-            </Link>
-            <Link href="/signup" className="font-medium text-primary hover:underline">
-              Sign up
-            </Link>
-          </div>
-        </nav>
-      </header>
+      <HbHeader />
 
       <section className="px-6 pb-20 pt-16 text-center sm:pb-28 sm:pt-24">
         <p className="text-sm font-medium text-primary">For spas and massage shops</p>
@@ -116,7 +103,7 @@ export default function HomePage() {
         <p className="mx-auto mt-3 max-w-lg text-[17px] text-[#a1a1a6]">
           This page is for business owners. Guests book on the shop&apos;s own booking page.
         </p>
-        <Link href="/book" className={cn("mt-8 inline-block text-[17px] text-[#30d158] hover:underline")}>
+        <Link href="/b/candr" className={cn("mt-8 inline-block text-[17px] text-[#30d158] hover:underline")}>
           Book at C&amp;R Thai Massage &rsaquo;
         </Link>
       </section>

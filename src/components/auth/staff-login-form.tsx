@@ -31,6 +31,20 @@ export function StaffLoginForm() {
       return;
     }
 
+    // A new owner who confirmed their email but hasn't created the business yet.
+    const { data: staffRow } = await supabase.from("staff").select("id").eq("id", data.user.id).maybeSingle();
+    if (!staffRow) {
+      setLoading(false);
+      if (data.user.user_metadata?.signup_kind === "business") {
+        router.push("/start");
+        router.refresh();
+        return;
+      }
+      await supabase.auth.signOut();
+      setError("This login isn't a staff account. Customers sign in on their spa's booking page.");
+      return;
+    }
+
     const { data: roleRows } = await supabase
       .from("staff_branch_roles")
       .select("role")

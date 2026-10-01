@@ -4,7 +4,9 @@ import { CustomerSignupForm } from "@/components/auth/customer-signup-form";
 import { PhoneAuthForm } from "@/components/auth/phone-auth-form";
 import { AuthMethodTabs } from "@/components/auth/auth-method-tabs";
 
-export default function CustomerSignupPage() {
+export default async function CustomerSignupPage({ searchParams }: PageProps<"/auth/customer-signup">) {
+  const { business } = await searchParams;
+  const businessSlug = typeof business === "string" ? business : "candr";
   return (
     <main className="mx-auto flex w-full max-w-sm flex-1 flex-col justify-center px-6 py-16">
       <Card>
@@ -16,8 +18,8 @@ export default function CustomerSignupPage() {
         </CardHeader>
         <CardContent>
           <AuthMethodTabs
-            emailForm={<CustomerSignupForm />}
-            phoneForm={<PhoneAuthForm />}
+            emailForm={<CustomerSignupForm business={businessSlug} />}
+            phoneForm={<PhoneAuthForm business={businessSlug} />}
           />
         </CardContent>
       </Card>

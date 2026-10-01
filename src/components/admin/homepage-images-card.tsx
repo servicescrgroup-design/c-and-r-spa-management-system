@@ -7,8 +7,8 @@ import { Button } from "@/components/ui/button";
 import { resizeImage } from "@/lib/client/resize-image";
 
 const SLOTS: { slot: SiteImageSlot; title: string; hint: string }[] = [
-  { slot: "hero", title: "Top banner", hint: "Behind “C&R Thai Massage / Relax further.” Text turns white over the photo." },
-  { slot: "branches", title: "Branches section", hint: "Behind “Two branches. One booking.” and the two branch tiles." },
+  { slot: "hero", title: "Top banner", hint: "Behind your business name and tagline. Text turns white over the photo." },
+  { slot: "branches", title: "Branches section", hint: "Behind the list of your locations." },
 ];
 
 function SlotEditor({ slot, title, hint, url }: { slot: SiteImageSlot; title: string; hint: string; url: string | null }) {

@@ -9,7 +9,7 @@ export default function StaffLoginPage() {
         <CardHeader>
           <CardTitle>Staff sign in</CardTitle>
           <CardDescription>
-            Use the email and password from your invite.
+            Owners, managers, front desk and therapists. Use the email and password you were given.
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -17,6 +17,12 @@ export default function StaffLoginPage() {
         </CardContent>
       </Card>
       <p className="mt-6 text-center text-sm text-muted-foreground">
+        New business?{" "}
+        <Link href="/signup" className="text-primary hover:underline">
+          Create an account
+        </Link>
+      </p>
+      <p className="mt-2 text-center text-sm text-muted-foreground">
         Booking for yourself instead?{" "}
         <Link href="/auth/customer-login" className="text-primary hover:underline">
           Customer sign in

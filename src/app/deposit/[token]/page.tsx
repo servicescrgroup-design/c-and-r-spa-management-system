@@ -4,7 +4,7 @@ import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { DepositCardView, type DepositCard } from "@/components/deposit-card-view";
 
 export const metadata: Metadata = {
-  title: "Deposit card · C&R Thai Massage",
+  title: "Deposit card",
   robots: { index: false, follow: false },
 };
 

@@ -10,6 +10,7 @@ export type DepositCard = {
   timezone: string;
   customer_name: string;
   customer_phone: string | null;
+  business_name: string | null;
   branch_name: string;
   branch_address: string | null;
   branch_phone: string | null;
@@ -39,7 +40,7 @@ export function DepositCardView({ card }: { card: DepositCard }) {
   const cancelled = card.status === "cancelled" || card.status === "no_show";
 
   const summary = [
-    `C&R Thai Massage deposit card ${card.card_no}`,
+    `${card.business_name ?? card.branch_name} deposit card ${card.card_no}`,
     `${fmt(card.start_at, tz, { weekday: "short", day: "numeric", month: "short", year: "numeric" })} at ${fmt(card.start_at, tz, { hour: "2-digit", minute: "2-digit", hour12: false })}`,
     card.branch_name,
     paid ? `Deposit paid: ${formatCents(card.deposit_cents)}` : "Deposit: not paid",
@@ -51,7 +52,9 @@ export function DepositCardView({ card }: { card: DepositCard }) {
       <div className="mx-auto max-w-md space-y-4">
         <article className="relative overflow-hidden rounded-[22px] bg-white shadow-sm ring-1 ring-black/[0.06] print:shadow-none print:ring-black/20">
           <header className="bg-[#1f7a35] px-6 py-5 text-white print:[-webkit-print-color-adjust:exact] print:[print-color-adjust:exact]">
-            <p className="text-xs uppercase tracking-[0.2em] opacity-80">C&amp;R Thai Massage</p>
+            <p className="text-xs uppercase tracking-[0.2em] opacity-80" data-no-translate>
+              {card.business_name ?? card.branch_name}
+            </p>
             <h1 className="font-display mt-1 text-2xl font-semibold">Deposit card</h1>
             <p className="mt-1 font-mono text-sm opacity-90" data-no-translate>
               {card.card_no}
@@ -179,7 +182,7 @@ export function DepositCardView({ card }: { card: DepositCard }) {
           </div>
         </article>
 
-        <DepositCardActions summary={summary} mapUrl={card.branch_map_url} />
+        <DepositCardActions summary={summary} mapUrl={card.branch_map_url} businessName={card.business_name ?? card.branch_name} />
       </div>
     </main>
   );
