@@ -4,7 +4,6 @@ import { getStaffBranches, getMyOpenDrawer, getWorkingBranch } from "@/lib/pos/s
 import { CheckoutCart } from "@/components/pos/checkout-cart";
 import { getFreelanceSessions } from "@/lib/pos/sale-actions";
 import { getFreeAtByStaff } from "@/lib/pos/free-at";
-import { bookedLineStart } from "@/lib/pos/booking-lines";
 
 export default async function CheckoutPage({
   searchParams,
@@ -181,9 +180,10 @@ export default async function CheckoutPage({
           depositCents:
             bookingRow.deposit_status === "paid" && !bookingRow.deposit_settled ? (bookingRow.deposit_amount_cents ?? 0) : 0,
           depositUsed: Boolean(bookingRow.deposit_settled),
+          // Guest by guest; a guest's later massages run straight after their first.
           lines: [...bookingRow.appointment_services]
-            .sort((a, b) => a.sort_order - b.sort_order)
-            .flatMap((l, _i, all) => {
+            .sort((a, b) => a.guest_number - b.guest_number || a.start_offset_minutes - b.start_offset_minutes || a.sort_order - b.sort_order)
+            .flatMap((l, i, all) => {
               const svc = serviceList.find((sv) => sv.id === l.service_id);
               if (!svc) return [];
               const d = svc.durations.find((x) => x.minutes === l.duration_minutes) ?? svc.durations[0];
@@ -195,7 +195,7 @@ export default async function CheckoutPage({
                   staffId: l.staff_id,
                   // Group bookings: each massage stays with its guest (Guest 1, Guest 2, ...).
                   customerName: all.some((x) => x.guest_number > 1) ? l.guest_name || `Guest ${l.guest_number}` : null,
-                  startAt: bookedLineStart(bookingRow.start_at, l.start_offset_minutes),
+                  followsPrevious: i > 0 && l.start_offset_minutes > 0 && all[i - 1].guest_number === l.guest_number,
                   quantity: 1,
                   unitPriceCents: l.price_cents > 0 ? l.price_cents : d.priceCents,
                   durationMinutes: l.duration_minutes,

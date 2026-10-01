@@ -255,6 +255,8 @@ export type CartItem = {
   bedId?: string | null;
   /** Services only: a later start (ISO), e.g. when the therapist finishes their current massage. Empty = now. */
   startAt?: string | null;
+  /** Services only: starts when the massage above ends (same guest, back to back). The cart fills startAt. */
+  followsPrevious?: boolean;
   /** Services only: transport for this massage, in satang. Paid to the therapist with payroll, a store cost, not revenue. */
   transportCents?: number | null;
   /** Services only: OT (overtime) for this massage, in satang. Paid with payroll like transport. */
@@ -370,9 +372,12 @@ export async function checkoutSale(input: {
   const lineStart = new Map<number, Date>();
   const lineEnd = new Map<number, Date>();
   const cursorByStaff = new Map<string, Date>();
+  let previousIndex: number | null = null;
   for (const { item, index } of serviceLines) {
     const extra = addOns.filter((a) => a.lineIndex === index).reduce((sum, a) => sum + a.minutes, 0);
-    let start = item.startAt ? new Date(item.startAt) : null;
+    // Back to back: starts exactly when the massage above it ends.
+    const afterPrevious = item.followsPrevious && previousIndex !== null ? lineEnd.get(previousIndex)! : null;
+    let start = afterPrevious ?? (item.startAt ? new Date(item.startAt) : null);
     if (start && Number.isNaN(start.getTime())) return { ok: false, error: "A start time isn't valid." };
     // An earlier time is allowed (filled in after a busy rush), up to 24 hours back.
     if (start && start.getTime() < now.getTime() - 24 * 3600_000) return { ok: false, error: "A start time can't be more than a day ago." };
@@ -380,7 +385,8 @@ export async function checkoutSale(input: {
     const end = new Date(start.getTime() + ((item.durationMinutes ?? 60) + extra) * 60_000);
     lineStart.set(index, start);
     lineEnd.set(index, end);
-    if (!item.startAt) cursorByStaff.set(item.staffId!, end);
+    if (!item.startAt || afterPrevious) cursorByStaff.set(item.staffId!, end);
+    previousIndex = index;
   }
   // Each therapist must be free for each massage's own time slot.
   for (const { item, index } of serviceLines) {

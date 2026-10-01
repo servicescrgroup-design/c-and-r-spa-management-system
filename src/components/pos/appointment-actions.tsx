@@ -1,7 +1,6 @@
 "use client";
 
 import { useState } from "react";
-import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { recordDeposit, removeDeposit, settleDeposit, setAppointmentStatus } from "@/lib/deposits/actions";
 import { DEPOSIT_METHODS, type DepositMethod } from "@/lib/deposits/shared";
@@ -52,9 +51,11 @@ export function AppointmentActions({ appointmentId, status, priceCents, deposit,
     <div className="space-y-2">
       <div className="flex flex-wrap items-center gap-2">
         {open && (
-          <Link href={`/pos/checkout?appointment=${appointmentId}`} className={buttonVariants({ size: "sm" })}>
+          // A full page load, not an in-app link: the checkout must always be
+          // built fresh for this booking (an in-app link could reuse a cached cart).
+          <a href={`/pos/checkout?appointment=${appointmentId}`} className={buttonVariants({ size: "sm" })}>
             Check out
-          </Link>
+          </a>
         )}
         {open && !deposit && (
           <Button size="sm" variant="outline" onClick={() => setMode(mode === "deposit" ? null : "deposit")}>

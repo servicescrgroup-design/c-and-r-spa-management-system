@@ -4,6 +4,7 @@ import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { addFreelancer } from "@/lib/pos/sale-actions";
 import { checkoutSale, issueGiftCard, type CartAddOn, type CartItem, type PaymentMethod } from "@/lib/pos/actions";
+import { chainStarts, previousServiceLine } from "@/lib/pos/cart-timing";
 import { AddOnsEditor, RoomBedPicker, SellingGuide, type PosRoom } from "@/components/pos/sale-extras";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -325,7 +326,29 @@ export function CheckoutCart({
   }
 
   function setLineStart(index: number, startAt: string | null) {
-    setCart((prev) => prev.map((c, i) => (i === index ? { ...c, startAt } : c)));
+    // Typing a time breaks the "back to back" link to the massage above.
+    setCart((prev) => prev.map((c, i) => (i === index ? { ...c, startAt, followsPrevious: false } : c)));
+  }
+
+  /** Same guest, second massage: start when the massage above ends, same guest and therapist. */
+  function setBackToBack(index: number, on: boolean) {
+    setCart((prev) => {
+      const j = previousServiceLine(prev, index);
+      if (j < 0) return prev;
+      const above = prev[j];
+      return prev.map((c, i) => {
+        if (i !== index) return c;
+        if (!on) return { ...c, followsPrevious: false, startAt: null };
+        const hasWorker = Boolean(c.staffId || c.freelanceSessionId);
+        return {
+          ...c,
+          followsPrevious: true,
+          customerName: c.customerName || above.customerName || null,
+          staffId: hasWorker ? c.staffId : above.staffId,
+          freelanceSessionId: hasWorker ? c.freelanceSessionId : above.freelanceSessionId,
+        };
+      });
+    });
   }
 
   function setLineExtra(index: number, key: "transportCents" | "otCents", cents: number | null) {
@@ -449,10 +472,11 @@ export function CheckoutCart({
     const taxes = share(taxCents);
     const tips = share(tipCents);
     const fees = share(cardFeeCents);
+    const timed = chainStarts(cart, addOns);
     return cart.map((item, i) => {
       const totalCents = lineSubs[i] - discounts[i] + taxes[i] + tips[i] + fees[i];
       return {
-        item,
+        item: timed[i],
         addOns: addOns.filter((a) => a.lineIndex === i).map((a) => ({ ...a, lineIndex: 0 })),
         discountCents: discounts[i],
         taxCents: taxes[i],
@@ -541,7 +565,7 @@ export function CheckoutCart({
     const result = await checkoutSale({
       branchId,
       drawerSessionId,
-      items: cart,
+      items: chainStarts(cart, addOns),
       taxCents,
       tipCents,
       cardFeeCents,
@@ -622,6 +646,9 @@ export function CheckoutCart({
       />
     );
   }
+
+  // Start times with back-to-back massages filled in.
+  const timedCart = chainStarts(cart, addOns);
 
   const paidCents =
     payments.length === 1
@@ -877,7 +904,7 @@ export function CheckoutCart({
               </p>
               <p className="text-xs text-muted-foreground">
                 {bookingDeposit > 0
-                  ? `Deposit ${formatCents(bookingDeposit)} already paid. It comes off what the guest pays now.`
+                  ? `Deposit ${formatCents(bookingDeposit)} already paid. It comes off what the guest pays now. The whole sale is recorded today, when the rest is paid.`
                   : booking.depositUsed
                     ? "This booking's deposit was already used, kept or refunded."
                     : "No deposit on this booking."}
@@ -1137,32 +1164,58 @@ export function CheckoutCart({
                     </select>
 
                     {(() => {
-                      const startIso = item.startAt ?? null;
+                      const above = previousServiceLine(cart, i);
+                      const startIso = timedCart[i].startAt ?? null;
                       const endIso = new Date(
                         (startIso ? new Date(startIso).getTime() : Date.now()) +
                           ((item.durationMinutes ?? 60) + addOns.filter((a) => a.lineIndex === i).reduce((n, a) => n + a.minutes, 0)) * 60_000,
                       ).toISOString();
                       return (
-                        <div className="flex items-center gap-2 text-xs">
-                          <span className="shrink-0 text-muted-foreground">Start</span>
-                          <StartTimeField
-                            value={item.startAt ?? null}
-                            onChange={(time) => setLineStart(i, time ? todayAt(time) : null)}
-                          />
-                          {startIso ? (
-                            <button
-                              type="button"
-                              onClick={() => setLineStart(i, null)}
-                              className="shrink-0 text-primary hover:underline"
-                            >
-                              Now
-                            </button>
-                          ) : (
-                            <span className="shrink-0 text-muted-foreground">now</span>
+                        <div className="space-y-1.5">
+                          {above >= 0 && (
+                            <label className="flex items-center gap-2 text-xs">
+                              <input
+                                type="checkbox"
+                                checked={Boolean(item.followsPrevious)}
+                                onChange={(e) => setBackToBack(i, e.target.checked)}
+                                className="size-4"
+                              />
+                              <span>
+                                Same guest, right after massage {above + 1}
+                                <span className="text-muted-foreground"> (back to back)</span>
+                              </span>
+                            </label>
                           )}
-                          <span className="ml-auto shrink-0 text-[11px] text-muted-foreground">
-                            {startIso && new Date(startIso).getTime() < Date.now() - 60_000 ? "earlier · " : ""}until {hhmm(endIso)}
-                          </span>
+                          <div className="flex items-center gap-2 text-xs">
+                            <span className="shrink-0 text-muted-foreground">Start</span>
+                            {item.followsPrevious ? (
+                              <span className="font-medium tabular-nums">
+                                {startIso ? hhmm(startIso) : "now"}
+                                <span className="font-normal text-muted-foreground"> · when massage {above + 1} ends</span>
+                              </span>
+                            ) : (
+                              <>
+                                <StartTimeField
+                                  value={item.startAt ?? null}
+                                  onChange={(time) => setLineStart(i, time ? todayAt(time) : null)}
+                                />
+                                {startIso ? (
+                                  <button
+                                    type="button"
+                                    onClick={() => setLineStart(i, null)}
+                                    className="shrink-0 text-primary hover:underline"
+                                  >
+                                    Now
+                                  </button>
+                                ) : (
+                                  <span className="shrink-0 text-muted-foreground">now</span>
+                                )}
+                              </>
+                            )}
+                            <span className="ml-auto shrink-0 text-[11px] text-muted-foreground">
+                              {startIso && new Date(startIso).getTime() < Date.now() - 60_000 ? "earlier · " : ""}until {hhmm(endIso)}
+                            </span>
+                          </div>
                         </div>
                       );
                     })()}
