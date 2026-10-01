@@ -49,6 +49,7 @@ export type SaleDetail = {
 export type ServiceOption = {
   id: string;
   name: string;
+  categoryId?: string | null;
   durations: { minutes: number; priceCents: number; payoutCents: number }[];
 };
 

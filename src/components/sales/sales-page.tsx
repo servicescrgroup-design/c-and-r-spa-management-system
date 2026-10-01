@@ -228,13 +228,14 @@ export async function SalesPageView({
 
   // Choices for the editor: the branch's services, therapists, rooms and beds.
   let services: ServiceOption[] = [];
+  let serviceCategories: { id: string; name: string }[] = [];
   let therapists: { id: string; name: string }[] = [];
   let rooms: RoomOption[] = [];
   if (canEdit) {
-    const [{ data: serviceRows }, { data: therapistRoles }, { data: roomRows }, { data: bedRows }] = await Promise.all([
+    const [{ data: serviceRows }, { data: therapistRoles }, { data: roomRows }, { data: bedRows }, { data: categoryRows }] = await Promise.all([
       supabase
         .from("services")
-        .select("id, name, default_price_cents, duration_minutes, service_price_options(duration_minutes, price_cents, payout_cents)")
+        .select("id, name, category_id, default_price_cents, duration_minutes, service_price_options(duration_minutes, price_cents, payout_cents)")
         .eq("is_active", true)
         .order("name"),
       supabase
@@ -244,10 +245,13 @@ export async function SalesPageView({
         .or(`branch_id.in.(${branchIds.join(",")}),branch_id.is.null`),
       supabase.from("branch_rooms").select("id, name, branch_id").in("branch_id", branchIds).order("sort_order").order("name"),
       supabase.from("room_beds").select("id, room_id, name").order("sort_order").order("name"),
+      supabase.from("service_categories").select("id, name").order("sort_order"),
     ]);
+    serviceCategories = categoryRows ?? [];
     services = (serviceRows ?? []).map((s) => ({
       id: s.id,
       name: s.name,
+      categoryId: s.category_id,
       durations:
         s.service_price_options.length > 0
           ? [...s.service_price_options]
@@ -340,7 +344,7 @@ export async function SalesPageView({
         </Link>
       </div>
 
-      <SalesList sales={sales} showCosts={canEdit} showDate={multiDay} services={services} therapists={therapists} rooms={rooms} />
+      <SalesList sales={sales} showCosts={canEdit} showDate={multiDay} services={services} serviceCategories={serviceCategories} therapists={therapists} rooms={rooms} />
 
       {deleted.length > 0 && <DeletedSales deleted={deleted} />}
     </div>

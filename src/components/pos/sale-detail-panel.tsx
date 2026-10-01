@@ -24,6 +24,8 @@ import { formatCents, cn } from "@/lib/utils";
 
 export type EditorChoices = {
   services: ServiceOption[];
+  /** For the service picker's category filter. */
+  serviceCategories?: { id: string; name: string }[];
   therapists: { id: string; name: string }[];
   rooms: RoomOption[];
 };
@@ -602,14 +604,13 @@ export function SaleEditForm({
                     <Input value={d.guest} onChange={(e) => set(main.id, { guest: e.target.value })} className="h-9" placeholder="Optional" />
                   </Field>
                   <Field label="Service" className="col-span-2">
-                    <select value={d.serviceId} onChange={(e) => pickService(main, e.target.value)} className={FIELD}>
-                      {!service && <option value={d.serviceId}>{cleanDescription(main.description)}</option>}
-                      {choices.services.map((s) => (
-                        <option key={s.id} value={s.id}>
-                          {s.name}
-                        </option>
-                      ))}
-                    </select>
+                    <ServicePicker
+                      value={d.serviceId}
+                      fallbackLabel={service ? null : cleanDescription(main.description)}
+                      services={choices.services}
+                      categories={choices.serviceCategories ?? []}
+                      onChange={(id) => pickService(main, id)}
+                    />
                   </Field>
                   <Field label="Minutes">
                     <select value={d.minutes} onChange={(e) => pickMinutes(main, e.target.value)} className={FIELD}>
@@ -862,5 +863,87 @@ export function SaleHistory({ saleId }: { saleId: string }) {
         </li>
       ))}
     </ol>
+  );
+}
+
+/**
+ * Pick a service: type to search, or narrow by category. The service already
+ * on the bill always stays in the list, even when it doesn't match the filter.
+ */
+function ServicePicker({
+  value,
+  fallbackLabel,
+  services,
+  categories,
+  onChange,
+}: {
+  value: string;
+  /** Shown when the bill's service is no longer on the menu. */
+  fallbackLabel: string | null;
+  services: ServiceOption[];
+  categories: { id: string; name: string }[];
+  onChange: (serviceId: string) => void;
+}) {
+  const [query, setQuery] = useState("");
+  const [categoryId, setCategoryId] = useState("");
+  const words = query.trim().toLowerCase().split(/\s+/).filter(Boolean);
+  const matches = services.filter(
+    (s) =>
+      (!categoryId || s.categoryId === categoryId) && words.every((w) => s.name.toLowerCase().includes(w)),
+  );
+  const current = services.find((s) => s.id === value);
+  const list = current && !matches.some((s) => s.id === value) ? [current, ...matches] : matches;
+  const usedCategories = categories.filter((c) => services.some((s) => s.categoryId === c.id));
+
+  return (
+    <div className="space-y-1.5">
+      <div className="flex gap-1.5">
+        <Input
+          value={query}
+          onChange={(e) => setQuery(e.target.value)}
+          placeholder="Search, e.g. coconut"
+          aria-label="Search services"
+          className="h-9 min-w-0 flex-1"
+        />
+        {usedCategories.length > 1 && (
+          <select
+            value={categoryId}
+            onChange={(e) => setCategoryId(e.target.value)}
+            aria-label="Category"
+            className="h-9 max-w-[45%] rounded-lg border border-border bg-card px-2 text-sm"
+          >
+            <option value="">All categories</option>
+            {usedCategories.map((c) => (
+              <option key={c.id} value={c.id}>
+                {c.name}
+              </option>
+            ))}
+          </select>
+        )}
+      </div>
+      <select value={value} onChange={(e) => onChange(e.target.value)} className={FIELD} aria-label="Service">
+        {fallbackLabel && <option value={value}>{fallbackLabel}</option>}
+        {list.map((s) => (
+          <option key={s.id} value={s.id}>
+            {s.name}
+          </option>
+        ))}
+      </select>
+      {(query || categoryId) && (
+        <p className="text-[11px] text-muted-foreground">
+          {matches.length === 0 ? "No service matches. " : `${matches.length} match${matches.length === 1 ? "" : "es"}. `}
+          <button
+            type="button"
+            onClick={() => {
+              setQuery("");
+              setCategoryId("");
+            }}
+            className="text-primary hover:underline"
+          >
+            Clear
+          </button>
+        </p>
+      )}
+    </div>
   );
 }

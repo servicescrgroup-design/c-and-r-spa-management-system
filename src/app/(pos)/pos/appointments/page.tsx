@@ -75,7 +75,9 @@ export default async function PosAppointmentsPage({ searchParams }: PageProps<"/
   ]);
   const nick = new Map((profiles ?? []).map((p) => [p.staff_id, p.nickname]));
 
-  const bookings = (rows ?? []).map((a) => {
+  // A cancelled booking with nothing left on it (e.g. merged into another) isn't worth showing.
+  const visibleRows = (rows ?? []).filter((a) => !(a.status === "cancelled" && a.appointment_services.length === 0));
+  const bookings = visibleRows.map((a) => {
     const lines = [...a.appointment_services].sort((x, y) => x.sort_order - y.sort_order);
     const priceCents = lines.reduce((n, l) => n + l.price_cents, 0);
     const held = a.deposit_status === "paid" && (a.deposit_amount_cents ?? 0) > 0;
