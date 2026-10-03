@@ -46,7 +46,7 @@ function BulkPasswordForm({ staffIds, onDone }: { staffIds: string[]; onDone: ()
         placeholder="New password for all selected"
         className="h-9 max-w-xs"
       />
-      <Button type="button" size="sm" disabled={loading || password.length < 8} onClick={save}>
+      <Button type="button" size="sm" disabled={loading || password.length < 10} onClick={save}>
         {loading ? "Saving..." : `Set password for ${staffIds.length}`}
       </Button>
       <button type="button" onClick={onDone} className="text-xs text-muted-foreground hover:underline">

@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { createAdminSupabaseClient } from "@/lib/supabase/admin";
 import { allStaffInMyBusiness } from "@/lib/auth/same-business";
+import { passwordProblem } from "@/lib/auth/password-rules";
 import { requireStaffContext } from "@/lib/auth/session";
 import { isOwner } from "@/lib/auth/roles";
 import { getRequiredDocumentTypes } from "@/lib/admin/org-actions";
@@ -32,8 +33,9 @@ export async function updateStaffAccount(
   const email = input.email.trim().toLowerCase();
   if (!firstName) return { ok: false, error: "First name is required." };
   if (!email) return { ok: false, error: "Email is required." };
-  if (input.password && input.password.length < 8) {
-    return { ok: false, error: "Password must be at least 8 characters." };
+  const problem = input.password ? passwordProblem(input.password, { email, names: [firstName, lastName] }) : null;
+  if (problem) {
+    return { ok: false, error: problem };
   }
   if (!(await allStaffInMyBusiness([staffId]))) return { ok: false, error: "That staff member isn't part of your business." };
 
@@ -61,7 +63,8 @@ export async function bulkSetStaffPasswords(staffIds: string[], password: string
   const ctx = await requireStaffContext();
   if (!isOwner(ctx)) return { ok: false, error: "Only an owner can reset passwords." };
   if (staffIds.length === 0) return { ok: false, error: "Select at least one staff member." };
-  if (password.length < 8) return { ok: false, error: "Password must be at least 8 characters." };
+  const problem = passwordProblem(password);
+  if (problem) return { ok: false, error: problem };
   if (!(await allStaffInMyBusiness([...staffIds]))) return { ok: false, error: "That staff member isn't part of your business." };
 
   const admin = createAdminSupabaseClient();

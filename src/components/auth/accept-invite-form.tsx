@@ -48,7 +48,7 @@ export function AcceptInviteForm({ token, email }: { token: string; email: strin
           id="password"
           type="password"
           autoComplete="new-password"
-          minLength={8}
+          minLength={10}
           required
           value={password}
           onChange={(e) => setPassword(e.target.value)}

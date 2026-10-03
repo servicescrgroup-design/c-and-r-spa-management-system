@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { createAdminSupabaseClient } from "@/lib/supabase/admin";
 import { allStaffInMyBusiness } from "@/lib/auth/same-business";
+import { passwordProblem } from "@/lib/auth/password-rules";
 import { requireStaffContext } from "@/lib/auth/session";
 import { isOwner } from "@/lib/auth/roles";
 
@@ -107,7 +108,8 @@ export async function createStaffLogin(formData: FormData): Promise<ActionResult
   const lastName = String(formData.get("lastName") ?? "").trim();
   const password = String(formData.get("password") ?? "");
   if (!firstName) return { ok: false, error: "Enter their first name." };
-  if (password.length < 8) return { ok: false, error: "The password needs at least 8 characters." };
+  const problem = passwordProblem(password, { email: readStaffForm(formData).email, names: [firstName, lastName] });
+  if (problem) return { ok: false, error: problem };
 
   const invite = await createInvite(ctx, readStaffForm(formData));
   if (!invite.ok) return invite;

@@ -81,7 +81,7 @@ export function StaffAccountEditor({
           className="h-8 text-xs"
           value={form.password}
           onChange={(e) => setForm((f) => ({ ...f, password: e.target.value }))}
-          placeholder="At least 8 characters"
+          placeholder="At least 10 characters, letters and numbers"
         />
       </div>
       {error && <p className="text-xs text-destructive">{error}</p>}

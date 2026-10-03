@@ -4,6 +4,7 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { createBusiness } from "@/lib/auth/business-actions";
+import { PASSWORD_HINT, PASSWORD_MIN, passwordProblem } from "@/lib/auth/password-rules";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -53,9 +54,10 @@ export function BusinessSignupForm({ signedIn = false, defaults = {} }: { signed
 
     if (signedIn) return finish();
 
-    if (password.length < 8) {
+    const problem = passwordProblem(password, { email, names: [firstName, lastName, businessName] });
+    if (problem) {
       setLoading(false);
-      setError("Use at least 8 characters for your password.");
+      setError(problem);
       return;
     }
     const supabase = createClient();
@@ -136,16 +138,17 @@ export function BusinessSignupForm({ signedIn = false, defaults = {} }: { signed
             <Input id="email" type="email" autoComplete="email" required value={email} onChange={(e) => setEmail(e.target.value)} />
           </div>
           <div className="space-y-2">
-            <Label htmlFor="password">Password (8+ characters)</Label>
+            <Label htmlFor="password">Password</Label>
             <Input
               id="password"
               type="password"
               autoComplete="new-password"
-              minLength={8}
+              minLength={PASSWORD_MIN}
               required
               value={password}
               onChange={(e) => setPassword(e.target.value)}
             />
+            <p className="text-xs text-muted-foreground">{PASSWORD_HINT}</p>
           </div>
         </>
       )}

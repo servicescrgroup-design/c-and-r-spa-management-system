@@ -28,11 +28,11 @@ export function ChangePasswordForm() {
       <div className="grid gap-3 sm:grid-cols-2">
         <div className="space-y-2">
           <Label htmlFor="password">New password</Label>
-          <Input id="password" name="password" type="password" required minLength={8} autoComplete="new-password" />
+          <Input id="password" name="password" type="password" required minLength={10} autoComplete="new-password" />
         </div>
         <div className="space-y-2">
           <Label htmlFor="confirmPassword">Confirm password</Label>
-          <Input id="confirmPassword" name="confirmPassword" type="password" required minLength={8} autoComplete="new-password" />
+          <Input id="confirmPassword" name="confirmPassword" type="password" required minLength={10} autoComplete="new-password" />
         </div>
       </div>
       {error && <p className="text-sm text-destructive">{error}</p>}

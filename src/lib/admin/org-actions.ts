@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { requireStaffContext } from "@/lib/auth/session";
 import { isOwner } from "@/lib/auth/roles";
+import { passwordProblem } from "@/lib/auth/password-rules";
 import type { DocType } from "@/lib/staff-document-types";
 
 type ActionResult = { ok: true } | { ok: false; error: string };
@@ -76,10 +77,11 @@ export async function setRequiredDocumentTypes(types: DocType[]): Promise<Action
 }
 
 export async function updateOwnPassword(formData: FormData): Promise<ActionResult> {
-  await requireStaffContext();
+  const ctx = await requireStaffContext();
   const password = String(formData.get("password") ?? "");
   const confirm = String(formData.get("confirmPassword") ?? "");
-  if (password.length < 8) return { ok: false, error: "Password must be at least 8 characters." };
+  const problem = passwordProblem(password, { email: ctx.email, names: [ctx.firstName, ctx.lastName] });
+  if (problem) return { ok: false, error: problem };
   if (password !== confirm) return { ok: false, error: "Passwords don't match." };
 
   const supabase = await createServerSupabaseClient();

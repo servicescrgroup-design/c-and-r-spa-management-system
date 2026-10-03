@@ -1,6 +1,7 @@
 "use server";
 
 import { redirect } from "next/navigation";
+import { passwordProblem } from "@/lib/auth/password-rules";
 import { createAdminSupabaseClient } from "@/lib/supabase/admin";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 
@@ -28,8 +29,9 @@ export async function signOutCustomer(): Promise<void> {
  * a pending staff_invites row matching the new user's email.
  */
 export async function acceptStaffInvite(token: string, password: string): Promise<ActionResult> {
-  if (password.length < 8) {
-    return { ok: false, error: "Password must be at least 8 characters." };
+  const problem = passwordProblem(password);
+  if (problem) {
+    return { ok: false, error: problem };
   }
 
   const supabase = createAdminSupabaseClient();

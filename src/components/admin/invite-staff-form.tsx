@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { cn } from "@/lib/utils";
+import { PASSWORD_HINT, PASSWORD_MIN } from "@/lib/auth/password-rules";
 
 const ROLES = [
   { value: "therapist", label: "Therapist" },
@@ -99,8 +100,9 @@ export function InviteStaffForm({ branches }: { branches: { id: string; name: st
       </div>
       {mode === "create" && (
         <div className="space-y-2">
-          <Label htmlFor="password">Password (8+ characters)</Label>
-          <Input id="password" name="password" type="text" minLength={8} required autoComplete="new-password" />
+          <Label htmlFor="password">Password</Label>
+          <Input id="password" name="password" type="text" minLength={PASSWORD_MIN} required autoComplete="new-password" />
+          <p className="text-xs text-muted-foreground">{PASSWORD_HINT}</p>
         </div>
       )}
       <div className="space-y-2">
