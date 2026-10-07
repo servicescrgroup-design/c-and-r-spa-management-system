@@ -292,6 +292,8 @@ export async function checkoutSale(input: {
   discountReason?: string;
   /** A booking whose deposit pays part of this sale. The server adds the deposit payment itself. */
   depositAppointmentId?: string | null;
+  /** Checking out a booking (deposit or not): the sale is linked to it and it's marked completed. */
+  appointmentId?: string | null;
 }): Promise<ActionResult & { transactionId?: string; customerRef?: string | null }> {
   const ctx = await requireStaffContext();
   if (input.items.length === 0) {
@@ -633,6 +635,16 @@ export async function checkoutSale(input: {
       p_transaction_id: txn.id,
     });
     if (depositError) return { ok: false, error: `Sale saved but the booking's deposit wasn't marked as used: ${depositError.message}` };
+    revalidatePath("/pos/appointments");
+  }
+
+  const bookingId = input.appointmentId ?? input.depositAppointmentId ?? null;
+  if (bookingId) {
+    const { error: bookingError } = await supabase.rpc("complete_booking_checkout", {
+      p_appointment_id: bookingId,
+      p_transaction_id: txn.id,
+    });
+    if (bookingError) return { ok: false, error: `Sale saved but the booking wasn't marked as done: ${bookingError.message}` };
     revalidatePath("/pos/appointments");
   }
 

@@ -16,7 +16,7 @@ export default async function CheckoutPage({
       ? await supabaseEarly
           .from("appointments")
           .select(
-            "id, branch_id, customer_id, start_at, deposit_status, deposit_amount_cents, deposit_settled, customer:customer_id(first_name, last_name), appointment_services(service_id, duration_minutes, price_cents, staff_id, sort_order, guest_number, guest_name, start_offset_minutes)",
+            "id, branch_id, customer_id, start_at, status, deposit_status, deposit_amount_cents, deposit_settled, customer:customer_id(first_name, last_name), appointment_services(service_id, duration_minutes, price_cents, staff_id, sort_order, guest_number, guest_name, start_offset_minutes)",
           )
           .eq("id", appointmentParam)
           .maybeSingle()
@@ -171,7 +171,8 @@ export default async function CheckoutPage({
 
   // The booked massages go into the cart, with the deposit taken off what's left to pay.
   const booking =
-    bookingRow && bookingRow.branch_id === activeBranchId
+    // A booking already paid, cancelled or a no-show can't be checked out again.
+    bookingRow && bookingRow.branch_id === activeBranchId && !["completed", "cancelled", "no_show"].includes(bookingRow.status)
       ? {
           appointmentId: bookingRow.id,
           customerId: bookingRow.customer_id,
