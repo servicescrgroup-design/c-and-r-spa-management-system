@@ -9,6 +9,7 @@ import { StaffAccountEditor } from "@/components/admin/staff-account-editor";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+import { PASSWORD_MIN } from "@/lib/auth/password-rules";
 
 type Therapist = {
   id: string;
@@ -46,7 +47,7 @@ function BulkPasswordForm({ staffIds, onDone }: { staffIds: string[]; onDone: ()
         placeholder="New password for all selected"
         className="h-9 max-w-xs"
       />
-      <Button type="button" size="sm" disabled={loading || password.length < 10} onClick={save}>
+      <Button type="button" size="sm" disabled={loading || password.length < PASSWORD_MIN} onClick={save}>
         {loading ? "Saving..." : `Set password for ${staffIds.length}`}
       </Button>
       <button type="button" onClick={onDone} className="text-xs text-muted-foreground hover:underline">

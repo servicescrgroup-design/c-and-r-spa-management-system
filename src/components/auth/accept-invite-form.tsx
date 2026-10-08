@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { createClient } from "@/lib/supabase/client";
+import { PASSWORD_MIN } from "@/lib/auth/password-rules";
 
 export function AcceptInviteForm({ token, email }: { token: string; email: string }) {
   const router = useRouter();
@@ -48,7 +49,7 @@ export function AcceptInviteForm({ token, email }: { token: string; email: strin
           id="password"
           type="password"
           autoComplete="new-password"
-          minLength={10}
+          minLength={PASSWORD_MIN}
           required
           value={password}
           onChange={(e) => setPassword(e.target.value)}

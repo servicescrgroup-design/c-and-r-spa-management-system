@@ -3,10 +3,10 @@
  * browser (instant feedback) and again on the server (the real check).
  */
 
-export const PASSWORD_MIN = 10;
+export const PASSWORD_MIN = 9;
 
 export const PASSWORD_HINT =
-  "At least 10 characters with letters and numbers. Avoid the shop name and 123. A phrase like green-mango-river-42 works well.";
+  "At least 9 characters with letters and numbers. Avoid the shop name and 123. A phrase like green-mango-river-42 works well.";
 
 // Words that make a password easy to guess for a spa in Chiang Mai.
 const GUESSABLE = [
