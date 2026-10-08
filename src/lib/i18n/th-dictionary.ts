@@ -80,7 +80,6 @@ export const TH: Record<string, string> = {
   "At least 8 characters": "อย่างน้อย 8 ตัวอักษร",
   "At least 9 characters, letters and numbers": "อย่างน้อย 9 ตัวอักษร มีทั้งตัวอักษรและตัวเลข",
   "Use at least 9 characters.": "ใช้อย่างน้อย 9 ตัวอักษร",
-  "Leave out the shop name and common words like password or admin.": "อย่าใช้ชื่อร้าน หรือคำที่เดาง่าย เช่น password หรือ admin",
   "Leave out runs like 1234 or 0000.": "อย่าใช้ตัวเลขเรียงกัน เช่น 1234 หรือ 0000",
   "Use more different characters.": "ใช้ตัวอักษรที่หลากหลายกว่านี้",
   "Don't use your name or email in the password.": "อย่าใช้ชื่อหรืออีเมลของคุณในรหัสผ่าน",

@@ -18,7 +18,6 @@ const GUESSABLE = [
   "candr",
   "crgroup",
   "massage",
-  "hazebuds",
   "chiangmai",
   "thaimassage",
   "spa123",
@@ -30,7 +29,8 @@ const SEQUENCES = ["0123", "1234", "2345", "3456", "4567", "5678", "6789", "9876
 export function passwordProblem(password: string, context: { email?: string | null; names?: (string | null | undefined)[] } = {}): string | null {
   if (password.length < PASSWORD_MIN) return `Use at least ${PASSWORD_MIN} characters.`;
   const plain = password.toLowerCase().replace(/[^a-z0-9]/g, "");
-  if (GUESSABLE.some((w) => plain.includes(w))) return "Leave out the shop name and common words like password or admin.";
+  const word = GUESSABLE.find((w) => plain.includes(w));
+  if (word) return `Leave out “${word}”. Shop names and common words are the first things people guess.`;
   if (SEQUENCES.some((s) => plain.includes(s))) return "Leave out runs like 1234 or 0000.";
   if (new Set(password).size < 5) return "Use more different characters.";
   const personal = [context.email?.split("@")[0], ...(context.names ?? [])]
