@@ -13,6 +13,7 @@ const ENTRY_LABEL: Record<DepositLedgerEntry["entryType"], string> = {
   uniform_charge: "Uniform fee charged (ค่าชุด)",
   payment: "Payment received",
   deduction: "Payroll deduction",
+  refund: "Deposit refunded (ประกันคืน)",
 };
 
 export function DepositLedgerCard({

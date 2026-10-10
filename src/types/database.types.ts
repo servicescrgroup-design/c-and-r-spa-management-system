@@ -1943,6 +1943,138 @@ export type Database = {
           },
         ]
       }
+      monthly_pay_lines: {
+        Row: {
+          base_salary_cents: number
+          bonus_cents: number
+          created_at: string
+          days_missed: number
+          days_worked: number
+          deductions_cents: number
+          deposit_cents: number
+          deposit_refund_cents: number
+          id: string
+          net_pay_cents: number
+          notes: string | null
+          org_id: string
+          ot_cents: number
+          ot_hours: number
+          paid_method: string | null
+          paid_on: string | null
+          pay_basis: string
+          period_id: string
+          source: string
+          staff_id: string
+          status: string
+          updated_at: string
+        }
+        Insert: {
+          base_salary_cents?: number
+          bonus_cents?: number
+          created_at?: string
+          days_missed?: number
+          days_worked?: number
+          deductions_cents?: number
+          deposit_cents?: number
+          deposit_refund_cents?: number
+          id?: string
+          net_pay_cents?: never
+          notes?: string | null
+          org_id?: string
+          ot_cents?: number
+          ot_hours?: number
+          paid_method?: string | null
+          paid_on?: string | null
+          pay_basis?: string
+          period_id: string
+          source?: string
+          staff_id: string
+          status?: string
+          updated_at?: string
+        }
+        Update: {
+          base_salary_cents?: number
+          bonus_cents?: number
+          created_at?: string
+          days_missed?: number
+          days_worked?: number
+          deductions_cents?: number
+          deposit_cents?: number
+          deposit_refund_cents?: number
+          id?: string
+          net_pay_cents?: never
+          notes?: string | null
+          org_id?: string
+          ot_cents?: number
+          ot_hours?: number
+          paid_method?: string | null
+          paid_on?: string | null
+          pay_basis?: string
+          period_id?: string
+          source?: string
+          staff_id?: string
+          status?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "monthly_pay_lines_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "monthly_pay_lines_period_id_fkey"
+            columns: ["period_id"]
+            isOneToOne: false
+            referencedRelation: "monthly_pay_periods"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "monthly_pay_lines_staff_id_fkey"
+            columns: ["staff_id"]
+            isOneToOne: false
+            referencedRelation: "staff"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      monthly_pay_periods: {
+        Row: {
+          created_at: string
+          id: string
+          notes: string | null
+          org_id: string
+          period_end: string
+          period_start: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          notes?: string | null
+          org_id?: string
+          period_end: string
+          period_start: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          notes?: string | null
+          org_id?: string
+          period_end?: string
+          period_start?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "monthly_pay_periods_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       organizations: {
         Row: {
           created_at: string
@@ -3396,6 +3528,10 @@ export type Database = {
           avatar_url: string | null
           base_hourly_rate_cents: number | null
           created_at: string
+          daily_rate_cents: number | null
+          deposit_monthly_cents: number
+          monthly_salary_cents: number | null
+          ot_rate_cents: number | null
           email: string
           employment_status: string
           first_name: string
@@ -3410,6 +3546,10 @@ export type Database = {
           avatar_url?: string | null
           base_hourly_rate_cents?: number | null
           created_at?: string
+          daily_rate_cents?: number | null
+          deposit_monthly_cents?: number
+          monthly_salary_cents?: number | null
+          ot_rate_cents?: number | null
           email: string
           employment_status?: string
           first_name: string
@@ -3424,6 +3564,10 @@ export type Database = {
           avatar_url?: string | null
           base_hourly_rate_cents?: number | null
           created_at?: string
+          daily_rate_cents?: number | null
+          deposit_monthly_cents?: number
+          monthly_salary_cents?: number | null
+          ot_rate_cents?: number | null
           email?: string
           employment_status?: string
           first_name?: string
@@ -4159,30 +4303,36 @@ export type Database = {
           amount_cents: number
           created_at: string
           created_by_staff_id: string | null
+          entry_date: string
           entry_type: Database["public"]["Enums"]["deposit_entry_type"]
           id: string
           note: string | null
           org_id: string
+          pay_line_id: string | null
           staff_id: string
         }
         Insert: {
           amount_cents: number
           created_at?: string
           created_by_staff_id?: string | null
+          entry_date?: string
           entry_type: Database["public"]["Enums"]["deposit_entry_type"]
           id?: string
           note?: string | null
           org_id?: string
+          pay_line_id?: string | null
           staff_id: string
         }
         Update: {
           amount_cents?: number
           created_at?: string
           created_by_staff_id?: string | null
+          entry_date?: string
           entry_type?: Database["public"]["Enums"]["deposit_entry_type"]
           id?: string
           note?: string | null
           org_id?: string
+          pay_line_id?: string | null
           staff_id?: string
         }
         Relationships: [
@@ -4503,6 +4653,13 @@ export type Database = {
         Args: { p_first_name: string; p_last_name: string }
         Returns: undefined
       }
+      clock_in_days: {
+        Args: { p_end: string; p_start: string }
+        Returns: {
+          days: number
+          staff_id: string
+        }[]
+      }
       complete_booking_checkout: {
         Args: { p_appointment_id: string; p_transaction_id: string }
         Returns: undefined
@@ -4754,6 +4911,7 @@ export type Database = {
         | "uniform_charge"
         | "payment"
         | "deduction"
+        | "refund"
       deposit_status:
         | "not_required"
         | "pending"
@@ -4955,6 +5113,7 @@ export const Constants = {
         "uniform_charge",
         "payment",
         "deduction",
+        "refund",
       ],
       deposit_status: ["not_required", "pending", "paid", "failed", "refunded"],
       drawer_session_status: ["open", "closed"],

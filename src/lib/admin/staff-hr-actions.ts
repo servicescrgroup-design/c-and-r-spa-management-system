@@ -271,7 +271,7 @@ export async function getDocumentSignedUrl(path: string): Promise<string | null>
 
 export type DepositLedgerEntry = {
   id: string;
-  entryType: "deposit_charge" | "uniform_charge" | "payment" | "deduction";
+  entryType: "deposit_charge" | "uniform_charge" | "payment" | "deduction" | "refund";
   amountCents: number;
   note: string | null;
   createdAt: string;
@@ -284,6 +284,7 @@ export async function getDepositLedger(staffId: string): Promise<{ entries: Depo
     .from("therapist_deposit_ledger")
     .select("id, entry_type, amount_cents, note, created_at")
     .eq("staff_id", staffId)
+    .neq("amount_cents", 0)
     .order("created_at");
 
   const entries = (data ?? []).map((r) => ({
@@ -293,6 +294,7 @@ export async function getDepositLedger(staffId: string): Promise<{ entries: Depo
     note: r.note,
     createdAt: r.created_at,
   }));
+  // Charges and refunds raise what is still owed; payments and payroll deductions lower it.
   const balanceCents = entries.reduce(
     (sum, e) => sum + (e.entryType === "payment" || e.entryType === "deduction" ? -e.amountCents : e.amountCents),
     0,
