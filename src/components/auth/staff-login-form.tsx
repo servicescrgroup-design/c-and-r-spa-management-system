@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { Button } from "@/components/ui/button";
@@ -27,7 +28,11 @@ export function StaffLoginForm() {
 
     if (signInError || !data.user) {
       setLoading(false);
-      setError(signInError?.message ?? "Sign in failed.");
+      setError(
+        signInError?.message === "Invalid login credentials"
+          ? "Wrong email or password. If your phone filled it in, clear the box and type it. Or tap Forgot password."
+          : (signInError?.message ?? "Sign in failed."),
+      );
       return;
     }
 
@@ -73,7 +78,15 @@ export function StaffLoginForm() {
         />
       </div>
       <div className="space-y-2">
-        <Label htmlFor="password">Password</Label>
+        <div className="flex items-baseline justify-between">
+          <Label htmlFor="password">Password</Label>
+          <Link
+            href={`/auth/forgot-password${email ? `?email=${encodeURIComponent(email)}` : ""}`}
+            className="text-xs text-primary hover:underline"
+          >
+            Forgot password?
+          </Link>
+        </div>
         <Input
           id="password"
           type="password"

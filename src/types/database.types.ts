@@ -4500,6 +4500,10 @@ export type Database = {
         Args: { p_first_name: string; p_last_name: string }
         Returns: undefined
       }
+      complete_booking_checkout: {
+        Args: { p_appointment_id: string; p_transaction_id: string }
+        Returns: undefined
+      }
       compute_payroll_days: {
         Args: { p_branch_id: string; p_end: string; p_start: string }
         Returns: {

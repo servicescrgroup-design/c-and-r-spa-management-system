@@ -20,7 +20,10 @@ export default function CustomerLoginPage() {
         </CardContent>
       </Card>
       <p className="mt-6 text-center text-sm text-muted-foreground">
-        New here?{" "}
+        <Link href="/auth/forgot-password" className="text-primary hover:underline">
+          Forgot password?
+        </Link>{" "}
+        · New here?{" "}
         <Link href="/auth/customer-signup" className="text-primary hover:underline">
           Create an account
         </Link>

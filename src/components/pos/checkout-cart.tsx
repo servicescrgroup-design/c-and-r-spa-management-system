@@ -509,6 +509,7 @@ export function CheckoutCart({
       const result = await checkoutSale({
         branchId,
         drawerSessionId,
+        appointmentId: booking?.appointmentId ?? null,
         items: [b.item],
         taxCents: b.taxCents,
         tipCents: b.tipCents,
@@ -541,6 +542,7 @@ export function CheckoutCart({
     }
     setReceipt({ total: done.reduce((n, d) => n + d.totalCents, 0), ref: null, bills: done });
     resetCart();
+    if (booking) router.replace("/pos/checkout");
     router.refresh();
   }
 
@@ -576,6 +578,7 @@ export function CheckoutCart({
             ? [{ method: payments[0].method, amountCents: dueCents }]
             : payments.map((p) => ({ method: p.method, amountCents: Math.round((Number(p.amount) || 0) * 100) })),
       depositAppointmentId: bookingDeposit > 0 ? booking?.appointmentId : null,
+      appointmentId: booking?.appointmentId ?? null,
       customerId: customerId || null,
       customerName: customerId ? null : customerName.trim() || null,
       addOns,
