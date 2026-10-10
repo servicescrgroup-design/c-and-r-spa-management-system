@@ -34,6 +34,7 @@ export async function getOrCreateRegister(branchId: string) {
     .select("id, name")
     .eq("branch_id", branchId)
     .is("archived_at", null)
+    .order("sort_order")
     .order("name")
     .limit(1)
     .maybeSingle();
@@ -59,6 +60,7 @@ export async function getRegistersForBranch(branchId: string) {
     .select("id, name")
     .eq("branch_id", branchId)
     .is("archived_at", null)
+    .order("sort_order")
     .order("name");
   if (data && data.length > 0) return data;
   return [await getOrCreateRegister(branchId)];

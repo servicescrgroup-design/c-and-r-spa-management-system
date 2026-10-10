@@ -2604,6 +2604,7 @@ export type Database = {
           id: string
           name: string
           org_id: string
+          sort_order: number
         }
         Insert: {
           archived_at?: string | null
@@ -2611,6 +2612,7 @@ export type Database = {
           id?: string
           name: string
           org_id?: string
+          sort_order?: number
         }
         Update: {
           archived_at?: string | null
@@ -2618,6 +2620,7 @@ export type Database = {
           id?: string
           name?: string
           org_id?: string
+          sort_order?: number
         }
         Relationships: [
           {

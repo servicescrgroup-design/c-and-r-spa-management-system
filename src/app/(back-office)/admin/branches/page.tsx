@@ -25,7 +25,7 @@ export default async function BranchesPage() {
       supabase.from("staff_branch_roles").select("staff_id, branch_id").eq("role", "therapist"),
       supabase.from("therapist_profiles").select("staff_id, nickname"),
       supabase.from("services").select("id, name").eq("is_active", true).order("name"),
-      supabase.from("pos_registers").select("id, name, branch_id").is("archived_at", null).order("name"),
+      supabase.from("pos_registers").select("id, name, branch_id").is("archived_at", null).order("sort_order").order("name"),
     ]);
 
   const registersByBranch = new Map<string, { id: string; name: string }[]>();
