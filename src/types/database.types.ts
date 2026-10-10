@@ -2467,18 +2467,21 @@ export type Database = {
       }
       pos_registers: {
         Row: {
+          archived_at: string | null
           branch_id: string
           id: string
           name: string
           org_id: string
         }
         Insert: {
+          archived_at?: string | null
           branch_id: string
           id?: string
           name: string
           org_id?: string
         }
         Update: {
+          archived_at?: string | null
           branch_id?: string
           id?: string
           name?: string

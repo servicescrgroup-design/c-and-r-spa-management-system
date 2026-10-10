@@ -33,6 +33,7 @@ export async function getOrCreateRegister(branchId: string) {
     .from("pos_registers")
     .select("id, name")
     .eq("branch_id", branchId)
+    .is("archived_at", null)
     .order("name")
     .limit(1)
     .maybeSingle();
@@ -53,7 +54,12 @@ export async function getOrCreateRegister(branchId: string) {
  * to creating a first register if the branch somehow has none yet. */
 export async function getRegistersForBranch(branchId: string) {
   const supabase = await createServerSupabaseClient();
-  const { data } = await supabase.from("pos_registers").select("id, name").eq("branch_id", branchId).order("name");
+  const { data } = await supabase
+    .from("pos_registers")
+    .select("id, name")
+    .eq("branch_id", branchId)
+    .is("archived_at", null)
+    .order("name");
   if (data && data.length > 0) return data;
   return [await getOrCreateRegister(branchId)];
 }

@@ -9,19 +9,20 @@ export default async function RegistersPage() {
 
   const [{ data: branches }, { data: registers }, { data: openSessions }] = await Promise.all([
     supabase.from("branches").select("id, name").order("sort_order").order("name"),
-    supabase.from("pos_registers").select("id, name, branch_id").order("name"),
+    supabase.from("pos_registers").select("id, name, branch_id, archived_at").order("name"),
     supabase
       .from("cash_drawer_sessions")
       .select("register_id, opening_amount_cents, opened_at, staff:opened_by_staff_id(first_name, last_name)")
       .eq("status", "open"),
   ]);
 
-  const registersByBranch = new Map<string, { id: string; name: string }[]>();
+  const registersByBranch = new Map<string, { id: string; name: string; archivedAt: string | null }[]>();
   for (const r of registers ?? []) {
     const list = registersByBranch.get(r.branch_id) ?? [];
-    list.push({ id: r.id, name: r.name });
+    list.push({ id: r.id, name: r.name, archivedAt: r.archived_at });
     registersByBranch.set(r.branch_id, list);
   }
+  const activeCount = (branchId: string) => (registersByBranch.get(branchId) ?? []).filter((r) => !r.archivedAt).length;
 
   const openSessionByRegister = new Map((openSessions ?? []).map((s) => [s.register_id, s]));
 
@@ -40,8 +41,7 @@ export default async function RegistersPage() {
             <CardHeader>
               <CardTitle>{branch.name}</CardTitle>
               <CardDescription>
-                {(registersByBranch.get(branch.id) ?? []).length} register
-                {(registersByBranch.get(branch.id) ?? []).length === 1 ? "" : "s"}
+                {activeCount(branch.id)} register{activeCount(branch.id) === 1 ? "" : "s"}
               </CardDescription>
             </CardHeader>
             <CardContent>

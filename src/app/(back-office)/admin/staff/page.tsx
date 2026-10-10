@@ -116,7 +116,7 @@ export default async function StaffPage() {
       .select("id, email, role, token, expires_at, accepted_at")
       .is("accepted_at", null)
       .order("created_at", { ascending: false }),
-    supabase.from("pos_registers").select("id, name, branch_id").order("name"),
+    supabase.from("pos_registers").select("id, name, branch_id").is("archived_at", null).order("name"),
   ]);
 
   const branchById = new Map((branches ?? []).map((b) => [b.id, b.name]));
