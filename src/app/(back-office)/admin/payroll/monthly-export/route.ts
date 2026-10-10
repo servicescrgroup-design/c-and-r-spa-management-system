@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getMonthlyPaySheet, IMPORT_COLUMNS } from "@/lib/admin/monthly-payroll-actions";
+import { getMonthlyPaySheet } from "@/lib/admin/monthly-payroll-actions";
+import { IMPORT_COLUMNS } from "@/lib/payroll/constants";
 import { csvEscape } from "@/lib/payroll/csv";
 import { periodFor, todayBangkok } from "@/lib/payroll/monthly-period";
 
