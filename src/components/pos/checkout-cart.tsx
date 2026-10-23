@@ -4,7 +4,7 @@ import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { addFreelancer } from "@/lib/pos/sale-actions";
 import { checkoutSale, issueGiftCard, type CartAddOn, type CartItem, type PaymentMethod } from "@/lib/pos/actions";
-import { chainStarts, previousServiceLine } from "@/lib/pos/cart-timing";
+import { chainStarts, fillPastStarts, previousServiceLine } from "@/lib/pos/cart-timing";
 import { AddOnsEditor, RoomBedPicker, SellingGuide, type PosRoom } from "@/components/pos/sale-extras";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -268,6 +268,12 @@ export function CheckoutCart({
   const [separate, setSeparate] = useState(false);
   const [lineMethods, setLineMethods] = useState<PaymentMethod[]>([]);
   const [showGiftCard, setShowGiftCard] = useState(false);
+  // Past bill: massages that already happened today, entered afterwards. Who is
+  // busy now and the queue don't matter; staff pick who actually did each one.
+  const [pastBill, setPastBill] = useState(false);
+  const [pastTime, setPastTime] = useState<string | null>(null);
+  const pastStart = pastBill ? pastTime : null;
+  const timed = (items: CartItem[]) => chainStarts(fillPastStarts(items, addOns, pastStart), addOns);
 
   const categoryColor = useMemo(() => new Map(categories.map((c) => [c.id, c.background_color])), [categories]);
   const visibleServices =
@@ -305,6 +311,7 @@ export function CheckoutCart({
     // A therapist still busy gets this massage booked for when they're free.
     const freeAt = kind === "staff" ? therapists.find((t) => t.id === id)?.freeAt : null;
     const suggested =
+      !pastBill &&
       freeAt && new Date(freeAt).getTime() > Date.now() + 2 * 60_000
         ? new Date(Math.ceil(new Date(freeAt).getTime() / (5 * 60_000)) * 5 * 60_000).toISOString()
         : null;
@@ -472,11 +479,11 @@ export function CheckoutCart({
     const taxes = share(taxCents);
     const tips = share(tipCents);
     const fees = share(cardFeeCents);
-    const timed = chainStarts(cart, addOns);
+    const timedLines = timed(cart);
     return cart.map((item, i) => {
       const totalCents = lineSubs[i] - discounts[i] + taxes[i] + tips[i] + fees[i];
       return {
-        item: timed[i],
+        item: timedLines[i],
         addOns: addOns.filter((a) => a.lineIndex === i).map((a) => ({ ...a, lineIndex: 0 })),
         discountCents: discounts[i],
         taxCents: taxes[i],
@@ -518,6 +525,7 @@ export function CheckoutCart({
         customerId: customerId || null,
         customerName: customerId ? null : customerName.trim() || null,
         addOns: b.addOns,
+        pastStartAt: pastStart,
         discountCents: b.discountCents,
         discountType: discountMode,
         discountValue: discountInput,
@@ -547,6 +555,10 @@ export function CheckoutCart({
   }
 
   async function handleCheckout() {
+    if (pastBill && !pastTime) {
+      setError("Type the time the massage started.");
+      return;
+    }
     if (hasPackageInCart && !customerId) {
       setError("Select a customer before selling a package.");
       return;
@@ -567,7 +579,7 @@ export function CheckoutCart({
     const result = await checkoutSale({
       branchId,
       drawerSessionId,
-      items: chainStarts(cart, addOns),
+      items: timed(cart),
       taxCents,
       tipCents,
       cardFeeCents,
@@ -586,6 +598,7 @@ export function CheckoutCart({
       discountType: discountMode,
       discountValue: discountInput,
       discountReason,
+      pastStartAt: pastStart,
     });
     setLoading(false);
     if (!result.ok) {
@@ -651,7 +664,7 @@ export function CheckoutCart({
   }
 
   // Start times with back-to-back massages filled in.
-  const timedCart = chainStarts(cart, addOns);
+  const timedCart = timed(cart);
 
   const paidCents =
     payments.length === 1
@@ -829,8 +842,8 @@ export function CheckoutCart({
                     <RoomBedPicker
                       key={target}
                       rooms={rooms}
-                      busyBedIds={busyBedIds}
-                      busyRoomIds={busyRoomIds}
+                      busyBedIds={pastBill ? [] : busyBedIds}
+                      busyRoomIds={pastBill ? [] : busyRoomIds}
                       roomId={targetItem?.roomId ?? null}
                       bedId={targetItem?.bedId ?? null}
                       takenBy={takenBy}
@@ -899,6 +912,26 @@ export function CheckoutCart({
           </div>}
         </CardHeader>
         <CardContent className="space-y-4">
+          {!booking && (
+            <div className={cn("rounded-xl px-3 py-2.5 text-sm", pastBill ? "bg-highlight/10 ring-1 ring-highlight/40" : "bg-muted/60")}>
+              <label className="flex items-center gap-2 font-medium">
+                <input type="checkbox" checked={pastBill} onChange={(e) => setPastBill(e.target.checked)} className="size-4" />
+                Past bill (บิลย้อนหลัง)
+              </label>
+              {pastBill && (
+                <div className="mt-2 space-y-1.5">
+                  <div className="flex items-center gap-2 text-xs">
+                    <span className="shrink-0 text-muted-foreground">Massage started at</span>
+                    <StartTimeField value={pastTime} onChange={(time) => setPastTime(time ? todayAt(time) : null)} />
+                  </div>
+                  <p className="text-xs text-muted-foreground">
+                    For massages that already happened today. Pick who actually did each one; the queue and who is busy now
+                    don&apos;t matter. The sale is recorded today.
+                  </p>
+                </div>
+              )}
+            </div>
+          )}
           {booking && (
             <div className="rounded-xl bg-primary/5 px-3 py-2.5 text-sm ring-1 ring-primary/20">
               <p className="font-medium">
@@ -990,7 +1023,18 @@ export function CheckoutCart({
                       )}
                     >
                       <option value="">Choose therapist...</option>
-                      {therapists.some((t) => t.status) && (
+                      {pastBill && (
+                        <optgroup label="Who did this massage">
+                          {[...therapists]
+                            .sort((a, b) => a.name.localeCompare(b.name))
+                            .map((t) => (
+                              <option key={t.id} value={`staff:${t.id}`}>
+                                {t.name}
+                              </option>
+                            ))}
+                        </optgroup>
+                      )}
+                      {!pastBill && therapists.some((t) => t.status) && (
                         <optgroup label="Queue (#1 is next)">
                           {therapists
                             .filter((t) => t.status)
@@ -1003,7 +1047,7 @@ export function CheckoutCart({
                             ))}
                         </optgroup>
                       )}
-                      {therapists.some((t) => !t.status) && (
+                      {!pastBill && therapists.some((t) => !t.status) && (
                         <optgroup label="Not checked in yet">
                           {therapists
                             .filter((t) => !t.status)
@@ -1202,14 +1246,18 @@ export function CheckoutCart({
                                   value={item.startAt ?? null}
                                   onChange={(time) => setLineStart(i, time ? todayAt(time) : null)}
                                 />
-                                {startIso ? (
+                                {item.startAt ? (
                                   <button
                                     type="button"
                                     onClick={() => setLineStart(i, null)}
                                     className="shrink-0 text-primary hover:underline"
                                   >
-                                    Now
+                                    {pastBill ? "Bill time" : "Now"}
                                   </button>
+                                ) : pastBill ? (
+                                  <span className="shrink-0 text-muted-foreground">
+                                    {startIso ? `${hhmm(startIso)} · bill time` : "bill time"}
+                                  </span>
                                 ) : (
                                   <span className="shrink-0 text-muted-foreground">now</span>
                                 )}

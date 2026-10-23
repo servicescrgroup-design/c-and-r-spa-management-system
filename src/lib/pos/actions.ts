@@ -236,6 +236,9 @@ export async function closeDrawer(formData: FormData): Promise<ActionResult> {
   redirect(branchId ? `/pos/report?branchId=${branchId}&date=${shiftDate}&closed=1` : "/pos/register");
 }
 
+const hhmm = (iso: string) =>
+  new Intl.DateTimeFormat("en-GB", { timeZone: "Asia/Bangkok", hour: "2-digit", minute: "2-digit", hour12: false }).format(new Date(iso));
+
 export type CartItem = {
   itemType: "service" | "product" | "package";
   referenceId: string;
@@ -294,6 +297,8 @@ export async function checkoutSale(input: {
   depositAppointmentId?: string | null;
   /** Checking out a booking (deposit or not): the sale is linked to it and it's marked completed. */
   appointmentId?: string | null;
+  /** Past bill: massages that already happened today. Lines with no time of their own start here (ISO). */
+  pastStartAt?: string | null;
 }): Promise<ActionResult & { transactionId?: string; customerRef?: string | null }> {
   const ctx = await requireStaffContext();
   if (input.items.length === 0) {
@@ -371,6 +376,10 @@ export async function checkoutSale(input: {
   // Each massage runs from its start for its minutes plus its add-ons. Several
   // massages for one therapist that all start "now" run back to back.
   const now = new Date();
+  const pastStart = input.pastStartAt ? new Date(input.pastStartAt) : null;
+  if (pastStart && (Number.isNaN(pastStart.getTime()) || pastStart.getTime() > now.getTime() + 60_000)) {
+    return { ok: false, error: "A past bill's start time must be earlier than now." };
+  }
   const lineStart = new Map<number, Date>();
   const lineEnd = new Map<number, Date>();
   const cursorByStaff = new Map<string, Date>();
@@ -383,15 +392,55 @@ export async function checkoutSale(input: {
     if (start && Number.isNaN(start.getTime())) return { ok: false, error: "A start time isn't valid." };
     // An earlier time is allowed (filled in after a busy rush), up to 24 hours back.
     if (start && start.getTime() < now.getTime() - 24 * 3600_000) return { ok: false, error: "A start time can't be more than a day ago." };
-    if (!start) start = cursorByStaff.get(item.staffId!) ?? now;
+    if (!start) start = cursorByStaff.get(item.staffId!) ?? pastStart ?? now;
     const end = new Date(start.getTime() + ((item.durationMinutes ?? 60) + extra) * 60_000);
     lineStart.set(index, start);
     lineEnd.set(index, end);
     if (!item.startAt || afterPrevious) cursorByStaff.set(item.staffId!, end);
     previousIndex = index;
   }
+  // A massage that has already finished is a record of what happened: who is
+  // busy now, or a booking left open, doesn't block it. It only can't overlap
+  // another massage already recorded for that therapist.
+  const finished = (index: number) => lineEnd.get(index)!.getTime() <= now.getTime();
+  const finishedLines = serviceLines.filter(({ index }) => finished(index));
+  if (finishedLines.length > 0) {
+    const earliest = Math.min(...finishedLines.map(({ index }) => lineStart.get(index)!.getTime()));
+    const latest = Math.max(...finishedLines.map(({ index }) => lineEnd.get(index)!.getTime()));
+    const { data: recorded } = await supabase
+      .from("pos_transaction_items")
+      .select("transaction_id, staff_id, start_at, duration_minutes, transaction:transaction_id!inner(status, customer_ref)")
+      .in("staff_id", Array.from(new Set(finishedLines.map(({ item }) => item.staffId!))))
+      .eq("item_type", "service")
+      .not("start_at", "is", null)
+      .in("transaction.status", ["completed", "partially_refunded"])
+      .gte("start_at", new Date(earliest - 12 * 3600_000).toISOString())
+      .lt("start_at", new Date(latest).toISOString());
+    // Add-ons share their massage's start, so one massage = one start per bill and therapist.
+    const jobs = new Map<string, { staffId: string; start: number; minutes: number; ref: string | null }>();
+    for (const r of recorded ?? []) {
+      const key = `${r.transaction_id}|${r.staff_id}|${r.start_at}`;
+      const job = jobs.get(key) ?? { staffId: r.staff_id!, start: new Date(r.start_at!).getTime(), minutes: 0, ref: r.transaction?.customer_ref ?? null };
+      job.minutes += r.duration_minutes ?? 0;
+      jobs.set(key, job);
+    }
+    for (const { item, index } of finishedLines) {
+      const s = lineStart.get(index)!.getTime();
+      const e = lineEnd.get(index)!.getTime();
+      const clash = Array.from(jobs.values()).find((j) => j.staffId === item.staffId && j.start < e && j.start + (j.minutes || 60) * 60_000 > s);
+      if (clash) {
+        const { data: who } = await supabase.from("staff").select("first_name").eq("id", item.staffId!).maybeSingle();
+        const until = new Date(clash.start + (clash.minutes || 60) * 60_000).toISOString();
+        return {
+          ok: false,
+          error: `${who?.first_name ?? "That therapist"} already has a massage recorded ${hhmm(new Date(clash.start).toISOString())}–${hhmm(until)}${clash.ref ? ` on bill ${clash.ref}` : ""}. Check the time or the therapist.`,
+        };
+      }
+    }
+  }
   // Each therapist must be free for each massage's own time slot.
   for (const { item, index } of serviceLines) {
+    if (finished(index)) continue;
     const reason = (await getStaffConflicts([item.staffId!], lineStart.get(index)!.toISOString(), lineEnd.get(index)!.toISOString())).get(item.staffId!);
     if (reason) {
       const who = sessionByStaff.get(item.staffId!)?.staff?.first_name ?? "A therapist";
@@ -443,7 +492,11 @@ export async function checkoutSale(input: {
       : Promise.resolve({ data: [] as { current_bed_id: string | null }[] }),
   ]);
   const bedRoom = new Map((bedRows ?? []).map((b) => [b.id, b.room_id]));
-  if ((takenBeds ?? []).length > 0) return { ok: false, error: "A chosen bed is already in use. Pick another one." };
+  // A bed in use right now only matters for a massage that hasn't finished yet.
+  const liveBeds = new Set(serviceLines.filter(({ index }) => !finished(index)).map(({ item }) => placeFor(item).bedId).filter(Boolean));
+  if ((takenBeds ?? []).some((b) => b.current_bed_id && liveBeds.has(b.current_bed_id))) {
+    return { ok: false, error: "A chosen bed is already in use. Pick another one." };
+  }
   for (const item of serviceItems) {
     const place = placeFor(item);
     if (place.bedId) {
