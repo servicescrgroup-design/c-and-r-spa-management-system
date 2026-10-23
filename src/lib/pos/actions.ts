@@ -9,6 +9,7 @@ import { isOwner } from "@/lib/auth/roles";
 import { expectedCash, getDrawerCash } from "@/lib/pos/drawer-cash";
 import { getStaffConflicts } from "@/lib/admin/calendar-data";
 import { ACTIVE_DRAWER_COOKIE } from "@/lib/pos/active-drawer";
+import { businessDate } from "@/lib/business-day";
 
 /** Remember which drawer this person is selling from, for when they have more than one. */
 async function rememberDrawer(drawerSessionId: string) {
@@ -231,7 +232,7 @@ export async function closeDrawer(formData: FormData): Promise<ActionResult> {
 
   revalidatePath("/pos");
   // Straight to the day's report for this store.
-  const shiftDate = new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Bangkok" }).format(new Date(session.opened_at));
+  const shiftDate = businessDate(session.opened_at);
   const branchId = session.pos_registers?.branch_id;
   redirect(branchId ? `/pos/report?branchId=${branchId}&date=${shiftDate}&closed=1` : "/pos/register");
 }
@@ -368,7 +369,7 @@ export async function checkoutSale(input: {
         // Only today's: a check-in left open from yesterday must not take today's massages.
         .select("id, staff_id, status, active_item_id, staff:staff_id(first_name)")
         .in("staff_id", staffIds)
-        .eq("work_date", new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Bangkok" }).format(new Date()))
+        .eq("work_date", businessDate())
         .is("clock_out_at", null)
     : { data: [] };
   const sessionByStaff = new Map((openSessions ?? []).map((sess) => [sess.staff_id, sess]));
@@ -380,7 +381,7 @@ export async function checkoutSale(input: {
   if (pastStart && (Number.isNaN(pastStart.getTime()) || pastStart.getTime() > now.getTime() + 60_000)) {
     return { ok: false, error: "A past bill's start time must be earlier than now." };
   }
-  const bangkokDay = (d: Date) => new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Bangkok" }).format(d);
+  const bangkokDay = (d: Date) => businessDate(d);
   // A past bill can go back two months (a full pay month and then some); a normal sale one day.
   const earliest = now.getTime() - (pastStart ? 62 : 1) * 24 * 3600_000;
   if (pastStart && pastStart.getTime() < earliest) return { ok: false, error: "A past bill can go back up to 2 months." };

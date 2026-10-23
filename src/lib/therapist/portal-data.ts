@@ -2,17 +2,18 @@ import "server-only";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { requireStaffContext } from "@/lib/auth/session";
 import { hasBranchRole, isOwner } from "@/lib/auth/roles";
+import { businessDate } from "@/lib/business-day";
 
 function bangkokDateString(date: Date): string {
-  return new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Bangkok" }).format(date);
+  return businessDate(date);
 }
 
 function startOfWeekBangkok(): Date {
   const now = new Date();
   const todayStr = bangkokDateString(now);
-  const dow = new Date(`${todayStr}T00:00:00+07:00`).getUTCDay(); // 0 = Sunday
+  const dow = new Date(`${todayStr}T12:00:00+07:00`).getUTCDay(); // 0 = Sunday
   const diffDays = dow === 0 ? 6 : dow - 1; // week starts Monday
-  return new Date(new Date(`${todayStr}T00:00:00+07:00`).getTime() - diffDays * 86_400_000);
+  return new Date(new Date(`${todayStr}T05:00:00+07:00`).getTime() - diffDays * 86_400_000);
 }
 
 export type TherapistPortalData = Awaited<ReturnType<typeof loadTherapistPortal>>;

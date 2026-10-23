@@ -8,6 +8,7 @@ import { requireStaffContext } from "@/lib/auth/session";
 import { hasBranchRole, isOwner } from "@/lib/auth/roles";
 import { getMyOpenDrawer } from "@/lib/pos/session";
 import type { Enums } from "@/types/database.types";
+import { businessDate } from "@/lib/business-day";
 
 type ActionResult = { ok: true } | { ok: false; error: string };
 type PaymentMethod = Enums<"pos_payment_method">;
@@ -19,8 +20,10 @@ function canSell(ctx: Awaited<ReturnType<typeof requireStaffContext>>, branchId:
   );
 }
 
+/** Today's business date (05:00 to 05:00): a shift running past midnight stays on the day it started. */
 function workDateFor(timezone: string): string {
-  return new Intl.DateTimeFormat("en-CA", { timeZone: timezone }).format(new Date());
+  void timezone;
+  return businessDate();
 }
 
 export type PricedDuration = { durationMinutes: number; priceCents: number; payoutCents: number };
@@ -318,7 +321,7 @@ export async function completeJob(branchId: string, sessionId: string): Promise<
   let nextPosition: number | undefined;
   if (branch?.queue_send_to_back ?? true) {
     // Back of the shared queue across both stores.
-    const workDate = new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Bangkok" }).format(new Date());
+    const workDate = businessDate();
     const { data: next } = await supabase.rpc("next_queue_position", { p_work_date: workDate });
     nextPosition = next ?? undefined;
   }

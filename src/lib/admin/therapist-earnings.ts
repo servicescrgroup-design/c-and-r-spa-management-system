@@ -2,17 +2,19 @@ import "server-only";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { requireStaffContext } from "@/lib/auth/session";
 import { isOwner, branchIdsForRoles } from "@/lib/auth/roles";
+import { businessDate, dayStart, dayEnd } from "@/lib/business-day";
 
 export type EarningsRange = { from: string; to: string; label: string };
 
-const bangkokDay = (d: Date) => new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Bangkok" }).format(d);
+const bangkokDay = (d: Date) => businessDate(d);
 const DAY_MS = 86_400_000;
 const isDate = (v: unknown): v is string => typeof v === "string" && /^\d{4}-\d{2}-\d{2}$/.test(v);
 
 /** Reads ?range=today|week|month or ?from=&to= (Bangkok dates). Defaults to this week, Monday to today. */
 export function resolveRange(sp: Record<string, string | string[] | undefined>): EarningsRange & { key: string } {
-  const today = bangkokDay(new Date());
-  const todayMs = new Date(`${today}T00:00:00+07:00`).getTime();
+  const today = businessDate();
+  // Noon of the business date, so the weekday below is that day's.
+  const todayMs = dayStart(today).getTime() + 7 * 3600_000;
   if (isDate(sp.from) && isDate(sp.to)) {
     const [from, to] = sp.from <= sp.to ? [sp.from, sp.to] : [sp.to, sp.from];
     return { key: "custom", from, to, label: from === to ? from : `${from} to ${to}` };
@@ -115,8 +117,8 @@ export async function getTherapistEarnings(range: EarningsRange, onlyStaffId?: s
   const staffIds = Array.from(summaries.keys());
   if (staffIds.length === 0) return { summaries: [], jobs: [] as TherapistJob[] };
 
-  const start = new Date(`${range.from}T00:00:00+07:00`).toISOString();
-  const end = new Date(new Date(`${range.to}T00:00:00+07:00`).getTime() + DAY_MS).toISOString();
+  const start = dayStart(range.from).toISOString();
+  const end = dayEnd(range.to).toISOString();
   const { data: items } = await supabase
     .from("pos_transaction_items")
     .select(

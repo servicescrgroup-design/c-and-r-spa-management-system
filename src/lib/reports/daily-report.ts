@@ -4,6 +4,7 @@ import { requireStaffContext } from "@/lib/auth/session";
 import { hasBranchRole, isOwner } from "@/lib/auth/roles";
 import { getDrawerCash, expectedCash, type DrawerCash } from "@/lib/pos/drawer-cash";
 import { getDrawerPeople } from "@/lib/pos/session";
+import { dayStart, dayEnd } from "@/lib/business-day";
 
 export type ReportLine = {
   id: string;
@@ -76,7 +77,6 @@ export type ReportDrawer = {
 
 export type DailyReport = Awaited<ReturnType<typeof getDailyReport>>;
 
-const DAY_MS = 86_400_000;
 
 /**
  * Everything for one store on one day (Bangkok): sales, costs, expenses,
@@ -88,8 +88,9 @@ export async function getDailyReport(branchId: string, date: string, toDate?: st
   const ctx = await requireStaffContext();
   const canSeeCosts = isOwner(ctx) || hasBranchRole(ctx, branchId, ["manager"]);
   const supabase = await createServerSupabaseClient();
-  const start = new Date(`${date}T00:00:00+07:00`).toISOString();
-  const end = new Date(new Date(`${to}T00:00:00+07:00`).getTime() + DAY_MS).toISOString();
+  // Business days: 05:00 to 05:00, so sales after midnight count for the night before.
+  const start = dayStart(date).toISOString();
+  const end = dayEnd(to).toISOString();
 
   const [{ data: branch }, { data: txns }, { data: profiles }, { data: expenses }, { data: drawers }, { data: categories }] =
     await Promise.all([

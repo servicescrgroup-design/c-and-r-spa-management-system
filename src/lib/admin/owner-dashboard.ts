@@ -7,9 +7,10 @@ import { getDocumentExpiryList, type DocumentExpiryRow } from "@/lib/admin/payro
 import { countTodaysJobs } from "@/lib/pos/jobs-count";
 import { bangkokToday } from "@/lib/checklists";
 import type { DashboardRange } from "@/lib/admin/dashboard-data";
+import { businessDate, dayStart } from "@/lib/business-day";
 
 const DAY_MS = 86_400_000;
-const bangkokDay = (d: Date) => new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Bangkok" }).format(d);
+const bangkokDay = (d: Date) => businessDate(d);
 const bangkokHour = () =>
   Number(new Intl.DateTimeFormat("en-GB", { timeZone: "Asia/Bangkok", hour: "2-digit", hour12: false }).format(new Date()));
 
@@ -102,7 +103,7 @@ export async function getOwnerDashboard(range: DashboardRange) {
   const from = bangkokDay(range.startsAt);
   const to = bangkokDay(new Date(range.endsAtExclusive.getTime() - DAY_MS));
   const today = bangkokToday();
-  const todayStart = new Date(`${today}T00:00:00+07:00`).toISOString();
+  const todayStart = dayStart(today).toISOString();
 
   const { data: branches } = await supabase.from("branches").select("id, name, brand_color").order("sort_order").order("name");
   const branchList = branches ?? [];

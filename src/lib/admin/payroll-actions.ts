@@ -5,6 +5,7 @@ import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { requireStaffContext } from "@/lib/auth/session";
 import { hasBranchRole, isOwner } from "@/lib/auth/roles";
 import type { Enums } from "@/types/database.types";
+import { businessDate, dayStart, dayEnd } from "@/lib/business-day";
 
 type ActionResult = { ok: true } | { ok: false; error: string };
 type AdjustmentType = Enums<"payroll_adjustment_type">;
@@ -132,8 +133,8 @@ export async function getGuaranteeDays(
       .eq("staff_id", staffId)
       .not("completed_at", "is", null)
       // A day's jobs can finish just after midnight UTC; pad the window and filter by local date below.
-      .gte("completed_at", `${startDate}T00:00:00+07:00`)
-      .lte("completed_at", `${endDate}T23:59:59+07:00`),
+      .gte("completed_at", dayStart(startDate).toISOString())
+      .lt("completed_at", dayEnd(endDate).toISOString()),
   ]);
 
   const serviceIds = Array.from(
@@ -152,10 +153,9 @@ export async function getGuaranteeDays(
     .filter((r) => r.staffId === staffId)
     .map((r) => {
       const info = branchInfo.get(r.branchId);
-      const tz = info?.timezone ?? "Asia/Bangkok";
       const dayJobs = (items ?? []).filter(
         // One store per day: the day's jobs belong to that day's check-in.
-        (i) => new Intl.DateTimeFormat("en-CA", { timeZone: tz }).format(new Date(i.completed_at!)) === r.workDate,
+        (i) => businessDate(i.completed_at!) === r.workDate,
       );
       return {
         branchId: r.branchId,
@@ -263,8 +263,6 @@ export async function getStaffDayJobs(
   await requireStaffContext();
   const supabase = await createServerSupabaseClient();
 
-  const { data: branch } = await supabase.from("branches").select("timezone").eq("id", branchId).single();
-  const timezone = branch?.timezone ?? "Asia/Bangkok";
 
   const { data: items } = await supabase
     .from("pos_transaction_items")
@@ -273,11 +271,11 @@ export async function getStaffDayJobs(
     // A therapist works at one store a day, so every job that day belongs to
     // this check-in, whichever store's register sold it (same as payroll).
     .not("completed_at", "is", null)
-    .gte("completed_at", `${workDate}T00:00:00+07:00`)
-    .lte("completed_at", `${workDate}T23:59:59+07:00`);
+    .gte("completed_at", dayStart(workDate).toISOString())
+    .lt("completed_at", dayEnd(workDate).toISOString());
 
   const jobs = (items ?? []).filter(
-    (i) => new Intl.DateTimeFormat("en-CA", { timeZone: timezone }).format(new Date(i.completed_at!)) === workDate,
+    (i) => businessDate(i.completed_at!) === workDate,
   );
 
   const days = await getPayrollDays(branchId, workDate, workDate);

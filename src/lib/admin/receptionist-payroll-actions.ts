@@ -3,6 +3,7 @@
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { requireStaffContext } from "@/lib/auth/session";
 import { isOwner } from "@/lib/auth/roles";
+import { dayStart, dayEnd } from "@/lib/business-day";
 
 const BASE_PAY_CENTS = 12_000_00;
 const PAY_PER_CERT_CENTS = 1_000_00;
@@ -70,8 +71,8 @@ export async function getReceptionistPayroll(startDate: string, endDate: string)
   if (!isOwner(ctx)) throw new Error("Only an owner can view receptionist payroll.");
   const supabase = await createServerSupabaseClient();
 
-  const startIso = new Date(`${startDate}T00:00:00+07:00`).toISOString();
-  const endExclusiveIso = new Date(new Date(`${endDate}T00:00:00+07:00`).getTime() + 86_400_000).toISOString();
+  const startIso = dayStart(startDate).toISOString();
+  const endExclusiveIso = dayEnd(endDate).toISOString();
 
   const { data: frontDeskRoles } = await supabase
     .from("staff_branch_roles")

@@ -1,5 +1,6 @@
 import "server-only";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
+import { businessDate, DAY_START_HOUR } from "@/lib/business-day";
 
 export type Granularity = "hour" | "day" | "month";
 export type DashboardRangeView = "day" | "month" | "year" | "custom";
@@ -29,8 +30,9 @@ function partsFor(date: Date) {
 
 /** Bucket key for a transaction timestamp, in the branch-local calendar (Asia/Bangkok). */
 export function bucketKeyFor(date: Date, granularity: Granularity): string {
-  const p = partsFor(date);
-  if (granularity === "hour") return p.hour;
+  if (granularity === "hour") return partsFor(date).hour;
+  // Days and months are business days (05:00 to 05:00): 1am counts for the night before.
+  const p = partsFor(new Date(date.getTime() - DAY_START_HOUR * 3600_000));
   if (granularity === "day") return `${p.year}-${p.month}-${p.day}`;
   return `${p.year}-${p.month}`;
 }
@@ -43,8 +45,8 @@ export function resolveRange(sp: {
   start?: string;
   end?: string;
 }): DashboardRange {
-  const todayParts = partsFor(new Date());
-  const today = `${todayParts.year}-${todayParts.month}-${todayParts.day}`;
+  const todayParts = partsFor(new Date(Date.now() - DAY_START_HOUR * 3600_000));
+  const today = businessDate();
 
   const view = (sp.view === "month" || sp.view === "year" || sp.view === "custom" ? sp.view : "day") as DashboardRangeView;
 
@@ -52,8 +54,8 @@ export function resolveRange(sp: {
     const year = sp.year ?? todayParts.year;
     return {
       view,
-      startsAt: new Date(`${year}-01-01T00:00:00+07:00`),
-      endsAtExclusive: new Date(`${Number(year) + 1}-01-01T00:00:00+07:00`),
+      startsAt: new Date(`${year}-01-01T05:00:00+07:00`),
+      endsAtExclusive: new Date(`${Number(year) + 1}-01-01T05:00:00+07:00`),
       granularity: "month",
       label: year,
     };
@@ -65,8 +67,8 @@ export function resolveRange(sp: {
     const nextMonth = m === 12 ? `${y + 1}-01` : `${y}-${String(m + 1).padStart(2, "0")}`;
     return {
       view,
-      startsAt: new Date(`${month}-01T00:00:00+07:00`),
-      endsAtExclusive: new Date(`${nextMonth}-01T00:00:00+07:00`),
+      startsAt: new Date(`${month}-01T05:00:00+07:00`),
+      endsAtExclusive: new Date(`${nextMonth}-01T05:00:00+07:00`),
       granularity: "day",
       label: month,
     };
@@ -76,8 +78,8 @@ export function resolveRange(sp: {
     const rawStart = sp.start ?? today;
     const rawEnd = sp.end ?? rawStart;
     const [startStr, endStr] = rawStart <= rawEnd ? [rawStart, rawEnd] : [rawEnd, rawStart];
-    const start = new Date(`${startStr}T00:00:00+07:00`);
-    const endExclusive = new Date(new Date(`${endStr}T00:00:00+07:00`).getTime() + 86_400_000);
+    const start = new Date(`${startStr}T05:00:00+07:00`);
+    const endExclusive = new Date(new Date(`${endStr}T05:00:00+07:00`).getTime() + 86_400_000);
     const spanDays = (endExclusive.getTime() - start.getTime()) / 86_400_000;
     return {
       view,
@@ -91,8 +93,8 @@ export function resolveRange(sp: {
   const date = sp.date ?? today;
   return {
     view: "day",
-    startsAt: new Date(`${date}T00:00:00+07:00`),
-    endsAtExclusive: new Date(new Date(`${date}T00:00:00+07:00`).getTime() + 86_400_000),
+    startsAt: new Date(`${date}T05:00:00+07:00`),
+    endsAtExclusive: new Date(new Date(`${date}T05:00:00+07:00`).getTime() + 86_400_000),
     granularity: "hour",
     label: date,
   };

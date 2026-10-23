@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { requireStaffContext } from "@/lib/auth/session";
 import type { Json } from "@/types/database.types";
+import { businessDate, businessDateAt, dayStart } from "@/lib/business-day";
 
 type ActionResult = { ok: true } | { ok: false; error: string };
 
@@ -32,8 +33,8 @@ export type TodayJob = {
 type Who = { staffId?: string; freelanceSessionId?: string };
 
 const todayRange = () => {
-  const today = new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Bangkok" }).format(new Date());
-  const start = new Date(`${today}T00:00:00+07:00`);
+  const today = businessDate();
+  const start = dayStart(today);
   return { today, start: start.toISOString(), end: new Date(start.getTime() + 86_400_000).toISOString() };
 };
 const clean = (d: string | null) => (d ?? "Service").replace(/^Freelance \([^)]*\) · /, "").replace(/^Add-on · /, "");
@@ -157,8 +158,8 @@ export async function updateTodayJob(
     (i) => i.is_add_on && i.start_at === main.start_at && i.staff_id === main.staff_id && i.freelance_session_id === main.freelance_session_id,
   );
 
-  const saleDay = new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Bangkok" }).format(new Date(sale.created_at));
-  const startAt = new Date(`${saleDay}T${input.startTime}:00+07:00`).toISOString();
+  const saleDay = businessDate(sale.created_at);
+  const startAt = businessDateAt(saleDay, input.startTime).toISOString();
   const guest = input.guest.trim();
   const delta = (Math.round(input.unitPriceCents) - main.unit_price_cents) * main.quantity;
   if (Math.round(input.unitPriceCents) * main.quantity < main.discount_cents) {

@@ -7,8 +7,9 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { EXPENSE_METHODS, EXPENSE_METHOD_LABELS } from "@/lib/expenses";
+import { businessDate } from "@/lib/business-day";
 
-const today = () => new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Bangkok" }).format(new Date());
+const today = () => businessDate();
 
 type Option = { id: string; name: string };
 

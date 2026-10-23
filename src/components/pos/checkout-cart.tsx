@@ -11,6 +11,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { formatCents, cn } from "@/lib/utils";
+import { businessDate, businessDateAt } from "@/lib/business-day";
 
 type CatalogItem = { id: string; name: string; default_price_cents?: number; retail_price_cents?: number; price_cents?: number };
 type ServiceDuration = { minutes: number; priceCents: number; payoutCents: number };
@@ -30,11 +31,11 @@ type Therapist = {
 const hhmm = (iso: string) =>
   new Intl.DateTimeFormat("en-GB", { timeZone: "Asia/Bangkok", hour: "2-digit", minute: "2-digit", hour12: false }).format(new Date(iso));
 
-const bangkokToday = () => new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Bangkok" }).format(new Date());
+const bangkokToday = () => businessDate();
 
-/** A Bangkok date ("YYYY-MM-DD") and "HH:MM" as ISO. */
+/** A business date ("YYYY-MM-DD") and "HH:MM" as ISO: times before 05:00 are the early hours after that day. */
 function dateAt(date: string, time: string): string {
-  return new Date(`${date}T${time}:00+07:00`).toISOString();
+  return businessDateAt(date, time).toISOString();
 }
 
 /** A Bangkok "HH:MM" today as ISO. An earlier time is fine: busy staff can enter a massage afterwards. */

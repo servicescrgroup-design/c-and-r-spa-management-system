@@ -5,8 +5,9 @@ import { useRouter } from "next/navigation";
 import type { TherapistJob } from "@/lib/admin/therapist-earnings";
 import { quickEditJob } from "@/lib/pos/therapist-jobs-actions";
 import { formatCents, cn } from "@/lib/utils";
+import { businessDate } from "@/lib/business-day";
 
-const dayOf = (iso: string) => new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Bangkok" }).format(new Date(iso));
+const dayOf = (iso: string) => businessDate(iso);
 const dayLabel = (day: string) =>
   new Date(`${day}T12:00:00+07:00`).toLocaleDateString("en-GB", { weekday: "short", day: "numeric", month: "short" });
 const clock = (iso: string) => new Date(iso).toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit", timeZone: "Asia/Bangkok" });

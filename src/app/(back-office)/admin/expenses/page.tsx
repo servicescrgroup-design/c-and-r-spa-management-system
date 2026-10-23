@@ -10,6 +10,7 @@ import { ExpenseComposer } from "@/components/expenses/expense-composer";
 import { ExpenseTable, type ExpenseRow } from "@/components/admin/expense-table";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { formatCents, cn } from "@/lib/utils";
+import { businessDate } from "@/lib/business-day";
 
 function shiftMonth(month: string, delta: number) {
   const [y, m] = month.split("-").map(Number);
@@ -37,7 +38,7 @@ export default async function ExpensesPage({ searchParams }: PageProps<"/admin/e
   await ensureDefaultExpenseCategory();
   const sp = await searchParams;
   const branches = await getStaffBranches();
-  const today = new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Bangkok" }).format(new Date());
+  const today = businessDate();
   const thisMonth = today.slice(0, 7);
 
   const branchParam = typeof sp.branch === "string" ? sp.branch : "all";

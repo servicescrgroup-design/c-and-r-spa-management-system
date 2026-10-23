@@ -8,9 +8,10 @@ import { SalesList, DeletedSales, type SaleRow } from "@/components/pos/sales-li
 import { cn } from "@/lib/utils";
 import { StoreTabs } from "@/components/store-tabs";
 import { freelancerFromDescription, type DeletedSale, type RoomOption, type ServiceOption } from "@/lib/pos/sale-detail";
+import { businessDate, dayStart, dayEnd } from "@/lib/business-day";
 
 function bangkokToday() {
-  return new Date(Date.now() + 7 * 3600_000).toISOString().slice(0, 10);
+  return businessDate();
 }
 
 /** Earliest massage start and latest finish on a bill, from the start times chosen at checkout. */
@@ -38,7 +39,7 @@ const LOCKED_METHODS = new Set(["card_stripe", "gift_card", "store_credit", "pac
 
 type SearchParams = Record<string, string | string[] | undefined>;
 const isDate = (v: unknown): v is string => typeof v === "string" && /^\d{4}-\d{2}-\d{2}$/.test(v);
-const bangkokDay = (iso: string) => new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Bangkok" }).format(new Date(iso));
+const bangkokDay = (iso: string) => businessDate(iso);
 
 /**
  * Every bill for a day (or, in the back office, a range of days) at one store
@@ -78,8 +79,8 @@ export async function SalesPageView({
   const to = allowRange && isDate(sp.to) && sp.to > date ? sp.to : date;
   const multiDay = to !== date;
 
-  const start = new Date(`${date}T00:00:00+07:00`);
-  const end = new Date(new Date(`${to}T00:00:00+07:00`).getTime() + 24 * 3600_000);
+  const start = dayStart(date);
+  const end = dayEnd(to);
   const supabase = await createServerSupabaseClient();
   const [{ data: txns }, { data: profiles }, { data: locks }] = await Promise.all([
     supabase

@@ -5,6 +5,7 @@ import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { requireStaffContext } from "@/lib/auth/session";
 import { isOwner } from "@/lib/auth/roles";
 import { EXPENSE_METHODS, type ExpenseMethod } from "@/lib/expenses";
+import { businessDate } from "@/lib/business-day";
 
 type ActionResult = { ok: true } | { ok: false; error: string };
 
@@ -49,7 +50,7 @@ export async function recordExpense(formData: FormData): Promise<ActionResult> {
   const description = String(formData.get("description") ?? "").trim() || null;
   const expenseDate =
     String(formData.get("expenseDate") ?? "").trim() ||
-    new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Bangkok" }).format(new Date());
+    businessDate();
 
   if (!branchId || !categoryId) return { ok: false, error: "Branch and category are required." };
   if (!EXPENSE_METHODS.includes(paymentMethod as ExpenseMethod)) return { ok: false, error: "Choose how it was paid." };
