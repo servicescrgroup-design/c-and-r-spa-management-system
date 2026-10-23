@@ -30,10 +30,16 @@ type Therapist = {
 const hhmm = (iso: string) =>
   new Intl.DateTimeFormat("en-GB", { timeZone: "Asia/Bangkok", hour: "2-digit", minute: "2-digit", hour12: false }).format(new Date(iso));
 
+const bangkokToday = () => new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Bangkok" }).format(new Date());
+
+/** A Bangkok date ("YYYY-MM-DD") and "HH:MM" as ISO. */
+function dateAt(date: string, time: string): string {
+  return new Date(`${date}T${time}:00+07:00`).toISOString();
+}
+
 /** A Bangkok "HH:MM" today as ISO. An earlier time is fine: busy staff can enter a massage afterwards. */
 function todayAt(time: string): string {
-  const date = new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Bangkok" }).format(new Date());
-  return new Date(`${date}T${time}:00+07:00`).toISOString();
+  return dateAt(bangkokToday(), time);
 }
 
 /** Reads "15:23", "1523", "923", "3:23pm" or "3.23 pm" as a 24-hour "HH:MM", or null. */
@@ -50,7 +56,15 @@ function parseTime(raw: string): string | null {
 }
 
 /** A 24-hour start time box: type the exact time, no AM/PM to get wrong. Saves on Enter or leaving the box. */
-function StartTimeField({ value, onChange }: { value: string | null; onChange: (time: string | null) => void }) {
+function StartTimeField({
+  value,
+  onChange,
+  placeholder = "now",
+}: {
+  value: string | null;
+  onChange: (time: string | null) => void;
+  placeholder?: string;
+}) {
   const [draft, setDraft] = useState<string | null>(null);
   const [bad, setBad] = useState(false);
   const shown = draft ?? (value ? hhmm(value) : "");
@@ -73,7 +87,7 @@ function StartTimeField({ value, onChange }: { value: string | null; onChange: (
     <input
       inputMode="numeric"
       aria-label="Start time, 24-hour"
-      placeholder="now"
+      placeholder={placeholder}
       value={shown}
       onChange={(e) => {
         setDraft(e.target.value);
@@ -271,8 +285,18 @@ export function CheckoutCart({
   // Past bill: massages that already happened today, entered afterwards. Who is
   // busy now and the queue don't matter; staff pick who actually did each one.
   const [pastBill, setPastBill] = useState(false);
+  const [pastDate, setPastDate] = useState(bangkokToday);
   const [pastTime, setPastTime] = useState<string | null>(null);
-  const pastStart = pastBill ? pastTime : null;
+  const pastStart = pastBill && pastTime ? dateAt(pastDate, pastTime) : null;
+  // A typed time on a past bill is on the bill's date.
+  const lineTimeAt = (time: string) => (pastBill ? dateAt(pastDate, time) : todayAt(time));
+
+  function changePastDate(date: string) {
+    if (!date) return;
+    setPastDate(date);
+    // Massages with their own time move to the new date, same clock time.
+    setCart((prev) => prev.map((c) => (c.startAt ? { ...c, startAt: dateAt(date, hhmm(c.startAt)) } : c)));
+  }
   const timed = (items: CartItem[]) => chainStarts(fillPastStarts(items, addOns, pastStart), addOns);
 
   const categoryColor = useMemo(() => new Map(categories.map((c) => [c.id, c.background_color])), [categories]);
@@ -556,7 +580,7 @@ export function CheckoutCart({
 
   async function handleCheckout() {
     if (pastBill && !pastTime) {
-      setError("Type the time the massage started.");
+      setError("Type the date and the time the massage started.");
       return;
     }
     if (hasPackageInCart && !customerId) {
@@ -919,14 +943,29 @@ export function CheckoutCart({
                 Past bill (บิลย้อนหลัง)
               </label>
               {pastBill && (
-                <div className="mt-2 space-y-1.5">
-                  <div className="flex items-center gap-2 text-xs">
-                    <span className="shrink-0 text-muted-foreground">Massage started at</span>
-                    <StartTimeField value={pastTime} onChange={(time) => setPastTime(time ? todayAt(time) : null)} />
+                <div className="mt-2 space-y-2">
+                  <div className="grid grid-cols-2 gap-2 text-xs">
+                    <label className="space-y-1">
+                      <span className="text-muted-foreground">Date</span>
+                      <Input
+                        type="date"
+                        value={pastDate}
+                        max={bangkokToday()}
+                        onChange={(e) => changePastDate(e.target.value)}
+                        className="h-9 bg-card text-sm"
+                        aria-label="Bill date"
+                      />
+                    </label>
+                    <div className="space-y-1">
+                      <span className="block text-muted-foreground">Massage started at</span>
+                      <div className={cn("rounded-lg", !pastTime && "ring-2 ring-highlight/60")}>
+                        <StartTimeField value={pastStart} onChange={(time) => setPastTime(time)} placeholder="e.g. 15:30" />
+                      </div>
+                    </div>
                   </div>
                   <p className="text-xs text-muted-foreground">
-                    For massages that already happened today. Pick who actually did each one; the queue and who is busy now
-                    don&apos;t matter. The sale is recorded today.
+                    For massages that already happened. Pick who actually did each one; the queue and who is busy now don&apos;t
+                    matter. The bill, the daily report and therapist pay go on this date.
                   </p>
                 </div>
               )}
@@ -1244,7 +1283,7 @@ export function CheckoutCart({
                               <>
                                 <StartTimeField
                                   value={item.startAt ?? null}
-                                  onChange={(time) => setLineStart(i, time ? todayAt(time) : null)}
+                                  onChange={(time) => setLineStart(i, time ? lineTimeAt(time) : null)}
                                 />
                                 {item.startAt ? (
                                   <button
