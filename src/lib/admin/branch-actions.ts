@@ -242,7 +242,16 @@ export async function createRegister(branchId: string, name: string): Promise<Ac
   if (!trimmed) return { ok: false, error: "Register name is required." };
 
   const supabase = await createServerSupabaseClient();
-  const { error } = await supabase.from("pos_registers").insert({ branch_id: branchId, name: trimmed });
+  const { data: last } = await supabase
+    .from("pos_registers")
+    .select("sort_order")
+    .eq("branch_id", branchId)
+    .order("sort_order", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  const { error } = await supabase
+    .from("pos_registers")
+    .insert({ branch_id: branchId, name: trimmed, sort_order: (last?.sort_order ?? 0) + 1 });
   if (error) return { ok: false, error: error.message };
 
   revalidatePath("/admin/branches");
@@ -278,7 +287,7 @@ export async function deleteRegister(registerId: string): Promise<ActionResult> 
     .select("id", { count: "exact", head: true })
     .eq("register_id", registerId);
   if (count && count > 0) {
-    return { ok: false, error: "This register has cash drawer history, so it can't be removed. Use Rename to change its name instead." };
+    return { ok: false, error: "This register has cash drawer history, so it can't be removed. Archive it instead to keep the history." };
   }
 
   const { error } = await supabase.from("pos_registers").delete().eq("id", registerId);
@@ -286,6 +295,74 @@ export async function deleteRegister(registerId: string): Promise<ActionResult> 
 
   revalidatePath("/admin/branches");
   revalidatePath("/admin/registers");
+  revalidatePath("/pos/register");
+  return { ok: true };
+}
+
+/** Save the order registers are listed in, on the Registers page and in the
+ * drawer picker at the POS. */
+export async function setRegisterOrder(branchId: string, registerIds: string[]): Promise<ActionResult> {
+  const ctx = await requireStaffContext();
+  if (!canManageRegisters(ctx)) return { ok: false, error: "Only an owner or manager can reorder registers." };
+
+  const supabase = await createServerSupabaseClient();
+  for (const [index, registerId] of registerIds.entries()) {
+    const { error } = await supabase
+      .from("pos_registers")
+      .update({ sort_order: index + 1 })
+      .eq("id", registerId)
+      .eq("branch_id", branchId);
+    if (error) return { ok: false, error: error.message };
+  }
+
+  revalidatePath("/admin/branches");
+  revalidatePath("/admin/registers");
+  revalidatePath("/pos/register");
+  return { ok: true };
+}
+
+/** Hide a register from the drawer picker without losing its shifts and
+ * sales. Refused while a drawer is open on it. */
+export async function archiveRegister(registerId: string): Promise<ActionResult> {
+  const ctx = await requireStaffContext();
+  if (!canManageRegisters(ctx)) return { ok: false, error: "Only an owner or manager can archive registers." };
+
+  const supabase = await createServerSupabaseClient();
+  const { count } = await supabase
+    .from("cash_drawer_sessions")
+    .select("id", { count: "exact", head: true })
+    .eq("register_id", registerId)
+    .eq("status", "open");
+  if (count && count > 0) {
+    return { ok: false, error: "A drawer is open on this register. Close the shift first, then archive it." };
+  }
+
+  const { error } = await supabase
+    .from("pos_registers")
+    .update({ archived_at: new Date().toISOString() })
+    .eq("id", registerId)
+    .is("archived_at", null);
+  if (error) return { ok: false, error: error.message };
+
+  revalidatePath("/admin/branches");
+  revalidatePath("/admin/registers");
+  revalidatePath("/admin/staff");
+  revalidatePath("/pos/register");
+  return { ok: true };
+}
+
+/** Put an archived register back in the drawer picker. */
+export async function restoreRegister(registerId: string): Promise<ActionResult> {
+  const ctx = await requireStaffContext();
+  if (!canManageRegisters(ctx)) return { ok: false, error: "Only an owner or manager can restore registers." };
+
+  const supabase = await createServerSupabaseClient();
+  const { error } = await supabase.from("pos_registers").update({ archived_at: null }).eq("id", registerId);
+  if (error) return { ok: false, error: error.message };
+
+  revalidatePath("/admin/branches");
+  revalidatePath("/admin/registers");
+  revalidatePath("/admin/staff");
   revalidatePath("/pos/register");
   return { ok: true };
 }

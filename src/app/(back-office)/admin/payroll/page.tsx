@@ -8,6 +8,8 @@ import { getPayrollDaysForBranches, getDocumentExpiryList } from "@/lib/admin/pa
 import { getReceptionistPayroll } from "@/lib/admin/receptionist-payroll-actions";
 import { PayrollBoard } from "@/components/admin/payroll-board";
 import { ReceptionistPayrollBoard } from "@/components/admin/receptionist-payroll-board";
+import { MonthlyPayBoard } from "@/components/admin/monthly-pay-board";
+import { getMonthlyPaySheet } from "@/lib/admin/monthly-payroll-actions";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
 
@@ -39,7 +41,45 @@ export default async function PayrollPage({ searchParams }: PageProps<"/admin/pa
   const selectedBranches = branchId === "all" ? branches : branches.filter((b) => b.id === branchId);
 
   const canViewReceptionistPayroll = isOwner(ctx);
-  const section = sp.section === "receptionists" && canViewReceptionistPayroll ? "receptionists" : "therapists";
+  const section =
+    sp.section === "receptionists" && canViewReceptionistPayroll
+      ? "receptionists"
+      : sp.section === "monthly" && canViewReceptionistPayroll
+        ? "monthly"
+        : "therapists";
+
+  const pill = (key: "therapists" | "receptionists" | "monthly", label: string) => (
+    <Link
+      href={`/admin/payroll?branchId=${branchId}&section=${key}`}
+      className={cn(
+        "rounded-full px-3.5 py-1.5 text-sm transition-colors",
+        section === key ? "bg-card font-medium shadow-sm" : "text-muted-foreground",
+      )}
+    >
+      {label}
+    </Link>
+  );
+  const sectionPills = (
+    <div className="flex gap-1 rounded-full bg-muted p-1">
+      {pill("therapists", "Therapists")}
+      {canViewReceptionistPayroll && pill("receptionists", "Receptionists")}
+      {canViewReceptionistPayroll && pill("monthly", "Monthly pay")}
+    </div>
+  );
+
+  if (section === "monthly") {
+    const sheet = await getMonthlyPaySheet(typeof sp.period === "string" ? sp.period : null);
+    return (
+      <div className="space-y-6">
+        <div>
+          <h1 className="font-display text-3xl font-medium tracking-tight">Payroll</h1>
+          <p className="text-muted-foreground">Monthly pay from the 26th to the 25th: salary, days, overtime, deductions, เงินประกัน and net pay.</p>
+        </div>
+        {sectionPills}
+        <MonthlyPayBoard sheet={sheet} branchId={branchId} />
+      </div>
+    );
+  }
 
   const supabase = await createServerSupabaseClient();
   const { data: branch } = await supabase
@@ -64,20 +104,7 @@ export default async function PayrollPage({ searchParams }: PageProps<"/admin/pa
         </div>
 
         <div className="flex flex-wrap items-center justify-between gap-3">
-          <div className="flex gap-1 rounded-full bg-muted p-1">
-            <Link
-              href={`/admin/payroll?branchId=${branchId}&section=therapists`}
-              className="rounded-full px-3.5 py-1.5 text-sm text-muted-foreground transition-colors"
-            >
-              Therapists
-            </Link>
-            <Link
-              href={`/admin/payroll?branchId=${branchId}&section=receptionists`}
-              className="rounded-full bg-card px-3.5 py-1.5 text-sm font-medium shadow-sm transition-colors"
-            >
-              Receptionists
-            </Link>
-          </div>
+          {sectionPills}
 
           <form className="flex flex-wrap items-center gap-2">
             <input type="hidden" name="branchId" value={branchId} />
@@ -127,22 +154,7 @@ export default async function PayrollPage({ searchParams }: PageProps<"/admin/pa
       </div>
 
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <div className="flex gap-1 rounded-full bg-muted p-1">
-          <Link
-            href={`/admin/payroll?branchId=${branchId}&section=therapists`}
-            className="rounded-full bg-card px-3.5 py-1.5 text-sm font-medium shadow-sm transition-colors"
-          >
-            Therapists
-          </Link>
-          {canViewReceptionistPayroll && (
-            <Link
-              href={`/admin/payroll?branchId=${branchId}&section=receptionists`}
-              className="rounded-full px-3.5 py-1.5 text-sm text-muted-foreground transition-colors"
-            >
-              Receptionists
-            </Link>
-          )}
-        </div>
+        {sectionPills}
         <StoreTabs
           stores={branches}
           activeId={branchId}
