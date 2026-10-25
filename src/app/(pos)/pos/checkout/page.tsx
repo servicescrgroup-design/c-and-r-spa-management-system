@@ -4,6 +4,7 @@ import { getStaffBranches, getMyOpenDrawer, getWorkingBranch } from "@/lib/pos/s
 import { CheckoutCart } from "@/components/pos/checkout-cart";
 import { getFreelanceSessions } from "@/lib/pos/sale-actions";
 import { getFreeAtByStaff } from "@/lib/pos/free-at";
+import { businessDate } from "@/lib/business-day";
 
 export default async function CheckoutPage({
   searchParams,
@@ -86,7 +87,7 @@ export default async function CheckoutPage({
     supabase
       .from("therapist_clock_sessions")
       .select("staff_id, branch_id, status, current_room_id, current_bed_id, active_item_id, queue_position, clock_in_at, staff:staff_id(first_name, last_name), branch:branch_id(name)")
-      .eq("work_date", new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Bangkok" }).format(new Date()))
+      .eq("work_date", businessDate())
       .is("clock_out_at", null),
     supabase
       .from("branch_rooms")

@@ -6,6 +6,16 @@
  * added to a staff page.
  */
 export const TH: Record<string, string> = {
+  "Past bill (บิลย้อนหลัง)": "บิลย้อนหลัง",
+  "Massage started at": "เริ่มนวดเวลา",
+  "For massages that already happened. Pick who actually did each one; the queue and who is busy now don't matter. The bill, the daily report and therapist pay go on this date.": "สำหรับการนวดที่เกิดขึ้นไปแล้ว เลือกหมอที่นวดจริงในแต่ละรายการ ไม่ต้องสนใจคิวหรือใครกำลังนวดอยู่ตอนนี้ บิล รายงานประจำวัน และค่ามือหมอ จะลงเป็นของวันที่นี้",
+  "Type the date and the time the massage started.": "ใส่วันที่และเวลาที่เริ่มนวด",
+  "e.g. 15:30": "เช่น 15:30",
+  "Every massage on a past bill must be on the bill's date.": "ทุกรายการในบิลย้อนหลังต้องเป็นวันเดียวกับวันที่ของบิล",
+  "A past bill can go back up to 2 months.": "บิลย้อนหลังใส่ได้ไม่เกิน 2 เดือน",
+  "Who did this massage": "ใครเป็นคนนวด",
+  "Bill time": "เวลาบิล",
+  "bill time": "เวลาบิล",
   " job": " งาน",
   "(required for packages)": "(จำเป็นสำหรับแพ็กเกจ)",
   "(required)": "(จำเป็น)",

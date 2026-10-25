@@ -31,3 +31,19 @@ export function chainStarts(items: CartItem[], addOns: CartAddOn[]): CartItem[] 
   }
   return out;
 }
+
+/**
+ * Past bill: massages with no time of their own start at the bill's start
+ * time. A therapist with two such massages does them one after the other.
+ */
+export function fillPastStarts(items: CartItem[], addOns: CartAddOn[], pastStart: string | null): CartItem[] {
+  if (!pastStart) return items;
+  const cursor = new Map<string, number>();
+  return items.map((item, i) => {
+    if (item.itemType !== "service" || item.startAt || item.followsPrevious) return item;
+    const start = (item.staffId && cursor.get(item.staffId)) || new Date(pastStart).getTime();
+    const filled = { ...item, startAt: new Date(start).toISOString() };
+    if (item.staffId) cursor.set(item.staffId, lineEndMs(filled, i, addOns));
+    return filled;
+  });
+}

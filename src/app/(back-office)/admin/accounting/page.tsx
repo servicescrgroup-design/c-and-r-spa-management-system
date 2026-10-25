@@ -6,13 +6,14 @@ import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import Link from "next/link";
 import { formatCents } from "@/lib/utils";
+import { businessDate } from "@/lib/business-day";
 
 export default async function AccountingPage() {
   const ctx = await requireStaffContext();
   if (!isOwner(ctx)) redirect("/admin");
 
   const supabase = await createServerSupabaseClient();
-  const thisMonth = new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Bangkok" }).format(new Date()).slice(0, 7);
+  const thisMonth = businessDate().slice(0, 7);
   const [{ data: trialBalance }, { data: expenses }, { data: monthExpenses }] = await Promise.all([
     supabase.from("v_trial_balance").select("code, name, type, balance_cents").order("code"),
     supabase

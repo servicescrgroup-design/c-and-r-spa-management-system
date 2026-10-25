@@ -1,5 +1,6 @@
 import "server-only";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
+import { businessDate } from "@/lib/business-day";
 
 export type Shift = "opening" | "midday" | "closing";
 
@@ -33,14 +34,16 @@ export type ChecklistDay = {
   people: { id: string; name: string; workingToday: boolean }[];
 };
 
+/** Today's business date: the day runs 05:00 to 05:00, so 1am still counts as the night before. */
 export function bangkokToday(): string {
-  return new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Bangkok" }).format(new Date());
+  return businessDate();
 }
 
 /** Opening before 2pm, the 2pm check until 7pm, then closing. */
 export function defaultShift(): Shift {
   const hour = Number(new Intl.DateTimeFormat("en-GB", { timeZone: "Asia/Bangkok", hour: "2-digit", hour12: false }).format(new Date()));
-  return hour < 14 ? "opening" : hour < 19 ? "midday" : "closing";
+  // After midnight (before 05:00) it's still the night before's closing.
+  return hour < 5 ? "closing" : hour < 14 ? "opening" : hour < 19 ? "midday" : "closing";
 }
 
 export async function getChecklistDay(branchId: string, workDate: string, currentStaffId: string, includeInactive = false): Promise<ChecklistDay> {

@@ -5,12 +5,13 @@ import { useRouter } from "next/navigation";
 import { recordExpense } from "@/lib/admin/accounting-actions";
 import { addExpenseOption, recordPosExpense, type PosExpenseMethod } from "@/lib/pos/expense-actions";
 import { cn } from "@/lib/utils";
+import { businessDate } from "@/lib/business-day";
 
 type Option = { id: string; name: string };
 type Method = PosExpenseMethod | "payable";
 
 const ADD_NEW = "__add_new__";
-const today = () => new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Bangkok" }).format(new Date());
+const today = () => businessDate();
 
 /** A dropdown whose last option adds a new entry in place. */
 function PickOrAdd({

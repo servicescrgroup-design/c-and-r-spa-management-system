@@ -10,6 +10,7 @@ import { isOwner } from "@/lib/auth/roles";
 import { getRequiredDocumentTypes } from "@/lib/admin/org-actions";
 import { docLabel, type DocType } from "@/lib/staff-document-types";
 import type { Enums } from "@/types/database.types";
+import { businessDate, dayStart, dayEnd } from "@/lib/business-day";
 
 type ActionResult = { ok: true } | { ok: false; error: string };
 type TherapistStatus = Enums<"therapist_status">;
@@ -377,7 +378,7 @@ export type TherapistJob = {
 };
 
 function bangkokDate(date: Date): string {
-  return new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Bangkok" }).format(date);
+  return businessDate(date);
 }
 
 /** This week's (last 7 days) completed jobs for a therapist, with the branch
@@ -511,8 +512,8 @@ export async function getTherapistLifetimeStats(staffId: string): Promise<StaffL
   const lifetimeRevenueCents = all.reduce((sum, i) => sum + i.total_cents, 0);
 
   const period = semiMonthlyPeriod(new Date());
-  const periodStartMs = new Date(`${period.start}T00:00:00+07:00`).getTime();
-  const periodEndExclusiveMs = new Date(`${period.end}T00:00:00+07:00`).getTime() + 86_400_000;
+  const periodStartMs = dayStart(period.start).getTime();
+  const periodEndExclusiveMs = dayEnd(period.end).getTime();
 
   const periodItems = all.filter((i) => {
     const t = new Date(i.completed_at!).getTime();

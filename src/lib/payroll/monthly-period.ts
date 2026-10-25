@@ -3,6 +3,8 @@
  * (the business's cut-off), not calendar months. Dates are YYYY-MM-DD strings
  * and all arithmetic is done in UTC so a period never shifts by a day.
  */
+import { businessDate } from "@/lib/business-day";
+
 export const PERIOD_START_DAY = 26;
 
 function toIso(d: Date): string {
@@ -50,5 +52,5 @@ export function periodLabel(startIso: string, endIso: string): string {
 
 /** Today's date in Bangkok as YYYY-MM-DD. */
 export function todayBangkok(): string {
-  return new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Bangkok" }).format(new Date());
+  return businessDate();
 }

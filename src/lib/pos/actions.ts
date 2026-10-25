@@ -9,6 +9,7 @@ import { isOwner } from "@/lib/auth/roles";
 import { expectedCash, getDrawerCash } from "@/lib/pos/drawer-cash";
 import { getStaffConflicts } from "@/lib/admin/calendar-data";
 import { ACTIVE_DRAWER_COOKIE } from "@/lib/pos/active-drawer";
+import { businessDate } from "@/lib/business-day";
 
 /** Remember which drawer this person is selling from, for when they have more than one. */
 async function rememberDrawer(drawerSessionId: string) {
@@ -231,10 +232,13 @@ export async function closeDrawer(formData: FormData): Promise<ActionResult> {
 
   revalidatePath("/pos");
   // Straight to the day's report for this store.
-  const shiftDate = new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Bangkok" }).format(new Date(session.opened_at));
+  const shiftDate = businessDate(session.opened_at);
   const branchId = session.pos_registers?.branch_id;
   redirect(branchId ? `/pos/report?branchId=${branchId}&date=${shiftDate}&closed=1` : "/pos/register");
 }
+
+const hhmm = (iso: string) =>
+  new Intl.DateTimeFormat("en-GB", { timeZone: "Asia/Bangkok", hour: "2-digit", minute: "2-digit", hour12: false }).format(new Date(iso));
 
 export type CartItem = {
   itemType: "service" | "product" | "package";
@@ -294,6 +298,8 @@ export async function checkoutSale(input: {
   depositAppointmentId?: string | null;
   /** Checking out a booking (deposit or not): the sale is linked to it and it's marked completed. */
   appointmentId?: string | null;
+  /** Past bill: massages that already happened, today or an earlier day. Lines with no time of their own start here (ISO). */
+  pastStartAt?: string | null;
 }): Promise<ActionResult & { transactionId?: string; customerRef?: string | null }> {
   const ctx = await requireStaffContext();
   if (input.items.length === 0) {
@@ -363,7 +369,7 @@ export async function checkoutSale(input: {
         // Only today's: a check-in left open from yesterday must not take today's massages.
         .select("id, staff_id, status, active_item_id, staff:staff_id(first_name)")
         .in("staff_id", staffIds)
-        .eq("work_date", new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Bangkok" }).format(new Date()))
+        .eq("work_date", businessDate())
         .is("clock_out_at", null)
     : { data: [] };
   const sessionByStaff = new Map((openSessions ?? []).map((sess) => [sess.staff_id, sess]));
@@ -371,6 +377,25 @@ export async function checkoutSale(input: {
   // Each massage runs from its start for its minutes plus its add-ons. Several
   // massages for one therapist that all start "now" run back to back.
   const now = new Date();
+  const pastStart = input.pastStartAt ? new Date(input.pastStartAt) : null;
+  if (pastStart && (Number.isNaN(pastStart.getTime()) || pastStart.getTime() > now.getTime() + 60_000)) {
+    return { ok: false, error: "A past bill's start time must be earlier than now." };
+  }
+  const bangkokDay = (d: Date) => businessDate(d);
+  // A past bill can go back two months (a full pay month and then some); a normal sale one day.
+  const earliest = now.getTime() - (pastStart ? 62 : 1) * 24 * 3600_000;
+  if (pastStart && pastStart.getTime() < earliest) return { ok: false, error: "A past bill can go back up to 2 months." };
+  // A bill for an earlier day is dated that day: its number, the daily report and the books.
+  const pastDay = pastStart && bangkokDay(pastStart) !== bangkokDay(now) ? bangkokDay(pastStart) : null;
+  if (pastDay) {
+    const { data: locked } = await supabase
+      .from("payroll_day_locks")
+      .select("work_date")
+      .eq("branch_id", input.branchId)
+      .eq("work_date", pastDay)
+      .maybeSingle();
+    if (locked) return { ok: false, error: `Payroll for ${pastDay} is locked. Unlock that day on the Payroll page first, then add the bill.` };
+  }
   const lineStart = new Map<number, Date>();
   const lineEnd = new Map<number, Date>();
   const cursorByStaff = new Map<string, Date>();
@@ -381,17 +406,62 @@ export async function checkoutSale(input: {
     const afterPrevious = item.followsPrevious && previousIndex !== null ? lineEnd.get(previousIndex)! : null;
     let start = afterPrevious ?? (item.startAt ? new Date(item.startAt) : null);
     if (start && Number.isNaN(start.getTime())) return { ok: false, error: "A start time isn't valid." };
-    // An earlier time is allowed (filled in after a busy rush), up to 24 hours back.
-    if (start && start.getTime() < now.getTime() - 24 * 3600_000) return { ok: false, error: "A start time can't be more than a day ago." };
-    if (!start) start = cursorByStaff.get(item.staffId!) ?? now;
+    // An earlier time is allowed (filled in after a busy rush), up to a day back, or further on a past bill.
+    if (start && start.getTime() < earliest) {
+      return { ok: false, error: pastStart ? "A start time can't be more than 2 months ago." : "A start time can't be more than a day ago. Use Past bill." };
+    }
+    if (pastDay && start && bangkokDay(start) !== pastDay && !afterPrevious) {
+      return { ok: false, error: "Every massage on a past bill must be on the bill's date." };
+    }
+    if (!start) start = cursorByStaff.get(item.staffId!) ?? pastStart ?? now;
     const end = new Date(start.getTime() + ((item.durationMinutes ?? 60) + extra) * 60_000);
     lineStart.set(index, start);
     lineEnd.set(index, end);
     if (!item.startAt || afterPrevious) cursorByStaff.set(item.staffId!, end);
     previousIndex = index;
   }
+  // A massage that has already finished is a record of what happened: who is
+  // busy now, or a booking left open, doesn't block it. It only can't overlap
+  // another massage already recorded for that therapist.
+  const finished = (index: number) => lineEnd.get(index)!.getTime() <= now.getTime();
+  const finishedLines = serviceLines.filter(({ index }) => finished(index));
+  if (finishedLines.length > 0) {
+    const earliest = Math.min(...finishedLines.map(({ index }) => lineStart.get(index)!.getTime()));
+    const latest = Math.max(...finishedLines.map(({ index }) => lineEnd.get(index)!.getTime()));
+    const { data: recorded } = await supabase
+      .from("pos_transaction_items")
+      .select("transaction_id, staff_id, start_at, duration_minutes, transaction:transaction_id!inner(status, customer_ref)")
+      .in("staff_id", Array.from(new Set(finishedLines.map(({ item }) => item.staffId!))))
+      .eq("item_type", "service")
+      .not("start_at", "is", null)
+      .in("transaction.status", ["completed", "partially_refunded"])
+      .gte("start_at", new Date(earliest - 12 * 3600_000).toISOString())
+      .lt("start_at", new Date(latest).toISOString());
+    // Add-ons share their massage's start, so one massage = one start per bill and therapist.
+    const jobs = new Map<string, { staffId: string; start: number; minutes: number; ref: string | null }>();
+    for (const r of recorded ?? []) {
+      const key = `${r.transaction_id}|${r.staff_id}|${r.start_at}`;
+      const job = jobs.get(key) ?? { staffId: r.staff_id!, start: new Date(r.start_at!).getTime(), minutes: 0, ref: r.transaction?.customer_ref ?? null };
+      job.minutes += r.duration_minutes ?? 0;
+      jobs.set(key, job);
+    }
+    for (const { item, index } of finishedLines) {
+      const s = lineStart.get(index)!.getTime();
+      const e = lineEnd.get(index)!.getTime();
+      const clash = Array.from(jobs.values()).find((j) => j.staffId === item.staffId && j.start < e && j.start + (j.minutes || 60) * 60_000 > s);
+      if (clash) {
+        const { data: who } = await supabase.from("staff").select("first_name").eq("id", item.staffId!).maybeSingle();
+        const until = new Date(clash.start + (clash.minutes || 60) * 60_000).toISOString();
+        return {
+          ok: false,
+          error: `${who?.first_name ?? "That therapist"} already has a massage recorded ${hhmm(new Date(clash.start).toISOString())}–${hhmm(until)}${clash.ref ? ` on bill ${clash.ref}` : ""}. Check the time or the therapist.`,
+        };
+      }
+    }
+  }
   // Each therapist must be free for each massage's own time slot.
   for (const { item, index } of serviceLines) {
+    if (finished(index)) continue;
     const reason = (await getStaffConflicts([item.staffId!], lineStart.get(index)!.toISOString(), lineEnd.get(index)!.toISOString())).get(item.staffId!);
     if (reason) {
       const who = sessionByStaff.get(item.staffId!)?.staff?.first_name ?? "A therapist";
@@ -443,7 +513,11 @@ export async function checkoutSale(input: {
       : Promise.resolve({ data: [] as { current_bed_id: string | null }[] }),
   ]);
   const bedRoom = new Map((bedRows ?? []).map((b) => [b.id, b.room_id]));
-  if ((takenBeds ?? []).length > 0) return { ok: false, error: "A chosen bed is already in use. Pick another one." };
+  // A bed in use right now only matters for a massage that hasn't finished yet.
+  const liveBeds = new Set(serviceLines.filter(({ index }) => !finished(index)).map(({ item }) => placeFor(item).bedId).filter(Boolean));
+  if ((takenBeds ?? []).some((b) => b.current_bed_id && liveBeds.has(b.current_bed_id))) {
+    return { ok: false, error: "A chosen bed is already in use. Pick another one." };
+  }
   for (const item of serviceItems) {
     const place = placeFor(item);
     if (place.bedId) {
@@ -498,9 +572,14 @@ export async function checkoutSale(input: {
     };
   }
 
+  // A past-day bill is timed when its last massage ended.
+  const billAt = pastDay
+    ? new Date(Math.min(now.getTime(), Math.max(pastStart!.getTime(), ...Array.from(lineEnd.values()).map((d) => d.getTime()))))
+    : null;
   const { data: txn, error: txnError } = await supabase
     .from("pos_transactions")
     .insert({
+      ...(billAt ? { created_at: billAt.toISOString() } : {}),
       org_id: org.id,
       branch_id: input.branchId,
       register_id: drawerSession.register_id,
@@ -543,7 +622,9 @@ export async function checkoutSale(input: {
         freelance_session_id: freelancer?.id ?? null,
         // Freelancers are paid in cash on the spot and their job counts as done.
         freelancer_paid: Boolean(freelancer),
-        completed_at: freelancer ? nowIso : null,
+        // A massage that has already finished is done at its end time (the scheduler
+        // only looks at bills from the last day, so a past-day bill must say so itself).
+        completed_at: freelancer ? nowIso : item.itemType === "service" && item.staffId && lineEnd.has(index) && finished(index) ? lineEnd.get(index)!.toISOString() : null,
         customer_name: item.itemType === "service" ? item.customerName?.trim() || null : null,
         room_id: item.itemType === "service" ? (item.roomId ?? null) : null,
         bed_id: item.itemType === "service" ? (item.bedId ?? null) : null,
@@ -580,7 +661,11 @@ export async function checkoutSale(input: {
           staff_id: lineFreelancer ? null : line.staffId,
           freelance_session_id: lineFreelancer?.id ?? null,
           freelancer_paid: Boolean(lineFreelancer),
-          completed_at: lineFreelancer ? nowIso : null,
+          completed_at: lineFreelancer
+            ? nowIso
+            : line.staffId && lineEnd.has(a.lineIndex) && finished(a.lineIndex)
+              ? lineEnd.get(a.lineIndex)!.toISOString()
+              : null,
           customer_name: line.customerName?.trim() || null,
           room_id: line.roomId ?? null,
           bed_id: line.bedId ?? null,

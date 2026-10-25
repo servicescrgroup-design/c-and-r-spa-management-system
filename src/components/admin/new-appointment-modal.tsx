@@ -225,6 +225,7 @@ export function NewAppointmentModal({
   }, [open, branchId]);
 
   const startMs = useMemo(() => new Date(`${date}T${time}:00+07:00`).getTime(), [date, time]);
+  const [openedAt] = useState(() => Date.now());
 
   // Each guest's massages run back to back; the booking lasts as long as the longest guest.
   const guestMinutes = guests.map((g) => g.massages.reduce((n, m) => n + (m.durationMinutes ?? 0), 0));
@@ -379,6 +380,16 @@ export function NewAppointmentModal({
               <Input type="time" value={time} onChange={(e) => setTime(e.target.value)} />
             </div>
           </div>
+          {startMs < openedAt && (
+            <p className="rounded-lg bg-highlight/10 px-3 py-2 text-xs">
+              This time has already passed. A booking checks who is free, so a therapist booked then can&apos;t be picked. To
+              record massages that already happened, use{" "}
+              <a href="/pos/checkout" className="font-medium text-primary underline">
+                Checkout → Past bill (บิลย้อนหลัง)
+              </a>{" "}
+              and pick who actually did each one.
+            </p>
+          )}
 
           {guests.map((guest, g) => (
             <div key={guest.key} className="space-y-3 rounded-2xl bg-muted/50 p-4">

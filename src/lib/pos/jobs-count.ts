@@ -1,5 +1,6 @@
 import "server-only";
 import type { createServerSupabaseClient } from "@/lib/supabase/server";
+import { dayStart } from "@/lib/business-day";
 
 type Supabase = Awaited<ReturnType<typeof createServerSupabaseClient>>;
 
@@ -9,7 +10,7 @@ type Supabase = Awaited<ReturnType<typeof createServerSupabaseClient>>;
  * shows this instead of a running tally, so it always matches the Sales page.
  */
 export async function countTodaysJobs(supabase: Supabase, workDate: string) {
-  const start = new Date(`${workDate}T00:00:00+07:00`);
+  const start = dayStart(workDate);
   const end = new Date(start.getTime() + 86_400_000);
   const { data } = await supabase
     .from("pos_transaction_items")

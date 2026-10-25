@@ -427,7 +427,7 @@ export function BookingFlow({
                       className="relative flex-[3] bg-cover bg-center"
                       style={
                         c.image_url
-                          ? { backgroundImage: `linear-gradient(180deg, rgba(47,74,63,0.15), rgba(30,50,42,0.55)), url(${c.image_url})` }
+                          ? { backgroundImage: `linear-gradient(180deg, rgba(0,0,0,0), rgba(0,0,0,0.12)), url(${c.image_url})` }
                           : c.background_color
                             ? { backgroundColor: c.background_color }
                             : { backgroundImage: "linear-gradient(160deg, #7fa085 0%, #4c6b52 55%, #2f4a3f 100%)" }

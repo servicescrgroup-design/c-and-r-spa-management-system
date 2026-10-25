@@ -12,9 +12,12 @@ import { MonthlyPayBoard } from "@/components/admin/monthly-pay-board";
 import { getMonthlyPaySheet } from "@/lib/admin/monthly-payroll-actions";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
+import { businessDate } from "@/lib/business-day";
 
+/** Today's business date (05:00 to 05:00): a shift running past midnight stays on the day it started. */
 function workDateFor(timezone: string): string {
-  return new Intl.DateTimeFormat("en-CA", { timeZone: timezone }).format(new Date());
+  void timezone;
+  return businessDate();
 }
 
 function monthRange(month: string): { start: string; end: string } {

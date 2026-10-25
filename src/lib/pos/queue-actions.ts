@@ -6,6 +6,7 @@ import { countTodaysJobs } from "@/lib/pos/jobs-count";
 import { requireStaffContext } from "@/lib/auth/session";
 import { hasBranchRole, isOwner } from "@/lib/auth/roles";
 import type { Enums } from "@/types/database.types";
+import { businessDate, businessDateAt, dayStart } from "@/lib/business-day";
 
 type ActionResult = { ok: true } | { ok: false; error: string };
 type ClockStatus = Enums<"clock_status">;
@@ -17,9 +18,10 @@ function canOperateQueue(ctx: Awaited<ReturnType<typeof requireStaffContext>>, b
   );
 }
 
-/** Today's date in the branch's own timezone, not the server's. */
+/** Today's business date (05:00 to 05:00): a shift running past midnight stays on the day it started. */
 function workDateFor(timezone: string): string {
-  return new Intl.DateTimeFormat("en-CA", { timeZone: timezone }).format(new Date());
+  void timezone;
+  return businessDate();
 }
 
 export type QueueEntry = {
@@ -536,7 +538,7 @@ export async function clearTodayShift(staffId: string): Promise<ActionResult> {
     .from("pos_transaction_items")
     .select("id, pos_transactions!inner(created_at)")
     .eq("staff_id", staffId)
-    .gte("pos_transactions.created_at", `${workDate}T00:00:00+07:00`)
+    .gte("pos_transactions.created_at", dayStart(workDate).toISOString())
     .limit(1);
   if ((sold ?? []).length > 0) {
     return { ok: false, error: "They have a sale today, so the shift stays. They can check back in at the same store." };
@@ -584,7 +586,7 @@ export async function editCheckInTime(branchId: string, sessionId: string, time:
     .maybeSingle();
   if (!session || session.branch_id !== branchId) return { ok: false, error: "Check-in not found." };
 
-  const newAt = new Date(`${session.work_date}T${time}:00+07:00`);
+  const newAt = businessDateAt(session.work_date, time);
   if (newAt.getTime() > Date.now() + 60_000) return { ok: false, error: "The check-in time can't be in the future." };
   if (session.clock_out_at && newAt >= new Date(session.clock_out_at)) {
     return { ok: false, error: "The check-in time must be before they clocked out." };
