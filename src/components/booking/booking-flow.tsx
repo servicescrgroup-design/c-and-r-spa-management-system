@@ -527,7 +527,8 @@ export function BookingFlow({
                           <img
                             src={service.image_url}
                             alt=""
-                            className="h-8 w-8 shrink-0 rounded-lg object-cover"
+                            loading="lazy"
+                            className="h-16 w-16 shrink-0 rounded-xl object-cover sm:h-20 sm:w-20"
                             onError={() => setBrokenImages((prev) => new Set(prev).add(service.id))}
                           />
                         ) : service.background_color ? (
