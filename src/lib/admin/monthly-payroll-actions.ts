@@ -106,6 +106,7 @@ type StaffRow = {
   id: string;
   first_name: string;
   last_name: string;
+  email: string;
   employment_status: string;
   monthly_salary_cents: number | null;
   daily_rate_cents: number | null;
@@ -120,7 +121,7 @@ async function loadStaff(supabase: Supabase): Promise<StaffRow[]> {
   const { data } = await supabase
     .from("staff")
     .select(
-      "id, first_name, last_name, employment_status, monthly_salary_cents, daily_rate_cents, ot_rate_cents, deposit_monthly_cents, staff_branch_roles(role)",
+      "id, first_name, last_name, email, employment_status, monthly_salary_cents, daily_rate_cents, ot_rate_cents, deposit_monthly_cents, staff_branch_roles(role)",
     )
     .order("first_name");
   return (data ?? []) as StaffRow[];
@@ -139,8 +140,8 @@ async function loadDepositTotals(supabase: Supabase): Promise<Map<string, Deposi
   return totals;
 }
 
-function staffName(s: { first_name: string; last_name: string }): string {
-  return `${s.first_name} ${s.last_name}`.trim();
+function staffName(s: { first_name: string; last_name: string; email?: string }): string {
+  return `${s.first_name} ${s.last_name}`.trim() || s.email?.split("@")[0] || "Unnamed";
 }
 
 /** What a fresh line looks like for this person: salary from their pay
@@ -150,7 +151,8 @@ function prefill(s: StaffRow, deposit: DepositTotals | undefined) {
   const charged = deposit?.charged ?? 0;
   const held = deposit?.held ?? 0;
   const owed = charged - held;
-  const depositCents = charged > 0 ? Math.max(0, Math.min(s.deposit_monthly_cents, owed)) : s.deposit_monthly_cents;
+  const hasPay = Boolean(s.monthly_salary_cents || s.daily_rate_cents);
+  const depositCents = !hasPay ? 0 : charged > 0 ? Math.max(0, Math.min(s.deposit_monthly_cents, owed)) : s.deposit_monthly_cents;
   return {
     staff_id: s.id,
     pay_basis: payBasis,

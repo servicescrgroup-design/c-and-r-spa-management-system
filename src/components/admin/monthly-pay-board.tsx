@@ -38,7 +38,9 @@ const STATUS_CLASS: Record<PayLineStatus, string> = {
   on_hold: "bg-destructive/10 text-destructive",
 };
 
-const CELL = "h-9 w-full rounded-lg border border-border bg-card px-2 text-right text-sm tabular-nums focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-ring/20";
+const CELL = "h-9 rounded-lg border border-border bg-card px-2 text-right text-sm tabular-nums focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-ring/20";
+const MONEY = "w-[5.5rem]";
+const SMALL = "w-14";
 const SELECT = "h-9 rounded-lg border border-border bg-card px-2 text-sm focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-ring/20";
 
 function baht(cents: number): string {
@@ -163,7 +165,7 @@ function LineRow({ line, staff }: { line: MonthlyPayLine; staff: StaffPayOption 
     router.refresh();
   }
 
-  const num = (key: keyof Draft, step = "1", extra?: string) => (
+  const num = (key: keyof Draft, step = "1", extra = MONEY) => (
     <input
       type="number"
       inputMode="decimal"
@@ -199,7 +201,7 @@ function LineRow({ line, staff }: { line: MonthlyPayLine; staff: StaffPayOption 
         </td>
         <td className="py-2 pr-2">{num("base", "0.01")}</td>
         <td className="py-2 pr-2">
-          {num("daysWorked", "0.5")}
+          {num("daysWorked", "0.5", SMALL)}
           {staff && staff.clockDays > 0 && (
             <button
               type="button"
@@ -211,8 +213,8 @@ function LineRow({ line, staff }: { line: MonthlyPayLine; staff: StaffPayOption 
             </button>
           )}
         </td>
-        <td className="py-2 pr-2">{num("daysMissed", "0.5")}</td>
-        <td className="py-2 pr-2">{num("otHours", "0.25")}</td>
+        <td className="py-2 pr-2">{num("daysMissed", "0.5", SMALL)}</td>
+        <td className="py-2 pr-2">{num("otHours", "0.25", SMALL)}</td>
         <td className="py-2 pr-2">{num("ot", "0.01")}</td>
         <td className="py-2 pr-2">{num("bonus", "0.01")}</td>
         <td className="py-2 pr-2">{num("deductions", "0.01")}</td>
@@ -458,7 +460,7 @@ function PaySettingsRow({ s }: { s: StaffPayOption }) {
   }
 
   const money = (value: string, onChange: (v: string) => void) => (
-    <input type="number" inputMode="decimal" step="0.01" min="0" value={value} onChange={(e) => onChange(e.target.value)} className={CELL} />
+    <input type="number" inputMode="decimal" step="0.01" min="0" value={value} onChange={(e) => onChange(e.target.value)} className={cn(CELL, MONEY)} />
   );
 
   return (
@@ -635,7 +637,7 @@ export function MonthlyPayBoard({ sheet, branchId }: { sheet: MonthlyPaySheet; b
                 <p className="text-sm text-muted-foreground">Nobody on this sheet yet. Add someone below.</p>
               ) : (
                 <div className="overflow-x-auto">
-                  <table className="w-full min-w-[1100px] text-sm">
+                  <table className="w-full min-w-[960px] text-sm">
                     <thead className="text-left text-xs text-muted-foreground">
                       <tr>
                         <th className="pb-2 pr-2 font-medium">Staff</th>
