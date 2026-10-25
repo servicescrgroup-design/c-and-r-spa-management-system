@@ -516,7 +516,7 @@ export function BookingFlow({
                         />
                         {service.image_url ? (
                           // eslint-disable-next-line @next/next/no-img-element
-                          <img src={service.image_url} alt="" className="h-8 w-8 shrink-0 rounded-lg object-cover" />
+                          <img src={service.image_url} alt="" loading="lazy" className="h-16 w-16 shrink-0 rounded-xl object-cover sm:h-20 sm:w-20" />
                         ) : service.background_color ? (
                           <span
                             className="h-8 w-8 shrink-0 rounded-lg"
