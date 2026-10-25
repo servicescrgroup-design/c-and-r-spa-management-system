@@ -170,8 +170,9 @@ const DICT: Record<BaseLang, Record<string, string>> = {
   },
 };
 
-function todayIso() {
-  return new Date().toISOString().slice(0, 10);
+/** Today's date where the store is, not where the guest's phone is set. */
+function todayIso(timezone: string) {
+  return new Intl.DateTimeFormat("en-CA", { timeZone: timezone }).format(new Date());
 }
 
 function optionsFor(service: Service): PriceOption[] {
@@ -186,6 +187,7 @@ export function BookingFlow({
   categories,
   depositRequired,
   extraLanguages = [],
+  timezone = "Asia/Bangkok",
 }: {
   branchId: string;
   services: Service[];
@@ -193,11 +195,16 @@ export function BookingFlow({
   depositRequired: boolean;
   /** Menu languages the owner added in the back office. */
   extraLanguages?: string[];
+  /** The store's time zone: every time on the page is shown in it, so a guest
+   * booking from abroad sees the store's clock, not their phone's. */
+  timezone?: string;
 }) {
   const [lang, setLang] = useState<Lang>("en");
   const [categoryId, setCategoryId] = useState<string | "all" | null>(categories.length > 0 ? null : "all");
   const [selections, setSelections] = useState<Record<string, Selection>>({});
-  const [date, setDate] = useState(todayIso());
+  const [date, setDate] = useState(() => todayIso(timezone));
+  // Service photos that failed to load fall back to the colour swatch.
+  const [brokenImages, setBrokenImages] = useState<Set<string>>(() => new Set());
   const [slots, setSlots] = useState<string[] | null>(null);
   const [selectedSlot, setSelectedSlot] = useState<string | null>(null);
   const [loadingSlots, setLoadingSlots] = useState(false);
@@ -392,6 +399,7 @@ export function BookingFlow({
                 day: "numeric",
                 hour: "numeric",
                 minute: "2-digit",
+                timeZone: timezone,
               })}
             </CardDescription>
           </CardHeader>
@@ -514,9 +522,14 @@ export function BookingFlow({
                           onChange={() => toggleService(service)}
                           className="sr-only"
                         />
-                        {service.image_url ? (
+                        {service.image_url && !brokenImages.has(service.id) ? (
                           // eslint-disable-next-line @next/next/no-img-element
-                          <img src={service.image_url} alt="" className="h-8 w-8 shrink-0 rounded-lg object-cover" />
+                          <img
+                            src={service.image_url}
+                            alt=""
+                            className="h-8 w-8 shrink-0 rounded-lg object-cover"
+                            onError={() => setBrokenImages((prev) => new Set(prev).add(service.id))}
+                          />
                         ) : service.background_color ? (
                           <span
                             className="h-8 w-8 shrink-0 rounded-lg"
@@ -584,7 +597,7 @@ export function BookingFlow({
                 <Input
                   id="date"
                   type="date"
-                  min={todayIso()}
+                  min={todayIso(timezone)}
                   value={date}
                   onChange={(e) => {
                     setDate(e.target.value);
@@ -612,7 +625,7 @@ export function BookingFlow({
                         : "border-border",
                     )}
                   >
-                    {new Date(slot).toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" })}
+                    {new Date(slot).toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit", timeZone: timezone })}
                   </button>
                 ))}
                 {slots.length === 0 && <p className="text-sm text-muted-foreground">{t.noOpenings}</p>}

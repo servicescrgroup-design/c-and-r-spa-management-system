@@ -11,7 +11,7 @@ export default async function BranchBookingPage({
   const supabase = await createServerSupabaseClient();
   const { data: branch } = await supabase
     .from("branches")
-    .select("id, org_id, name, address, phone, deposit_required")
+    .select("id, org_id, name, address, phone, deposit_required, timezone")
     .eq("slug", branchSlug)
     .eq("is_active", true)
     .eq("booking_enabled", true)
@@ -54,6 +54,7 @@ export default async function BranchBookingPage({
         categories={categories ?? []}
         depositRequired={branch.deposit_required}
         extraLanguages={site.service_languages}
+        timezone={branch.timezone}
       />
     </main>
   );
