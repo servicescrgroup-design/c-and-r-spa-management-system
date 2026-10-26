@@ -48,16 +48,14 @@ export function BranchOrderTabs({
 
   function handleDrop(targetId: string) {
     if (!dragId || dragId === targetId) return;
-    setOrder((prev) => {
-      const next = [...prev];
-      const fromIndex = next.findIndex((b) => b.id === dragId);
-      const toIndex = next.findIndex((b) => b.id === targetId);
-      const [moved] = next.splice(fromIndex, 1);
-      next.splice(toIndex, 0, moved);
-      void persist(next);
-      return next;
-    });
+    const next = [...order];
+    const fromIndex = next.findIndex((b) => b.id === dragId);
+    const toIndex = next.findIndex((b) => b.id === targetId);
+    const [moved] = next.splice(fromIndex, 1);
+    next.splice(toIndex, 0, moved);
+    setOrder(next);
     setDragId(null);
+    void persist(next);
   }
 
   async function persist(next: Branch[]) {

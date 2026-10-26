@@ -235,15 +235,13 @@ export function RegistersManager({
   }
 
   function moveTo(fromId: string, toIndex: number) {
-    setOrder((prev) => {
-      const fromIndex = prev.findIndex((r) => r.id === fromId);
-      if (fromIndex < 0 || toIndex < 0 || toIndex >= prev.length || fromIndex === toIndex) return prev;
-      const next = [...prev];
-      const [moved] = next.splice(fromIndex, 1);
-      next.splice(toIndex, 0, moved);
-      void persistOrder(next);
-      return next;
-    });
+    const fromIndex = order.findIndex((r) => r.id === fromId);
+    if (fromIndex < 0 || toIndex < 0 || toIndex >= order.length || fromIndex === toIndex) return;
+    const next = [...order];
+    const [moved] = next.splice(fromIndex, 1);
+    next.splice(toIndex, 0, moved);
+    setOrder(next);
+    void persistOrder(next);
   }
 
   async function add() {
@@ -340,16 +338,14 @@ export function RegisterStoreCards({ stores, canReorderStores }: { stores: Store
 
   function drop(targetId: string) {
     if (!dragId || dragId === targetId) return;
-    setOrder((prev) => {
-      const next = [...prev];
-      const from = next.findIndex((s) => s.id === dragId);
-      const to = next.findIndex((s) => s.id === targetId);
-      const [moved] = next.splice(from, 1);
-      next.splice(to, 0, moved);
-      void setBranchOrder(next.map((s) => s.id)).then(() => router.refresh());
-      return next;
-    });
+    const next = [...order];
+    const from = next.findIndex((s) => s.id === dragId);
+    const to = next.findIndex((s) => s.id === targetId);
+    const [moved] = next.splice(from, 1);
+    next.splice(to, 0, moved);
+    setOrder(next);
     setDragId(null);
+    void setBranchOrder(next.map((s) => s.id)).then(() => router.refresh());
   }
 
   return (
