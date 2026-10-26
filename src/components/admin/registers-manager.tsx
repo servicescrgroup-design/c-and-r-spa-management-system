@@ -29,6 +29,7 @@ type Reorder = {
   count: number;
   dragging: boolean;
   onDragStart: () => void;
+  onDragEnd: () => void;
   onDrop: () => void;
   onMove: (delta: -1 | 1) => void;
 };
@@ -99,12 +100,28 @@ function RegisterRow({ register, openSession, reorder }: { register: Register; o
   return (
     <li
       draggable={Boolean(reorder)}
-      onDragStart={reorder?.onDragStart}
-      onDragOver={reorder ? (e) => e.preventDefault() : undefined}
+      onDragStart={
+        reorder
+          ? (e) => {
+              e.stopPropagation();
+              reorder.onDragStart();
+            }
+          : undefined
+      }
+      onDragEnd={reorder ? () => reorder.onDragEnd() : undefined}
+      onDragOver={
+        reorder
+          ? (e) => {
+              e.preventDefault();
+              e.stopPropagation();
+            }
+          : undefined
+      }
       onDrop={
         reorder
           ? (e) => {
               e.preventDefault();
+              e.stopPropagation();
               reorder.onDrop();
             }
           : undefined
@@ -271,6 +288,7 @@ export function RegistersManager({
                       count: active.length,
                       dragging: dragId === r.id,
                       onDragStart: () => setDragId(r.id),
+                      onDragEnd: () => setDragId(null),
                       onDrop: () => {
                         if (dragId) moveTo(dragId, index);
                         setDragId(null);
@@ -357,6 +375,7 @@ export function RegisterStoreCards({ stores, canReorderStores }: { stores: Store
             key={store.id}
             draggable={canReorderStores}
             onDragStart={canReorderStores ? () => setDragId(store.id) : undefined}
+            onDragEnd={canReorderStores ? () => setDragId(null) : undefined}
             onDragOver={canReorderStores ? (e) => e.preventDefault() : undefined}
             onDrop={
               canReorderStores
